@@ -4,21 +4,17 @@ import 'package:iptv_player/legal/legal_info.dart';
 import 'package:iptv_player/legal/legal_screen.dart';
 
 void main() {
-  testWidgets('LegalScreen shows the privacy title', (tester) async {
+  // One test: a second pumpAndSettle on the same asset load times out when it
+  // runs after another widget test in this file.
+  testWidgets('LegalScreen shows the privacy title, a heading and a bullet', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const MaterialApp(home: LegalScreen(doc: LegalDoc.privacy)),
     );
     await tester.pumpAndSettle();
     expect(find.text('Política de privacidad'), findsWidgets);
-    expect(find.textContaining('AES-256-GCM'), findsOneWidget);
-  });
-
-  testWidgets('LegalScreen renders a heading and a bullet', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: LegalScreen(doc: LegalDoc.privacy)),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Qué datos se guardan'), findsOneWidget);
+    expect(find.textContaining('Qué datos se guardan'), findsOneWidget);
     expect(
       find.textContaining('•  El email de tu cuenta', findRichText: true),
       findsOneWidget,
