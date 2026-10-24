@@ -130,6 +130,38 @@ void main() {
     expect(text, contains('/live/demo/demo/1.ts'));
   });
 
+  test(
+    'links follow the Host the client used (10.0.2.2 from the emulator)',
+    () async {
+      final host = '10.0.2.2:${server.baseUrl.port}';
+      Future<String> getAs(String path) async {
+        final request = await client.getUrl(server.baseUrl.resolve(path));
+        request.headers.host = '10.0.2.2';
+        request.headers.port = server.baseUrl.port;
+        final response = await request.close();
+        return utf8.decode(
+          await response.fold<List<int>>([], (a, b) => a..addAll(b)),
+        );
+      }
+
+      final playlist = await getAs('/playlist.m3u');
+      expect(playlist, contains('url-tvg="http://$host/xmltv.php'));
+      expect(playlist, contains('tvg-logo="http://$host/img/'));
+      expect(playlist, contains('http://$host/live/demo/demo/1.ts'));
+      expect(playlist, isNot(contains('127.0.0.1')));
+
+      final streams = jsonDecode(await getAs(api('get_live_streams'))) as List;
+      expect(
+        (streams.first as Map)['stream_icon'],
+        startsWith('http://$host/img/'),
+      );
+      final info = jsonDecode(
+        await getAs('/player_api.php?username=demo&password=demo'),
+      ) as Map;
+      expect((info['server_info'] as Map)['url'], '10.0.2.2');
+    },
+  );
+
   /// Opens a GET on [path], returning the response without reading its body.
   Future<HttpClientResponse> open(String path, {String? range}) async {
     final request = await client.getUrl(server.baseUrl.resolve(path));

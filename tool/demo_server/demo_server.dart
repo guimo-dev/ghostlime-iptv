@@ -79,10 +79,13 @@ class DemoServer {
     final response = request.response;
     final segments = request.uri.pathSegments;
     final first = segments.isEmpty ? '' : segments.first;
+    // Links point back to the address the client used (10.0.2.2 from the
+    // Android emulator), not to this machine's loopback.
+    final origin = request.requestedUri.origin;
     if (request.uri.path == '/player_api.php') {
-      _writeJson(response, _playerApi(request.uri.queryParameters));
+      _writeJson(response, _playerApi(request.uri.queryParameters, origin));
     } else if (request.uri.path == '/playlist.m3u') {
-      _writeText(response, 'audio/x-mpegurl', _playlist());
+      _writeText(response, 'audio/x-mpegurl', _playlist(origin));
     } else if (request.uri.path == '/xmltv.php') {
       _writeText(response, 'application/xml', _xmltv());
     } else if (first == 'img' && segments.length == 2) {
@@ -219,11 +222,12 @@ class DemoServer {
     response.add(bytes);
   }
 
-  /// Poster URL of the item numbered [id].
-  String _image(int id) => '${baseUrl.origin}/img/$id.png';
+  /// Poster URL of the item numbered [id] on the server at [origin].
+  String _image(String origin, int id) => '$origin/img/$id.png';
 
-  /// Result of `player_api.php` for the query [params].
-  Object? _playerApi(Map<String, String> params) {
+  /// Result of `player_api.php` for the query [params], with links to the
+  /// server at [origin].
+  Object? _playerApi(Map<String, String> params, String origin) {
     final authorized =
         params['username'] == demoUser && params['password'] == demoPassword;
     final action = params['action'];
@@ -237,8 +241,8 @@ class DemoServer {
           'allowed_output_formats': ['ts'],
         },
         'server_info': {
-          'url': baseUrl.host,
-          'port': '${baseUrl.port}',
+          'url': Uri.parse(origin).host,
+          'port': '${Uri.parse(origin).port}',
           'server_protocol': 'http',
         },
       };
@@ -265,7 +269,7 @@ class DemoServer {
                 'name': channel.name,
                 'stream_type': 'live',
                 'stream_id': channel.id,
-                'stream_icon': _image(channel.id),
+                'stream_icon': _image(origin, channel.id),
                 'epg_channel_id': channel.epgId,
                 'category_id': channel.categoryId,
               },
@@ -278,14 +282,14 @@ class DemoServer {
               'name': movie.title,
               'stream_type': 'movie',
               'stream_id': movie.id,
-              'stream_icon': _image(movie.id),
+              'stream_icon': _image(origin, movie.id),
               'rating': '${6 + movie.id % 4}.${movie.id % 10}',
               'category_id': movie.categoryId,
               'container_extension': 'mp4',
             },
         ];
       case 'get_vod_info':
-        return _movieInfo(int.tryParse(params['vod_id'] ?? ''));
+        return _movieInfo(int.tryParse(params['vod_id'] ?? ''), origin);
       case 'get_series':
         return [
           for (final series in demoSeries)
@@ -293,13 +297,13 @@ class DemoServer {
               'num': series.id - 200,
               'name': series.title,
               'series_id': series.id,
-              'cover': _image(series.id),
+              'cover': _image(origin, series.id),
               'rating': '${6 + series.id % 4}.${series.id % 10}',
               'category_id': series.categoryId,
             },
         ];
       case 'get_series_info':
-        return _seriesInfo(int.tryParse(params['series_id'] ?? ''));
+        return _seriesInfo(int.tryParse(params['series_id'] ?? ''), origin);
     }
     return [];
   }
@@ -310,13 +314,14 @@ class DemoServer {
       {'category_id': entry.key, 'category_name': entry.value, 'parent_id': 0},
   ];
 
-  /// Answer of `get_vod_info` for the movie [id] (empty when unknown).
-  Object? _movieInfo(int? id) {
+  /// Answer of `get_vod_info` for the movie [id] (empty when unknown), with
+  /// links to the server at [origin].
+  Object? _movieInfo(int? id, String origin) {
     final movie = demoMovies.where((m) => m.id == id).firstOrNull;
     if (movie == null) return {'info': []};
     return {
       'info': {
-        'movie_image': _image(movie.id),
+        'movie_image': _image(origin, movie.id),
         'plot':
             'Sinopsis inventada de "${movie.title}": una historia de '
             'ficción creada solo para pruebas.',
@@ -335,8 +340,9 @@ class DemoServer {
     };
   }
 
-  /// Answer of `get_series_info` for the series [id] (empty when unknown).
-  Object? _seriesInfo(int? id) {
+  /// Answer of `get_series_info` for the series [id] (empty when unknown),
+  /// with links to the server at [origin].
+  Object? _seriesInfo(int? id, String origin) {
     final series = demoSeries.where((s) => s.id == id).firstOrNull;
     if (series == null) return {'info': [], 'episodes': []};
     final seasons = <String, List<Map<String, Object?>>>{};
@@ -350,14 +356,14 @@ class DemoServer {
         'info': {
           'plot': 'Argumento inventado de "${series.title}".',
           'duration_secs': 1500 + episode.number * 60,
-          'movie_image': _image(episode.id),
+          'movie_image': _image(origin, episode.id),
         },
       });
     }
     return {
       'info': {
         'name': series.title,
-        'cover': _image(series.id),
+        'cover': _image(origin, series.id),
         'plot': 'Serie ficticia "${series.title}", creada solo para pruebas.',
         'genre': seriesCategoryNames[series.categoryId],
         'releaseDate': '${2010 + series.id % 14}-09-01',
@@ -366,9 +372,9 @@ class DemoServer {
     };
   }
 
-  /// M3U with live channels, movies and series episodes.
-  String _playlist() {
-    final origin = baseUrl.origin;
+  /// M3U with live channels, movies and series episodes, linking to the
+  /// server at [origin].
+  String _playlist(String origin) {
     final out = StringBuffer(
       '#EXTM3U url-tvg="$origin/xmltv.php?username=$demoUser'
       '&password=$demoPassword"\n',
@@ -381,7 +387,7 @@ class DemoServer {
       String url,
     ) {
       out.writeln(
-        '#EXTINF:-1 tvg-id="$tvgId" tvg-logo="${_image(imageId)}" '
+        '#EXTINF:-1 tvg-id="$tvgId" tvg-logo="${_image(origin, imageId)}" '
         'group-title="$group",$name',
       );
       out.writeln(url);
