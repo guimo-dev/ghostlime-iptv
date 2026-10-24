@@ -1,76 +1,20 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../settings/app_settings.dart';
 import '../settings/settings_scope.dart';
 import '../ui/app_theme.dart';
 import '../ui/brand_state.dart';
+import 'live_playback.dart';
 import 'mpv_options.dart';
 import 'playback_log.dart';
 import 'stream_info.dart';
 
 /// How often playback progress is reported while playing.
 const progressInterval = Duration(seconds: 10);
-
-/// Pause before each automatic reconnection of a live stream; its length is
-/// the maximum number of attempts.
-const reconnectDelays = [
-  Duration(seconds: 2),
-  Duration(seconds: 4),
-  Duration(seconds: 8),
-];
-
-/// How long a reopened stream must have run for new failures to count from
-/// the first attempt again.
-const _stableAfter = Duration(seconds: 30);
-
-/// Decides whether a stream that failed or ended is reopened, and after how
-/// long. mpv often reports one failure twice (`error`, then `completed`), so
-/// giving up is reported once until a reconnection is scheduled again.
-class ReconnectPolicy {
-  ReconnectPolicy({
-    required this.isLive,
-    required this.autoReconnect,
-    required this.onGiveUp,
-  });
-
-  /// Only live streams reconnect; a VOD that ends or fails has nothing to
-  /// give up, so it reports nothing.
-  final bool isLive;
-  final bool autoReconnect;
-
-  /// Called with the reason when a live stream will not be reopened.
-  final void Function(String reason) onGiveUp;
-
-  /// Reconnections scheduled since the stream last ran stably.
-  int attempts = 0;
-  bool _gaveUp = false;
-
-  /// The pause before reopening the stream, or `null` when it stays closed.
-  /// [stable] means it had run long enough for failures to count from the
-  /// first attempt again.
-  Duration? next({required bool stable}) {
-    if (!isLive) return null;
-    if (!autoReconnect) return _giveUp('auto-reconnect off');
-    if (stable) attempts = 0;
-    if (attempts >= reconnectDelays.length) {
-      return _giveUp('attempts exhausted');
-    }
-    _gaveUp = false;
-    return reconnectDelays[attempts++];
-  }
-
-  Duration? _giveUp(String reason) {
-    if (!_gaveUp) onGiveUp(reason);
-    _gaveUp = true;
-    return null;
-  }
-}
 
 /// Seconds shown before the next episode starts by itself.
 const nextEpisodeCountdown = 10;
@@ -85,11 +29,14 @@ bool progressReady(Duration position, Duration duration, Duration? start) {
 
 /// Full-screen player for one stream, with a toggleable technical info overlay.
 ///
-/// The [Player] lives exactly as long as this screen: leaving it closes the
+/// With [shared] it shows that playback, already playing, and leaves it
+/// playing when it closes (Directo's preview carries on). Otherwise its own
+/// player lives exactly as long as this screen: leaving it closes the
 /// connection, which matters for providers that allow a single connection.
 class PlayerScreen extends StatefulWidget {
   const PlayerScreen({
     super.key,
+    this.shared,
     required this.url,
     required this.title,
     this.userAgent,
@@ -101,6 +48,11 @@ class PlayerScreen extends StatefulWidget {
     this.nextTitle,
     this.startTimeout = streamStartTimeout,
   });
+
+  /// Playback owned by someone else (Directo); this screen neither opens
+  /// nor closes it, so [url], [userAgent], [startPosition] and
+  /// [startTimeout] are not used.
+  final LivePlayback? shared;
 
   final String url;
   final String title;
@@ -137,58 +89,30 @@ class PlayerScreen extends StatefulWidget {
 }
 
 class _PlayerScreenState extends State<PlayerScreen> {
-  late final Player _player = Player();
   late final AppSettings _settings = SettingsScope.read(context).value;
-
-  /// `hwdec` forced by the settings, or `null` to keep media_kit's choice.
-  late final String? _hwdec = hwdecFor(
-    hardwareDecoding: _settings.hardwareDecoding,
-    isAndroid: Platform.isAndroid,
-  );
-  late final VideoController _controller = VideoController(
-    _player,
-    configuration: VideoControllerConfiguration(hwdec: _hwdec),
-  );
   late final PlaybackLog? _log = PlaybackLogScope.read(context);
-  late final ReconnectPolicy _reconnectPolicy = ReconnectPolicy(
-    isLive: widget.isLive,
-    autoReconnect: _settings.autoReconnect,
-    onGiveUp: (reason) =>
-        _log?.record(PlaybackEvent.reconnectGaveUp, detail: reason),
-  );
-  late final Media _media = Media(
-    widget.url,
-    httpHeaders: widget.userAgent == null
-        ? null
-        : {'User-Agent': widget.userAgent!},
-    start: widget.startPosition,
-  );
-  StreamSubscription<String>? _errorSubscription;
+  late final LivePlayback _playback =
+      widget.shared ??
+      LivePlayback(
+        settings: () => _settings,
+        log: _log,
+        startTimeout: widget.startTimeout,
+      );
+
+  /// Whether this screen created [_playback] and must close it.
+  bool get _ownsPlayback => widget.shared == null;
   StreamSubscription<bool>? _completedSubscription;
-  StreamSubscription<bool>? _bufferingSubscription;
-  StreamSubscription<Duration>? _positionSubscription;
   Timer? _infoTimer;
-  Timer? _startTimer;
   Timer? _progressTimer;
-  Timer? _reconnectTimer;
   Timer? _countdownTimer;
 
   /// Whether playback has reached the resume point, so progress is real.
   bool _resumed = false;
   StreamInfo _info = const StreamInfo();
-  String? _error;
   bool _showInfo = false;
 
-  /// Set once the screen is leaving: nothing may open or reopen a stream.
+  /// Set once the screen is leaving.
   bool _stopped = false;
-
-  /// Set when the stream did not start within [PlayerScreen.startTimeout].
-  bool _startFailed = false;
-
-  /// Whether playback ever reached a position on this screen; later drops
-  /// are left to the reconnection logic, not the start timeout.
-  bool _everStarted = false;
-  DateTime _openedAt = DateTime.now();
 
   /// Seconds left before the next episode, or `null` when not counting down.
   int? _secondsToNext;
@@ -196,37 +120,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   void initState() {
     super.initState();
-    _errorSubscription = _player.stream.error.listen((message) {
-      _log?.record(
-        PlaybackEvent.error,
-        detail: '${_playbackContext()}: $message',
+    if (_ownsPlayback) {
+      _playback.openUrl(
+        widget.url,
+        isLive: widget.isLive,
+        userAgent: widget.userAgent,
+        start: widget.startPosition,
       );
-      if (mounted) setState(() => _error = redactUrls(message));
-      _reconnect();
-    });
-    _completedSubscription = _player.stream.completed.listen((completed) {
-      if (!completed) return;
-      _log?.record(PlaybackEvent.ended, detail: _playbackContext());
-      if (widget.isLive) {
-        _reconnect();
-      } else if (widget.onNext != null) {
-        _startCountdown();
-      }
-    });
-    _bufferingSubscription = _player.stream.buffering.listen((buffering) {
-      // mpv reports buffering while a file drains at its end: not a stall.
-      final state = _player.state;
-      if (!widget.isLive && isEndOfFile(state.position, state.duration)) return;
-      _log?.record(
-        buffering ? PlaybackEvent.bufferingStart : PlaybackEvent.bufferingEnd,
-      );
-    });
-    _positionSubscription = _player.stream.position.listen((position) {
-      if (position <= Duration.zero) return;
-      _everStarted = true;
-      _startTimer?.cancel();
-    });
-    _openStream();
+    }
+    _playback.addListener(_onPlaybackChanged);
+    if (widget.onNext != null) {
+      _completedSubscription = _playback.player.stream.completed.listen((
+        completed,
+      ) {
+        if (completed && !widget.isLive) _startCountdown();
+      });
+    }
     if (widget.onProgress != null) {
       _progressTimer = Timer.periodic(
         progressInterval,
@@ -239,76 +148,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
     );
   }
 
-  /// Applies the playback settings to mpv, then opens the stream. Settings
-  /// are read once here, so changing them never affects a running player.
-  Future<void> _openStream() async {
-    final platform = _player.platform;
-    if (platform is NativePlayer) {
-      final properties = {
-        if (_hwdec != null) 'hwdec': _hwdec,
-        'cache': 'yes',
-        'cache-secs': '${_settings.networkCacheSecs}',
-        'demuxer-readahead-secs': '${_settings.networkCacheSecs}',
-      };
-      for (final MapEntry(:key, :value) in properties.entries) {
-        await platform.setProperty(key, value);
-      }
-    }
-    await useSafeDemuxerOptions(_player);
-    if (_stopped) return;
-    _openedAt = DateTime.now();
-    _log?.record(PlaybackEvent.opened);
-    _watchStart();
-    await _player.open(_media);
-  }
-
-  /// Arms the start timeout unless it is already running or the stream has
-  /// already played; playback reaching a position cancels it.
-  void _watchStart() {
-    if (_everStarted) return;
-    if (_startTimer?.isActive ?? false) return;
-    _startTimer = Timer(widget.startTimeout, _onStartTimeout);
-  }
-
-  /// The stream never started: stop trying, free the connection and show
-  /// the error instead of the endless spinner.
-  void _onStartTimeout() {
-    if (_stopped) return;
-    _reconnectTimer?.cancel();
-    _log?.record(PlaybackEvent.startTimeout, detail: _playbackContext());
-    _player.stop();
-    if (mounted) setState(() => _startFailed = true);
-  }
-
-  /// Reopens a live stream after it ended or failed, as [ReconnectPolicy]
-  /// decides. Never once leaving.
-  void _reconnect() {
-    if (_stopped || _startFailed) return;
-    if (_reconnectTimer?.isActive ?? false) return;
-    final delay = _reconnectPolicy.next(
-      stable: DateTime.now().difference(_openedAt) > _stableAfter,
-    );
-    if (delay == null) return;
-    _log?.record(
-      PlaybackEvent.reconnectScheduled,
-      detail: 'attempt ${_reconnectPolicy.attempts} in ${delay.inSeconds}s',
-    );
-    _reconnectTimer = Timer(delay, () {
-      if (_stopped) return;
-      _openedAt = DateTime.now();
-      _log?.record(PlaybackEvent.reconnectOpened);
-      _watchStart();
-      _player.open(_media);
-    });
-  }
-
-  /// `live` or `vod`, seconds since the stream was opened and the position
-  /// when known, e.g. `live after=3712s pos=3700s`.
-  String _playbackContext() {
-    final kind = widget.isLive ? 'live' : 'vod';
-    final after = DateTime.now().difference(_openedAt).inSeconds;
-    final position = _player.state.position.inSeconds;
-    return '$kind after=${after}s${position > 0 ? ' pos=${position}s' : ''}';
+  /// Repaints when the playback fails to start or reports an error.
+  void _onPlaybackChanged() {
+    if (mounted) setState(() {});
   }
 
   /// Shows the next-episode countdown (once per playback).
@@ -336,24 +178,24 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (_stopped) return;
     _stopForLeaving();
     _reportProgress();
-    await _player.stop();
+    await _playback.stop();
     widget.onNext?.call();
   }
 
-  /// Cancels every timer and blocks new opens; used when leaving the screen.
+  /// Cancels this screen's timers; used when leaving the screen.
   void _stopForLeaving() {
     _stopped = true;
     _infoTimer?.cancel();
     _progressTimer?.cancel();
-    _reconnectTimer?.cancel();
     _countdownTimer?.cancel();
-    _startTimer?.cancel();
   }
 
   /// Sends the current position to [PlayerScreen.onProgress] when known.
   void _reportProgress() {
-    final position = _player.state.position;
-    final duration = _player.state.duration;
+    if (widget.onProgress == null) return;
+    final state = _playback.player.state;
+    final position = state.position;
+    final duration = state.duration;
     if (_resumed || progressReady(position, duration, widget.startPosition)) {
       _resumed = position > Duration.zero && duration > Duration.zero;
       if (_resumed) widget.onProgress?.call(position, duration);
@@ -363,40 +205,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   void dispose() {
     _stopForLeaving();
-    _errorSubscription?.cancel();
     _completedSubscription?.cancel();
-    _bufferingSubscription?.cancel();
-    _positionSubscription?.cancel();
-    _log?.flush();
-    _player.dispose();
+    _playback.removeListener(_onPlaybackChanged);
+    if (_ownsPlayback) _playback.dispose();
     super.dispose();
   }
 
   /// Reads the current mpv properties into [_info].
   Future<void> _refreshInfo() async {
-    final platform = _player.platform;
-    if (platform is! NativePlayer) return;
-    final values = <String, String>{};
-    for (final name in mpvInfoProperties) {
-      if (!mounted) return;
-      values[name] = await platform.getProperty(name);
-    }
-    await _sampleCache(platform);
-    if (mounted) setState(() => _info = StreamInfo.fromMpvProperties(values));
-  }
-
-  /// Logs mpv's cache level and download speed (bytes per second).
-  Future<void> _sampleCache(NativePlayer platform) async {
-    final log = _log;
-    if (log == null || !mounted) return;
-    final cache = double.tryParse(
-      await platform.getProperty('demuxer-cache-duration'),
-    );
-    final speed = double.tryParse(await platform.getProperty('cache-speed'));
-    // The cache of a file that has ended reads 0: keep the last real values.
-    final state = _player.state;
-    if (!widget.isLive && isEndOfFile(state.position, state.duration)) return;
-    log.sample(cacheSecs: cache, speedBytesPerSec: speed?.round());
+    final info = await _playback.readInfo();
+    if (info != null && mounted) setState(() => _info = info);
   }
 
   void _toggleInfo() => setState(() => _showInfo = !_showInfo);
@@ -417,15 +235,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final error = _playback.error;
     // Stop as soon as the pop starts, not when the route is disposed after
     // its exit animation: otherwise opening the next channel quickly can
-    // overlap two connections on single-connection accounts.
+    // overlap two connections on single-connection accounts. A shared
+    // playback goes on in the screen below.
     return PopScope(
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) {
           _stopForLeaving();
           _reportProgress();
-          _player.stop();
+          if (_ownsPlayback) _playback.stop();
         }
       },
       child: Focus(
@@ -464,17 +284,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 child: MaterialVideoControlsTheme(
                   normal: mobileControlsTheme,
                   fullscreen: mobileControlsTheme,
-                  child: Video(controller: _controller, fit: BoxFit.contain),
+                  child: Video(
+                    controller: _playback.controller,
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
-              if (_startFailed)
+              if (_playback.startFailed)
                 Center(
                   child: _StartFailedMessage(
                     what: widget.isLive ? 'el canal' : 'el vídeo',
-                    timeout: widget.startTimeout,
+                    timeout: _playback.startTimeout,
                   ),
                 ),
-              if (_showInfo || _error != null)
+              if (_showInfo || error != null)
                 Positioned(
                   top: 72,
                   left: 12,
@@ -485,11 +308,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             if (_log != null)
                               (
                                 '',
-                                bufferSummary(_log.stats, live: widget.isLive),
+                                bufferSummary(
+                                  _playback.stats,
+                                  live: _playback.isLive,
+                                ),
                               ),
                           ]
                         : const [],
-                    error: _error,
+                    error: error,
                   ),
                 ),
               if (_secondsToNext != null)

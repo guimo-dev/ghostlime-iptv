@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:math' show max;
 
 import 'package:flutter/material.dart';
-import 'package:media_kit/media_kit.dart' show Media, Player;
+import 'package:media_kit/media_kit.dart' show Player;
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../browse/catalog_actions.dart';
@@ -12,11 +12,11 @@ import '../catalog/catalog_models.dart';
 import '../catalog/sorting.dart';
 import '../epg/guide_grid.dart';
 import '../epg/programme.dart';
+import '../player/live_playback.dart';
 import '../player/mpv_options.dart';
 import '../player/play_target.dart';
 import '../player/playback_log.dart';
 import '../player/resume.dart';
-import '../player/stream_url.dart';
 import '../playlists/password_store.dart';
 import '../playlists/playlist.dart';
 import '../settings/app_settings.dart';
@@ -49,7 +49,8 @@ double previewWidthFor(double panelWidth) =>
 ///
 /// A first click/Enter selects a channel and previews it; a second one (or
 /// "Pantalla completa") opens the full player. Only one connection is ever
-/// open: the preview stops before the full player starts and whenever this
+/// open: the preview and the full player share one [LivePlayback], so going
+/// full screen carries on with the same stream, and it stops whenever this
 /// screen is hidden.
 class LiveTvScreen extends StatefulWidget {
   const LiveTvScreen({
@@ -59,18 +60,22 @@ class LiveTvScreen extends StatefulWidget {
     required this.passwords,
     this.previewStartTimeout = streamStartTimeout,
     this.clock = DateTime.now,
+    this.createPlayer,
   });
 
   final CatalogDb db;
   final Playlist playlist;
   final PasswordStore passwords;
 
-  /// How long the preview may take to start before it shows an error
-  /// (shorter in tests).
+  /// How long a channel may take to start, in the preview or full screen,
+  /// before it shows an error (shorter in tests).
   final Duration previewStartTimeout;
 
   /// The time used to read the guide (fixed in tests).
   final DateTime Function() clock;
+
+  /// Creates the player; `null` uses media_kit (tests pass a fake).
+  final PlayerFactory? createPlayer;
 
   @override
   State<LiveTvScreen> createState() => _LiveTvScreenState();
@@ -105,28 +110,9 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
   Channel? _selected;
   Timer? _clock;
 
-  Player? _preview;
-  VideoController? _previewController;
+  /// The one player of the preview and the full screen.
+  late final LivePlayback _playback;
   bool _muted = true;
-
-  /// Bumped to cancel preview starts still awaiting.
-  int _previewGeneration = 0;
-
-  /// Fires when the preview has not started within
-  /// [LiveTvScreen.previewStartTimeout].
-  Timer? _previewStartTimer;
-  StreamSubscription<Duration>? _previewPosition;
-
-  /// Generation whose `open` has returned: only its positions mean the
-  /// preview started (the reused player may still report the old channel).
-  int? _previewOpenedGeneration;
-
-  /// Generation that last called `open`: an older start that is no longer
-  /// wanted may only stop the player while no newer one has opened it.
-  int? _previewOpeningGeneration;
-
-  /// Whether the current preview gave up because it never started.
-  bool _previewFailed = false;
   bool _fullScreenOpen = false;
   bool _visible = true;
 
@@ -138,7 +124,17 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
   @override
   void initState() {
     super.initState();
-    _muted = !SettingsScope.read(context).value.previewSound;
+    final settings = SettingsScope.read(context);
+    _muted = !settings.value.previewSound;
+    _playback = LivePlayback(
+      settings: () => settings.value,
+      playlist: widget.playlist,
+      password: _password,
+      log: PlaybackLogScope.read(context),
+      startTimeout: widget.previewStartTimeout,
+      createPlayer: widget.createPlayer,
+    )..addListener(_onPlaybackChanged);
+    _playback.setVolume(_muted ? 0 : 100);
     _clock = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted && _visible) setState(_loadGuide);
     });
@@ -159,6 +155,7 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
     AccountScope.of(context);
     _guideGrid = _db.liveGuideGrid(_playlistId);
     // Hidden by the shell (another section shown): free the connection.
+    // Covered by the full player instead, the stream plays on there.
     final visible = TickerMode.valuesOf(context).enabled;
     if (visible == _visible) return;
     _visible = visible;
@@ -166,19 +163,23 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
       // Favorites, recents or guide may have changed in other sections.
       setState(_loadChannels);
       _startPreview();
-    } else {
-      _previewGeneration++;
-      _preview?.stop();
+    } else if (!_fullScreenOpen) {
+      _playback.stop();
     }
   }
 
   @override
   void dispose() {
     _clock?.cancel();
-    _previewStartTimer?.cancel();
-    _previewPosition?.cancel();
-    _preview?.dispose();
+    _playback
+      ..removeListener(_onPlaybackChanged)
+      ..dispose();
     super.dispose();
+  }
+
+  /// Repaints when the preview opens or fails to start.
+  void _onPlaybackChanged() {
+    if (mounted) setState(() {});
   }
 
   void _selectGroup(String id) {
@@ -286,92 +287,41 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
     _startPreview();
   }
 
-  /// Starts previewing the selected channel. Every await re-checks that this
-  /// request is still current ([_previewGeneration]), visible and not
-  /// replaced by the full player, so two streams are never open at once.
-  Future<void> _startPreview() async {
+  /// Previews the selected channel while this screen is shown and the full
+  /// player is not; [LivePlayback.play] cancels any start still pending, so
+  /// two streams are never open at once.
+  void _startPreview() {
     final channel = _selected;
     if (channel == null || !_visible || _fullScreenOpen) return;
-    final generation = ++_previewGeneration;
-    bool stillWanted() =>
-        mounted &&
-        generation == _previewGeneration &&
-        _visible &&
-        !_fullScreenOpen &&
-        _selected?.key == channel.key;
-
-    final url = playTargetUrl(
-      widget.playlist,
-      PlayTarget.fromChannel(channel),
-      await _password,
-    );
-    if (url == null || !stillWanted()) return;
-    final player = _preview ??= Player();
-    _previewController ??= VideoController(player);
-    _previewPosition ??= player.stream.position.listen((position) {
-      if (position > Duration.zero &&
-          _previewOpenedGeneration == _previewGeneration) {
-        _previewStartTimer?.cancel();
-      }
-    });
-    final userAgent = widget.playlist.userAgent;
-    await player.setVolume(_muted ? 0 : 100);
-    await useSafeDemuxerOptions(player);
-    _previewOpenedGeneration = null;
-    await player.stop();
-    if (!stillWanted()) return;
-    if (_previewFailed) setState(() => _previewFailed = false);
-    _previewStartTimer?.cancel();
-    _previewStartTimer = Timer(widget.previewStartTimeout, () {
-      if (!stillWanted()) return;
-      PlaybackLogScope.read(context)
-          ?.record(PlaybackEvent.startTimeout, detail: 'preview');
-      player.stop();
-      setState(() => _previewFailed = true);
-    });
-    _previewOpeningGeneration = generation;
-    await player.open(
-      Media(
-        url,
-        httpHeaders: userAgent == null ? null : {'User-Agent': userAgent},
-      ),
-    );
-    // Hidden or replaced while opening: the stop issued then may have landed
-    // before the open, so close the stream now.
-    if (!stillWanted()) {
-      if (mounted && _previewOpeningGeneration == generation) {
-        await player.stop();
-      }
-      return;
-    }
-    if (generation == _previewGeneration) _previewOpenedGeneration = generation;
-    if (mounted) setState(() {});
+    _playback.play(PlayTarget.fromChannel(channel));
   }
 
   void _toggleSound() {
     setState(() => _muted = !_muted);
-    _preview?.setVolume(_muted ? 0 : 100);
+    _playback.setVolume(_muted ? 0 : 100);
   }
 
   Future<void> _fullScreen() async {
     final channel = _selected;
     if (channel == null || _fullScreenOpen) return;
-    // One connection only: cancel any pending preview start and close the
-    // preview stream before the full player.
+    // One connection only: the full player shows the preview's stream (it
+    // only opens when the preview is not playing this channel).
     _fullScreenOpen = true;
-    _previewGeneration++;
-    await _preview?.stop();
-    if (!mounted) return;
+    final target = PlayTarget.fromChannel(channel);
+    _playback.play(target);
+    _playback.setVolume(100);
     await playWithResume(
       context,
       db: _db,
       playlist: widget.playlist,
       passwords: widget.passwords,
-      target: PlayTarget.fromChannel(channel),
+      target: target,
       subtitle: _guide[channel.epgId]?.$1?.title,
+      shared: _playback,
     );
     _fullScreenOpen = false;
     if (!mounted) return;
+    _playback.setVolume(_muted ? 0 : 100);
     setState(_loadChannels);
     _startPreview();
   }
@@ -435,8 +385,8 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
                     : _namesByKey()[_selected!.key] ?? _selected!.name,
                 now: _guide[_selected?.epgId]?.$1,
                 upcoming: _upcoming,
-                controller: _preview == null ? null : _previewController,
-                failed: _previewFailed,
+                controller: _playback.hasPlayer ? _playback.controller : null,
+                failed: _playback.startFailed,
                 muted: _muted,
                 favorite: _favorites.contains(_selected?.key),
                 onFullScreen: _fullScreen,

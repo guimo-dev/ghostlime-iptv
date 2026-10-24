@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:iptv_player/player/player_screen.dart';
+import 'package:iptv_player/player/live_playback.dart';
 
 void main() {
   /// A policy whose give-up reasons end up in the returned list.

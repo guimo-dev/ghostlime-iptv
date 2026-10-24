@@ -6,6 +6,7 @@ import '../playlists/password_store.dart';
 import '../playlists/playlist.dart';
 import '../settings/app_settings.dart';
 import '../settings/settings_scope.dart';
+import 'live_playback.dart';
 import 'play_target.dart';
 import 'player_screen.dart';
 import 'stream_url.dart';
@@ -25,6 +26,9 @@ String formatDuration(Duration d) {
 /// With [next] (and the "next episode" setting on), finishing the video offers
 /// to continue with it, replacing the player; [nextOf] gives the one after
 /// each following target so the chain goes on.
+///
+/// With [shared] (Directo), the full-screen player shows that playback, which
+/// is already playing [target], instead of opening the stream again.
 Future<void> playWithResume(
   BuildContext context, {
   required CatalogDb db,
@@ -34,6 +38,7 @@ Future<void> playWithResume(
   String? subtitle,
   PlayTarget? next,
   PlayTarget? Function(PlayTarget current)? nextOf,
+  LivePlayback? shared,
 }) async {
   final navigator = Navigator.of(context);
   final route = await _playerRoute(
@@ -46,6 +51,7 @@ Future<void> playWithResume(
     subtitle: subtitle,
     next: next,
     nextOf: nextOf,
+    shared: shared,
   );
   if (route != null) await navigator.push(route);
 }
@@ -62,6 +68,7 @@ Future<MaterialPageRoute<void>?> _playerRoute(
   String? subtitle,
   PlayTarget? next,
   PlayTarget? Function(PlayTarget current)? nextOf,
+  LivePlayback? shared,
 }) async {
   final playlistId = playlist.id!;
   final password = playlist.type == PlaylistType.xtream
@@ -98,6 +105,7 @@ Future<MaterialPageRoute<void>?> _playerRoute(
   late final MaterialPageRoute<void> route;
   route = MaterialPageRoute<void>(
     builder: (_) => PlayerScreen(
+      shared: shared,
       url: url,
       title: target.title,
       subtitle: subtitle,
