@@ -116,4 +116,30 @@ void main() {
       await tester.runAsync(service.signOut);
     },
   );
+
+  testWidgets(
+    "a Google-only account has no \"Cambiar contraseña\", a password one does",
+    (tester) async {
+      final backend = InMemorySyncBackend();
+      final accounts = <String, String>{};
+      final google = _service(
+        backend,
+        FakeAuthGateway(accounts)..supportsGoogle = true,
+      );
+      await tester.runAsync(google.signInWithGoogle);
+      expect(google.status, AccountStatus.signedIn);
+      final db = CatalogDb.inMemory();
+      addTearDown(db.close);
+      await _pump(tester, db, google);
+      expect(find.text('Cerrar sesión'), findsOneWidget);
+      expect(find.text('Cambiar contraseña'), findsNothing);
+      await tester.runAsync(google.signOut);
+
+      final password = _service(backend, FakeAuthGateway(accounts));
+      await tester.runAsync(() => password.signUp(_email, _password));
+      await _pump(tester, db, password);
+      expect(find.text('Cambiar contraseña'), findsOneWidget);
+      await tester.runAsync(password.signOut);
+    },
+  );
 }

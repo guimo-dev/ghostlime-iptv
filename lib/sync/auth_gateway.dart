@@ -67,6 +67,10 @@ abstract class AuthGateway {
   /// [AccountException].
   Future<void> deleteAccount();
 
+  /// Whether the signed-in user has an email and password identity (and so
+  /// can change the password); `false` for Google-only accounts.
+  bool get hasPassword;
+
   /// Whether [signInWithOAuthGoogle] works on this platform.
   bool get supportsGoogle;
 
@@ -205,6 +209,10 @@ class SupabaseAuthGateway implements AuthGateway {
       throw const AccountException(_deleteError);
     }
   });
+
+  @override
+  bool get hasPassword =>
+      _auth.currentUser?.identities?.any((i) => i.provider == 'email') ?? true;
 
   /// Google comes back through the `ghostlime` scheme, registered by the
   /// Windows installer; other platforms are not set up yet. Off unless the

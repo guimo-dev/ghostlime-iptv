@@ -1028,7 +1028,10 @@ class _AccountSectionState extends State<_AccountSection> {
     );
     if (deleted != true) return;
     ParentalSession.unlocked.value = false;
-    if (mounted) _snack('Cuenta borrada.');
+    if (!mounted) return;
+    // Back to the lists: the screens behind Ajustes showed the wiped data.
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    _snack('Cuenta borrada.');
   });
 
   /// "20/10 14:32" style time for the last sync line.
@@ -1066,9 +1069,11 @@ class _AccountSectionState extends State<_AccountSection> {
       title: 'Cuenta',
       children: [
         switch (account.status) {
-          AccountStatus.signedOut => const _Row(
+          AccountStatus.signedOut => _Row(
             title: 'Entra o crea una cuenta',
-            subtitle: accountSyncExplanation,
+            subtitle: accountSyncExplanation(
+              supportsGoogle: account.supportsGoogle,
+            ),
           ),
           AccountStatus.awaitingConfirmation => const _Row(
             title: 'Confirma tu email',
@@ -1091,10 +1096,11 @@ class _AccountSectionState extends State<_AccountSection> {
                   onPressed: _busy || account.syncing ? null : account.syncNow,
                   child: const Text('Sincronizar ahora'),
                 ),
-                OutlinedButton(
-                  onPressed: _busy ? null : () => _changePassword(account),
-                  child: const Text('Cambiar contraseña'),
-                ),
+                if (account.hasPassword)
+                  OutlinedButton(
+                    onPressed: _busy ? null : () => _changePassword(account),
+                    child: const Text('Cambiar contraseña'),
+                  ),
                 OutlinedButton(
                   onPressed: _busy ? null : () => _signOut(account),
                   child: const Text('Cerrar sesión'),

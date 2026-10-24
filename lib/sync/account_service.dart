@@ -122,6 +122,10 @@ class AccountService extends ChangeNotifier {
   /// Email of the signed-in user, if any.
   String? get email => _auth.email;
 
+  /// Whether the signed-in account has a password (so it can be changed);
+  /// `false` for accounts that only ever signed in with Google.
+  bool get hasPassword => _auth.hasPassword;
+
   /// Whether signing in with Google works on this platform.
   bool get supportsGoogle => _auth.supportsGoogle;
 
@@ -350,6 +354,8 @@ class AccountService extends ChangeNotifier {
     await _running;
     await _dropSession();
     await (wipeDevice ? _wipeDevice() : _turnParentalLockOff());
+    // A new account on this device is not "different from the previous".
+    _db.saveSyncUserId(null);
   });
 
   /// Without an account there is no PIN reset, so the parental lock goes off

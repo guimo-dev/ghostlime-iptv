@@ -167,6 +167,20 @@ void main() {
     expect(settingsChanges, 1);
   });
 
+  for (final wipeDevice in [false, true]) {
+    test('deleting the account forgets the previous user (wipeDevice: '
+        '$wipeDevice)', () async {
+      expect(db.syncUserId(), isNotNull);
+
+      await service.deleteAccount(
+        code: FakeAuthGateway.validCode,
+        wipeDevice: wipeDevice,
+      );
+
+      expect(db.syncUserId(), isNull);
+    });
+  }
+
   test('sending the code needs a session', () async {
     await service.signOut();
 

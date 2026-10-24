@@ -8,6 +8,7 @@ import 'package:iptv_player/settings/pin_scope.dart';
 import 'package:iptv_player/settings/settings_controller.dart';
 import 'package:iptv_player/settings/settings_scope.dart';
 import 'package:iptv_player/settings/settings_screen.dart';
+import 'package:iptv_player/shell/app_shell.dart';
 import 'package:iptv_player/sync/account_scope.dart';
 import 'package:iptv_player/sync/account_service.dart';
 import 'package:iptv_player/sync/sync_backend.dart';
@@ -141,5 +142,59 @@ void main() {
     expect(await pins.hasPin(), isFalse);
     expect(ParentalSession.unlocked.value, isFalse);
     expect(find.text('Cuenta borrada.'), findsOneWidget);
+  });
+
+  testWidgets('wiping from the shell\x27s Ajustes goes back to the shell', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final unsaved = const Playlist(
+      name: 'A',
+      type: PlaylistType.m3uFile,
+      source: 'missing.m3u',
+    );
+    final playlist = unsaved.copyWith(id: db.savePlaylist(unsaved));
+    await tester.runAsync(
+      () => account.signUp('ana@example.com', 'correct horse'),
+    );
+    await tester.pumpWidget(
+      AccountScope(
+        service: account,
+        child: SettingsScope(
+          controller: SettingsController(db),
+          child: PinScope(
+            store: pins,
+            child: MaterialApp(
+              home: AppShell(
+                db: db,
+                playlist: playlist,
+                passwords: FakePasswords(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('Ajustes'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsScreen), findsOneWidget);
+
+    await openDialog(tester);
+    await tester.enterText(
+      find.byType(TextField).last,
+      FakeAuthGateway.validCode,
+    );
+    await tester.tap(find.text('Borrar también de este dispositivo'));
+    await tester.pump();
+    await tester.tap(find.text('Borrar cuenta'));
+    await settle(tester);
+    await tester.pumpAndSettle();
+
+    expect(account.status, AccountStatus.signedOut);
+    expect(find.byType(SettingsScreen), findsNothing);
+    expect(find.byType(AppShell), findsOneWidget);
   });
 }

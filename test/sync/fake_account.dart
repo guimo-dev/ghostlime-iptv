@@ -42,6 +42,7 @@ class FakeAuthGateway implements AuthGateway {
     accounts[email] = password;
     if (requireConfirmation) return false;
     _email = email;
+    _hasPassword = true;
     return true;
   }
 
@@ -53,6 +54,7 @@ class FakeAuthGateway implements AuthGateway {
       );
     }
     _email = email;
+    _hasPassword = true;
   }
 
   @override
@@ -124,6 +126,10 @@ class FakeAuthGateway implements AuthGateway {
   }
 
   @override
+  bool get hasPassword => _hasPassword;
+  bool _hasPassword = true;
+
+  @override
   bool supportsGoogle = false;
 
   /// The Google account the "browser" signs in with in
@@ -145,6 +151,7 @@ class FakeAuthGateway implements AuthGateway {
   Future<void> signInWithOAuthGoogle() async {
     await browser?.future;
     if (oauthError case final error?) throw error;
+    _hasPassword = accounts.containsKey(googleEmail);
     _email = googleEmail;
   }
 
