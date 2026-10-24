@@ -19,6 +19,7 @@ import '../sync/data_export.dart';
 import '../ui/app_theme.dart';
 import '../ui/backdrop.dart';
 import '../ui/content_width.dart';
+import '../ui/form_factor.dart';
 import '../ui/ghostlime_logo.dart';
 import '../xtream/xtream_urls.dart';
 import 'app_settings.dart';
@@ -320,6 +321,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     value: s.autoNextEpisode,
                     onChanged: (v) => _update(s.copyWith(autoNextEpisode: v)),
                   ),
+                  if (isTouchPlatform)
+                    _SwitchRow(
+                      title: 'Gestos de volumen y brillo',
+                      subtitle: 'En el reproductor, desliza en vertical por la derecha para el volumen y por la izquierda para el brillo.',
+                      value: s.volumeBrightnessGestures,
+                      onChanged: (v) =>
+                          _update(s.copyWith(volumeBrightnessGestures: v)),
+                    ),
                 ],
               ),
               _Section(

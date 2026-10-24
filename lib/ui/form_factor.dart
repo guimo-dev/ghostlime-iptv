@@ -1,6 +1,9 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
+
 /// Device class by the shortest side, in any orientation.
 enum FormFactor { phone, tablet }
 
@@ -20,3 +23,9 @@ FormFactor formFactorOf(Size size) =>
 /// least 1024 wide. Portrait tablets and phones use the phone layout.
 bool usesDesktopLayout(Size size) =>
     formFactorOf(size) == FormFactor.tablet && size.width >= _desktopMinWidth;
+
+/// Whether the app runs on a phone or tablet system (Android, iOS), where
+/// the player takes touch gestures and turning the device matters.
+bool get isTouchPlatform =>
+    defaultTargetPlatform == TargetPlatform.android ||
+    defaultTargetPlatform == TargetPlatform.iOS;

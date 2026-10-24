@@ -22,6 +22,7 @@ void main() {
     expect(s.hideAdult, isTrue);
     expect(s.parentalLock, isFalse);
     expect(s.lockedCategories, isEmpty);
+    expect(s.volumeBrightnessGestures, isTrue);
   });
 
   test('fromJson of an empty map gives the defaults', () {
@@ -49,6 +50,7 @@ void main() {
       hideAdult: false,
       parentalLock: true,
       lockedCategories: {'1/live/5', '2/movie/9'},
+      volumeBrightnessGestures: false,
     );
     final restored = AppSettings.fromJson(original.toJson());
     expect(restored.toJson(), original.toJson());
@@ -57,6 +59,7 @@ void main() {
     expect(restored.lastPlaylistId, 7);
     expect(restored.defaultLiveFormat, LiveFormat.m3u8);
     expect(restored.epgOffsetMinutes, -90);
+    expect(restored.volumeBrightnessGestures, isFalse);
   });
 
   test('unknown keys and values fall back to defaults without throwing', () {

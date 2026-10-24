@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' show max;
 
-import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart' show Player;
 import 'package:media_kit_video/media_kit_video.dart';
@@ -206,8 +205,7 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
   /// Directo plays full screen. A desktop window keeps the phone layout when
   /// it is small but never follows its shape.
   bool _isPhoneLandscape(Size size) =>
-      (defaultTargetPlatform == TargetPlatform.android ||
-          defaultTargetPlatform == TargetPlatform.iOS) &&
+      isTouchPlatform &&
       formFactorOf(size) == FormFactor.phone &&
       size.width > size.height;
 
@@ -400,6 +398,7 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
       target: target,
       subtitle: _guide[channel.epgId]?.$1?.title,
       shared: _playback,
+      onChannelStep: _stepChannel,
       // Turned upright while it was opening: stay on the list.
       onRoute: (route) {
         if (!mounted || _leaveFullScreen) return false;
@@ -414,6 +413,32 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
     _playback.setVolume(_muted ? 0 : 100);
     setState(_loadChannels);
     _startPreview();
+  }
+
+  /// Zaps the full player to the channel [step] places away in the group
+  /// shown (wrapping around its ends) and returns its name and programme on
+  /// air. [LivePlayback.play] cancels any start still pending, so fast
+  /// swipes end with only the last channel open.
+  ({String title, String? subtitle})? _stepChannel(int step) {
+    final settings = SettingsScope.read(context).value;
+    final channels = _visibleChannels(
+      settings,
+      filtered: usesDesktopLayout(MediaQuery.sizeOf(context)),
+    );
+    if (channels.isEmpty) return null;
+    final current = channels.indexWhere((c) => c.key == _selected?.key);
+    // A channel no longer in the list steps from just outside its ends.
+    final from = current < 0 && step < 0 ? channels.length : current;
+    final channel = channels[(from + step) % channels.length];
+    if (channel.key == _selected?.key) return null;
+    setState(() {
+      _selected = channel;
+      _loadGuide();
+    });
+    final target = PlayTarget.fromChannel(channel);
+    _playback.play(target);
+    _db.addRecent(_playlistId, _kind, target.key);
+    return (title: target.title, subtitle: _guide[channel.epgId]?.$1?.title);
   }
 
   void _toggleFavorite(Channel channel) {

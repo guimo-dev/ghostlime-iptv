@@ -280,6 +280,9 @@ class LivePlayback extends ChangeNotifier {
     await _log?.flush();
   }
 
+  /// The volume (0 to 100) set with [setVolume].
+  double get volume => _volume;
+
   /// Sets the volume (0 to 100), now and for every later open.
   Future<void> setVolume(double volume) async {
     _volume = volume;

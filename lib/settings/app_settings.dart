@@ -60,6 +60,7 @@ class AppSettings {
     this.hideAdult = true,
     this.parentalLock = false,
     this.lockedCategories = const {},
+    this.volumeBrightnessGestures = true,
   });
 
   /// Restores settings saved with [toJson]; missing, unknown or invalid values
@@ -111,6 +112,10 @@ class AppSettings {
       lockedCategories: locked is List
           ? locked.whereType<String>().toSet()
           : const {},
+      volumeBrightnessGestures: _boolFrom(
+        json['volumeBrightnessGestures'],
+        true,
+      ),
     );
   }
 
@@ -134,6 +139,10 @@ class AppSettings {
   /// Locked categories as `'<playlistId>/<kind>/<categoryId>'`.
   final Set<String> lockedCategories;
 
+  /// On phones and tablets, vertical swipes in the player set its volume
+  /// (right side) and the window brightness (left side).
+  final bool volumeBrightnessGestures;
+
   /// Returns a copy with the given fields replaced.
   AppSettings copyWith({
     bool? hardwareDecoding,
@@ -153,6 +162,7 @@ class AppSettings {
     bool? hideAdult,
     bool? parentalLock,
     Set<String>? lockedCategories,
+    bool? volumeBrightnessGestures,
   }) => AppSettings(
     hardwareDecoding: hardwareDecoding ?? this.hardwareDecoding,
     networkCacheSecs: networkCacheSecs ?? this.networkCacheSecs,
@@ -171,6 +181,8 @@ class AppSettings {
     hideAdult: hideAdult ?? this.hideAdult,
     parentalLock: parentalLock ?? this.parentalLock,
     lockedCategories: lockedCategories ?? this.lockedCategories,
+    volumeBrightnessGestures:
+        volumeBrightnessGestures ?? this.volumeBrightnessGestures,
   );
 
   /// JSON form for storage.
@@ -193,5 +205,6 @@ class AppSettings {
     'hideAdult': hideAdult,
     'parentalLock': parentalLock,
     'lockedCategories': lockedCategories.toList()..sort(),
+    'volumeBrightnessGestures': volumeBrightnessGestures,
   };
 }

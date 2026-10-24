@@ -9,6 +9,7 @@ import '../settings/settings_scope.dart';
 import '../ui/app_theme.dart';
 import '../ui/brand_state.dart';
 import 'live_playback.dart';
+import 'mobile_gestures.dart';
 import 'mpv_options.dart';
 import 'playback_log.dart';
 import 'stream_info.dart';
@@ -26,6 +27,11 @@ bool progressReady(Duration position, Duration duration, Duration? start) {
   if (position <= Duration.zero || duration <= Duration.zero) return false;
   return start == null || position >= start - const Duration(seconds: 5);
 }
+
+/// Changes the live channel by [step] places in its group (+1 the next one)
+/// and returns the title and subtitle to show, or `null` when there is no
+/// other channel.
+typedef ChannelStep = ({String title, String? subtitle})? Function(int step);
 
 /// Full-screen player for one stream, with a toggleable technical info overlay.
 ///
@@ -46,6 +52,7 @@ class PlayerScreen extends StatefulWidget {
     this.isLive = false,
     this.onNext,
     this.nextTitle,
+    this.onChannelStep,
     this.startTimeout = streamStartTimeout,
   });
 
@@ -80,6 +87,10 @@ class PlayerScreen extends StatefulWidget {
 
   /// Title of the next episode, shown in the countdown.
   final String? nextTitle;
+
+  /// Zaps the [shared] live playback to a neighbouring channel; on phones
+  /// and tablets a vertical swipe calls it.
+  final ChannelStep? onChannelStep;
 
   /// How long the stream may take to start before an error replaces the
   /// loading spinner (shorter in tests).
@@ -117,6 +128,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   /// Seconds left before the next episode, or `null` when not counting down.
   int? _secondsToNext;
+
+  /// Title and subtitle shown; zapping changes them.
+  late String _title = widget.title;
+  late String? _subtitle = widget.subtitle;
 
   @override
   void initState() {
@@ -218,6 +233,27 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (info != null && mounted) setState(() => _info = info);
   }
 
+  /// Zaps to the channel [step] places away and shows its name.
+  void _stepChannel(int step) {
+    final shown = widget.onChannelStep?.call(step);
+    if (shown == null) return;
+    setState(() {
+      _title = shown.title;
+      _subtitle = shown.subtitle;
+    });
+  }
+
+  /// Moves a movie or episode by [offset], within its length.
+  void _seekBy(Duration offset) {
+    final state = _playback.player.state;
+    var target = state.position + offset;
+    if (state.duration > Duration.zero && target > state.duration) {
+      target = state.duration;
+    }
+    if (target < Duration.zero) target = Duration.zero;
+    _playback.player.seek(target);
+  }
+
   void _toggleInfo() => setState(() => _showInfo = !_showInfo);
 
   /// Handles `I` (toggle info) and `Esc` (go back).
@@ -257,14 +293,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
           extendBodyBehindAppBar: true,
           appBar: AppBar(
             backgroundColor: Colors.black.withValues(alpha: 0.55),
-            title: widget.subtitle == null
-                ? Text(widget.title)
+            title: _subtitle == null
+                ? Text(_title)
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(widget.title),
+                      Text(_title),
                       Text(
-                        widget.subtitle!,
+                        _subtitle!,
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
@@ -285,11 +321,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 child: MaterialVideoControlsTheme(
                   normal: mobileControlsTheme,
                   fullscreen: mobileControlsTheme,
-                  child: Video(
-                    // A new controller (new player) needs a new Video state.
-                    key: ObjectKey(_playback.controller),
-                    controller: _playback.controller,
-                    fit: BoxFit.contain,
+                  child: MobileGestures(
+                    live: widget.isLive,
+                    levels: _settings.volumeBrightnessGestures,
+                    volume: () => _playback.volume,
+                    onVolume: _playback.setVolume,
+                    onChannelStep: widget.onChannelStep == null
+                        ? null
+                        : _stepChannel,
+                    onSeek: widget.isLive ? null : _seekBy,
+                    child: Video(
+                      // A new controller (new player) needs a new Video state.
+                      key: ObjectKey(_playback.controller),
+                      controller: _playback.controller,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 ),
               ),
