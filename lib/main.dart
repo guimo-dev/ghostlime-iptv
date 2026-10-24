@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show Supabase;
 
 import 'catalog/catalog_db.dart';
+import 'legal/legal_info.dart';
 import 'player/playback_log.dart';
 import 'playlists/memory_password_store.dart';
 import 'playlists/password_store.dart';
@@ -23,9 +24,14 @@ import 'sync/auth_gateway.dart';
 import 'sync/key_store.dart';
 import 'sync/supabase_backend.dart';
 import 'ui/app_theme.dart';
+import 'welcome/first_run.dart';
+import 'welcome/welcome_screen.dart';
 
 const _supabaseUrl = String.fromEnvironment('SUPABASE_URL');
 const _supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+
+/// Route of the first-run screen, shown over the playlists at start.
+const _firstRunRoute = '/first-run';
 
 /// The throwaway data directory requested through `GHOSTLIME_DATA_DIR` in [env],
 /// or `null` to use the real one.
@@ -124,7 +130,18 @@ class IptvApp extends StatefulWidget {
 
 class _IptvAppState extends State<IptvApp> {
   final _playlistsKey = GlobalKey<PlaylistsScreenState>();
+  final _navigatorKey = GlobalKey<NavigatorState>();
   late final AppLifecycleListener _lifecycle;
+
+  /// What to show over the playlists at start. Every account that signed in
+  /// here leaves its id ([CatalogDb.syncUserId]), which tells an installation
+  /// that already used an account.
+  late final FirstRunStep _firstRun = firstRunStep(
+    welcomeDone: widget.db.welcomeDone(),
+    acceptedTerms: widget.db.acceptedTermsVersion(),
+    hasPlaylists: widget.db.playlists().isNotEmpty,
+    signedIn: widget.db.syncUserId() != null,
+  );
 
   @override
   void initState() {
@@ -146,6 +163,26 @@ class _IptvAppState extends State<IptvApp> {
     super.dispose();
   }
 
+  /// Records the welcome as done and the current terms as accepted, then
+  /// uncovers the playlists.
+  void _finishFirstRun() {
+    widget.db.saveWelcomeDone();
+    widget.db.saveAcceptedTermsVersion(termsVersion);
+    _navigatorKey.currentState?.pop();
+  }
+
+  /// The first-run screen for [settings], over the playlists; `null` for any
+  /// other route.
+  Route<void>? _firstRunScreen(RouteSettings settings) {
+    if (settings.name != _firstRunRoute) return null;
+    return MaterialPageRoute<void>(
+      settings: settings,
+      builder: (_) => _firstRun == FirstRunStep.welcome
+          ? WelcomeScreen(account: widget.account, onDone: _finishFirstRun)
+          : AcceptTermsScreen(onAccepted: _finishFirstRun),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = AccountScope(
@@ -155,6 +192,7 @@ class _IptvAppState extends State<IptvApp> {
         child: PinScope(
           store: widget.pins,
           child: MaterialApp(
+            navigatorKey: _navigatorKey,
             title: 'Ghostlime IPTV',
             debugShowCheckedModeBanner: false,
             theme: buildAppTheme(),
@@ -166,6 +204,12 @@ class _IptvAppState extends State<IptvApp> {
               db: widget.db,
               passwords: widget.passwords,
             ),
+            // The playlists stay underneath, so their start-up refresh and
+            // the sync of an account opened in the welcome run as usual.
+            initialRoute: _firstRun == FirstRunStep.none
+                ? null
+                : _firstRunRoute,
+            onGenerateRoute: _firstRunScreen,
           ),
         ),
       ),

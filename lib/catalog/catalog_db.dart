@@ -1192,6 +1192,23 @@ class CatalogDb {
     });
   }
 
+  /// Whether the welcome screen was already completed on this device. Local
+  /// only, like [acceptedTermsVersion].
+  bool welcomeDone() => _decode(_pref(0, 'welcome/done'))['done'] == true;
+
+  /// Records that the welcome screen was completed.
+  void saveWelcomeDone() => _savePref(0, 'welcome/done', {'done': true});
+
+  /// Version of the terms accepted on this device, 0 when never accepted.
+  int acceptedTermsVersion() {
+    final version = _decode(_pref(0, 'terms/accepted'))['version'];
+    return version is int ? version : 0;
+  }
+
+  /// Records that the terms in [version] were accepted.
+  void saveAcceptedTermsVersion(int version) =>
+      _savePref(0, 'terms/accepted', {'version': version});
+
   /// Id of the playlist with [syncId], if it exists on this device.
   int? playlistIdForSyncId(String syncId) {
     final rows = _db.select('SELECT id FROM playlists WHERE sync_id = ?', [

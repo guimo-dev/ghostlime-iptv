@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iptv_player/catalog/catalog_db.dart';
+import 'package:iptv_player/legal/legal_info.dart';
 import 'package:iptv_player/main.dart';
 import 'package:iptv_player/playlists/memory_password_store.dart';
 import 'package:iptv_player/settings/memory_pin_store.dart';
@@ -57,19 +58,22 @@ class AppHarness {
   /// Demo Xtream/M3U server (credentials `demo` / `demo`).
   final DemoServer server;
 
-  /// Signed-in account over fakes (no network, no real secure storage), or
-  /// `null` as in a build without Supabase.
+  /// Account over fakes (no network, no real secure storage), signed in
+  /// unless it is a first run, or `null` as in a build without Supabase.
   final AccountService? account;
 
   /// Starts the app in a window of [size] logical pixels at device pixel
   /// ratio 1.0, with a non-blinking caret, and pumps the first frame. With
   /// [signedIn] the account is created and signed in first (as
-  /// `demo@example.com`). Whatever was opened is released again if starting
-  /// fails.
+  /// `demo@example.com`). The welcome is marked done and the terms accepted,
+  /// unless [firstRun] asks for a new installation (with a signed-out account,
+  /// as in a build with Supabase). Whatever was opened is released again if
+  /// starting fails.
   static Future<AppHarness> start(
     WidgetTester tester, {
     required Size size,
     bool signedIn = false,
+    bool firstRun = false,
   }) async {
     MediaKit.ensureInitialized();
     tester.view.physicalSize = size;
@@ -80,9 +84,13 @@ class AppHarness {
     DemoServer? server;
     try {
       db = CatalogDb.open('${dir.path}/catalog.db');
+      if (!firstRun) {
+        db.saveWelcomeDone();
+        db.saveAcceptedTermsVersion(termsVersion);
+      }
       server = await DemoServer.start();
       final passwords = MemoryPasswordStore();
-      final account = signedIn
+      final account = signedIn || firstRun
           ? AccountService(
               db: db,
               auth: FakeAuthGateway({}),
@@ -101,7 +109,7 @@ class AppHarness {
         server,
         account,
       );
-      if (account != null) {
+      if (account != null && signedIn) {
         await tester.runAsync(
           () => account.signUp('demo@example.com', 'demo password'),
         );

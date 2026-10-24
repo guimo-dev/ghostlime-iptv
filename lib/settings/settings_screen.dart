@@ -11,6 +11,7 @@ import '../legal/legal_info.dart';
 import '../legal/legal_screen.dart';
 import '../playlists/password_store.dart';
 import '../playlists/playlist.dart';
+import '../sync/account_form.dart';
 import '../sync/account_scope.dart';
 import '../sync/account_service.dart';
 import '../sync/auth_gateway.dart' show AccountException;
@@ -810,9 +811,9 @@ class _SliderRowState extends State<_SliderRow> {
   }
 }
 
-/// "Cuenta" section: sign in or up, sync state and password management.
-/// Everything is driven by the [AccountService] in [AccountScope]; without one
-/// it only explains that sync is not configured.
+/// "Cuenta" section: sign in or up (the shared [AccountForm]), sync state and
+/// password management. Everything is driven by the [AccountService] in
+/// [AccountScope]; without one it only explains that sync is not configured.
 class _AccountSection extends StatefulWidget {
   const _AccountSection();
 
@@ -821,16 +822,7 @@ class _AccountSection extends StatefulWidget {
 }
 
 class _AccountSectionState extends State<_AccountSection> {
-  final _email = TextEditingController();
-  final _password = TextEditingController();
   bool _busy = false;
-
-  @override
-  void dispose() {
-    _email.dispose();
-    _password.dispose();
-    super.dispose();
-  }
 
   void _snack(String text) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
@@ -848,99 +840,10 @@ class _AccountSectionState extends State<_AccountSection> {
     }
   }
 
-  Future<void> _signIn(AccountService account) async {
-    await _run(() => account.signIn(_email.text.trim(), _password.text));
-    if (account.lastError == null) _password.clear();
-  }
-
-  Future<void> _signUp(AccountService account) async {
-    final email = _email.text.trim();
-    final password = _password.text;
-    await _run(() => account.signUp(email, password));
-    if (!mounted || account.lastError != null) return;
-    if (account.status == AccountStatus.awaitingConfirmation) {
-      await _confirmSignUp(account, email, password);
-    } else {
-      _password.clear();
-    }
-  }
-
-  /// Asks for the code of the confirmation email and finishes the sign-up.
-  Future<void> _confirmSignUp(
-    AccountService account,
-    String email,
-    String password,
-  ) async {
-    if (email.isEmpty || password.isEmpty) {
-      _snack('Escribe tu email y tu contraseña en el formulario.');
-      return;
-    }
-    final values = await showDialog<List<String>>(
-      context: context,
-      builder: (_) => _PasswordDialog(
-        title: 'Confirma tu email',
-        message:
-            'Te hemos enviado un correo con un código. Escríbelo aquí para '
-            'terminar de crear la cuenta.',
-        labels: const ['Código del correo'],
-        plainFields: const {0},
-        confirmLabel: 'Confirmar',
-        validate: (values) =>
-            values.first.trim().isEmpty ? 'Escribe el código.' : null,
-      ),
-    );
-    if (values == null) return;
-    await _run(
-      () => account.confirmSignUp(email, values.first.trim(), password),
-    );
-    if (account.lastError == null) _password.clear();
-  }
-
-  /// Emails a reset code and asks for it with the new password.
-  Future<void> _forgotPassword(AccountService account) async {
-    final email = _email.text.trim();
-    if (email.isEmpty) {
-      _snack('Escribe tu email y vuelve a pulsar.');
-      return;
-    }
-    await _run(() => account.sendPasswordReset(email));
-    if (!mounted || account.lastError != null) return;
-    final values = await showDialog<List<String>>(
-      context: context,
-      builder: (_) => _PasswordDialog(
-        title: 'Restablecer contraseña',
-        message:
-            'Te hemos enviado un correo con un código. Escríbelo con tu '
-            'contraseña nueva. Tus datos de la nube están cifrados con la '
-            'contraseña anterior: si este dispositivo no los tenía ya '
-            'abiertos, tendrás que empezar de cero en la nube (se te '
-            'ofrecerá después, con un aviso).',
-        labels: const ['Código del correo', 'Contraseña nueva', 'Repetir'],
-        plainFields: const {0},
-        confirmLabel: 'Restablecer',
-        validate: (values) {
-          if (values.any((v) => v.trim().isEmpty)) {
-            return 'Rellena los tres campos.';
-          }
-          if (values[1].length < minPasswordLength) {
-            return 'Usa al menos $minPasswordLength caracteres.';
-          }
-          if (values[1] != values[2]) return 'Las contraseñas no coinciden.';
-          return null;
-        },
-      ),
-    );
-    if (values == null) return;
-    await _run(
-      () => account.recoverPassword(email, values[0].trim(), values[1]),
-    );
-    if (mounted && account.lastError == null) _password.clear();
-  }
-
   Future<void> _changePassword(AccountService account) async {
     final values = await showDialog<List<String>>(
       context: context,
-      builder: (_) => _PasswordDialog(
+      builder: (_) => PasswordDialog(
         title: 'Cambiar contraseña',
         labels: const ['Contraseña actual', 'Contraseña nueva', 'Repetir'],
         confirmLabel: 'Cambiar',
@@ -962,7 +865,7 @@ class _AccountSectionState extends State<_AccountSection> {
   Future<void> _resetRemote(AccountService account) async {
     final values = await showDialog<List<String>>(
       context: context,
-      builder: (_) => _PasswordDialog(
+      builder: (_) => PasswordDialog(
         title: 'Empezar de cero en la nube',
         message:
             'Se borrarán los datos que hay en la nube y se sustituirán por '
@@ -1047,46 +950,6 @@ class _AccountSectionState extends State<_AccountSection> {
         '${two(time.hour)}:${two(time.minute)}';
   }
 
-  Widget _form(AccountService account) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-    child: Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        SizedBox(
-          width: 260,
-          child: TextField(
-            controller: _email,
-            keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(labelText: 'Email'),
-          ),
-        ),
-        SizedBox(
-          width: 220,
-          child: TextField(
-            controller: _password,
-            obscureText: true,
-            decoration: const InputDecoration(labelText: 'Contraseña'),
-            onSubmitted: (_) => _busy ? null : _signIn(account),
-          ),
-        ),
-        FilledButton(
-          onPressed: _busy ? null : () => _signIn(account),
-          child: const Text('Entrar'),
-        ),
-        OutlinedButton(
-          onPressed: _busy ? null : () => _signUp(account),
-          child: const Text('Crear cuenta'),
-        ),
-        TextButton(
-          onPressed: _busy ? null : () => _forgotPassword(account),
-          child: const Text('¿Olvidaste la contraseña?'),
-        ),
-      ],
-    ),
-  );
-
   @override
   Widget build(BuildContext context) {
     final account = AccountScope.of(context);
@@ -1105,6 +968,10 @@ class _AccountSectionState extends State<_AccountSection> {
       );
     }
     final lastSync = account.lastSync;
+    // The form shows the account's error itself.
+    final showsForm =
+        account.status == AccountStatus.signedOut ||
+        account.status == AccountStatus.awaitingConfirmation;
     return _Section(
       icon: Icons.account_circle_outlined,
       title: 'Cuenta',
@@ -1112,26 +979,13 @@ class _AccountSectionState extends State<_AccountSection> {
         switch (account.status) {
           AccountStatus.signedOut => const _Row(
             title: 'Entra o crea una cuenta',
-            subtitle:
-                'Tus listas, favoritos, progreso y ajustes se sincronizan '
-                'cifrados: el servidor no puede leerlos. Si olvidas la '
-                'contraseña tendrás que empezar de cero en la nube.',
+            subtitle: accountSyncExplanation,
           ),
-          AccountStatus.awaitingConfirmation => _Row(
+          AccountStatus.awaitingConfirmation => const _Row(
             title: 'Confirma tu email',
             subtitle:
                 'Te hemos enviado un correo con un código. Escribe aquí '
                 'abajo tu email y tu contraseña y pulsa "Introducir código".',
-            trailing: FilledButton(
-              onPressed: _busy
-                  ? null
-                  : () => _confirmSignUp(
-                      account,
-                      _email.text.trim(),
-                      _password.text,
-                    ),
-              child: const Text('Introducir código'),
-            ),
           ),
           AccountStatus.signedIn => _Row(
             title: account.email ?? 'Sesión iniciada',
@@ -1221,10 +1075,8 @@ class _AccountSectionState extends State<_AccountSection> {
             value: account.syncSettings,
             onChanged: account.setSyncSettings,
           ),
-        if (account.status == AccountStatus.signedOut ||
-            account.status == AccountStatus.awaitingConfirmation)
-          _form(account),
-        if (account.lastError != null)
+        if (showsForm) AccountForm(account: account),
+        if (!showsForm && account.lastError != null)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             child: Text(
@@ -1233,100 +1085,6 @@ class _AccountSectionState extends State<_AccountSection> {
             ),
           ),
         if (_busy) const LinearProgressIndicator(),
-      ],
-    );
-  }
-}
-
-/// Dialog with one hidden-text field per label. Returns the typed values, or
-/// `null` when cancelled; [validate] returns an error to show instead of
-/// closing.
-class _PasswordDialog extends StatefulWidget {
-  const _PasswordDialog({
-    required this.title,
-    required this.labels,
-    required this.confirmLabel,
-    required this.validate,
-    this.message,
-    this.plainFields = const {},
-  });
-
-  final String title;
-  final String? message;
-
-  /// Indexes of the fields shown as plain text (not passwords).
-  final Set<int> plainFields;
-  final List<String> labels;
-  final String confirmLabel;
-  final String? Function(List<String> values) validate;
-
-  @override
-  State<_PasswordDialog> createState() => _PasswordDialogState();
-}
-
-class _PasswordDialogState extends State<_PasswordDialog> {
-  late final _controllers = [
-    for (final _ in widget.labels) TextEditingController(),
-  ];
-  String? _error;
-
-  @override
-  void dispose() {
-    for (final controller in _controllers) {
-      controller.dispose();
-    }
-    super.dispose();
-  }
-
-  void _submit() {
-    final values = [for (final c in _controllers) c.text];
-    final error = widget.validate(values);
-    if (error != null) {
-      setState(() => _error = error);
-    } else {
-      Navigator.pop(context, values);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.title),
-      content: SizedBox(
-        width: 360,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (widget.message != null) ...[
-              Text(widget.message!),
-              const SizedBox(height: 16),
-            ],
-            for (var i = 0; i < _controllers.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: TextField(
-                  controller: _controllers[i],
-                  obscureText: !widget.plainFields.contains(i),
-                  autofocus: i == 0,
-                  decoration: InputDecoration(labelText: widget.labels[i]),
-                  onSubmitted: (_) => _submit(),
-                ),
-              ),
-            if (_error != null)
-              Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(onPressed: _submit, child: Text(widget.confirmLabel)),
       ],
     );
   }

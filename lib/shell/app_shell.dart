@@ -249,7 +249,7 @@ class _SyncErrorPanel extends StatelessWidget {
 }
 
 /// Side bar: app mark, labelled section icons with a gradient marker on the
-/// active one, and "Listas" at the bottom to leave the playlist.
+/// active one, and at the bottom "Listas" (leave the playlist) above "Ajustes".
 class _SideBar extends StatelessWidget {
   const _SideBar({
     required this.selected,
@@ -291,16 +291,16 @@ class _SideBar extends StatelessWidget {
                     ),
                   const Spacer(),
                   _SideButton(
-                    icon: Icons.settings_outlined,
-                    label: 'Ajustes',
-                    active: false,
-                    onTap: onSettings,
-                  ),
-                  _SideButton(
                     icon: Icons.swap_horiz,
                     label: 'Listas',
                     active: false,
                     onTap: onExit,
+                  ),
+                  _SideButton(
+                    icon: Icons.settings_outlined,
+                    label: 'Ajustes',
+                    active: false,
+                    onTap: onSettings,
                   ),
                 ],
               ),

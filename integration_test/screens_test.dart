@@ -404,12 +404,19 @@ Future<void> _startParentalLock(WidgetTester tester) async {
 /// Screens that start signed in: parental control needs an account.
 const _signedInScreens = {'ajustes-control-parental', 'pin'};
 
+/// Screens that start as a new installation, with the welcome.
+const _firstRunScreens = {'bienvenida'};
+
 /// The account's "Última sincronización: dd/mm hh:mm" line, which shows the
 /// time of the run.
 Finder _lastSyncMask() => find.textContaining('Última sincronización');
 
 /// Every screen, by the name of its reference image.
 final Map<String, _Capture> _screens = {
+  'bienvenida': (tester, harness, name) async {
+    await settle(tester);
+    await expectScreen(tester, name);
+  },
   'inicio-vacio': (tester, harness, name) async {
     await _enter(tester, harness);
     await expectScreen(tester, name);
@@ -654,6 +661,7 @@ void main() {
           tester,
           size: size,
           signedIn: _signedInScreens.contains(name),
+          firstRun: _firstRunScreens.contains(name),
         );
         addTearDown(harness.close);
         await capture(tester, harness, name);

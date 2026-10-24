@@ -104,6 +104,10 @@ class AccountService extends ChangeNotifier {
   /// Email of the signed-in user, if any.
   String? get email => _auth.email;
 
+  /// Whether signing in with Google is available. Not yet: the welcome screen
+  /// shows the button disabled until the auth gateway supports it.
+  bool get supportsGoogle => false;
+
   /// Whether a sync is running.
   bool get syncing => _syncing;
 
