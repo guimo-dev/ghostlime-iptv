@@ -4,6 +4,7 @@ import '../legal/legal_info.dart';
 import '../legal/legal_screen.dart';
 import '../sync/account_form.dart';
 import '../sync/account_service.dart';
+import '../sync/google_sign_in.dart';
 import '../ui/app_theme.dart';
 import '../ui/backdrop.dart';
 import '../ui/brand_state.dart';
@@ -11,13 +12,6 @@ import '../ui/ghostlime_logo.dart';
 
 /// Widest the first-run content grows.
 const _maxWidth = 520.0;
-
-/// "Continuar con Google", always disabled for now: Google sign-in does not
-/// exist yet.
-const _googleButton = OutlinedButton(
-  onPressed: null,
-  child: Text('Continuar con Google'),
-);
 
 /// Shown once per installation: what the app is (and is not), the terms to
 /// accept and the account options. The options stay disabled until the terms
@@ -145,9 +139,22 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             child: const Text('Crear cuenta'),
           ),
           const SizedBox(height: 12),
-          // TODO(task 5): enable with AccountService.signInWithGoogle once
-          // the gateway supports it (AccountService.supportsGoogle).
-          const Tooltip(message: 'Disponible pronto', child: _googleButton),
+          if (account.supportsGoogle)
+            GoogleSignInButton(
+              account: account,
+              enabled: _accepted,
+              showsError: true,
+              onSignedIn: widget.onDone,
+            )
+          else
+            // No way back from the browser on this platform yet.
+            const Tooltip(
+              message: 'Disponible pronto',
+              child: OutlinedButton(
+                onPressed: null,
+                child: Text('Continuar con Google'),
+              ),
+            ),
           const SizedBox(height: 12),
           OutlinedButton(
             onPressed: whenAccepted(widget.onDone),

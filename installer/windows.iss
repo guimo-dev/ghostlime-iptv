@@ -40,6 +40,16 @@ Source: "vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check:
 Name: "{group}\Ghostlime IPTV"; Filename: "{app}\iptv_player.exe"
 Name: "{autodesktop}\Ghostlime IPTV"; Filename: "{app}\iptv_player.exe"; Tasks: desktopicon
 
+[Registry]
+; Esquema ghostlime:// para volver del navegador tras "Continuar con Google"
+; (ghostlime://login-callback). HKA = HKCU\Software\Classes en una instalación
+; para el usuario (sin admin) y HKLM\Software\Classes en una para todos. Se borra
+; al desinstalar. La versión portable (zip) no lo registra: ahí Google no vuelve.
+Root: HKA; Subkey: "Software\Classes\ghostlime"; ValueType: string; ValueName: ""; ValueData: "URL:Ghostlime IPTV"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\ghostlime"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKA; Subkey: "Software\Classes\ghostlime\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\iptv_player.exe"",0"
+Root: HKA; Subkey: "Software\Classes\ghostlime\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\iptv_player.exe"" ""%1"""
+
 [Run]
 Filename: "{tmp}\vc_redist.x64.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "Instalando Visual C++ Runtime..."; Check: VCRedistNeeded; Flags: waituntilterminated
 Filename: "{app}\iptv_player.exe"; Description: "{cm:LaunchProgram,Ghostlime IPTV}"; Flags: nowait postinstall skipifsilent

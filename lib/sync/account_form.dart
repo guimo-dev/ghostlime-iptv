@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'account_service.dart';
 import 'auth_gateway.dart' show AccountException;
+import 'google_sign_in.dart';
 
 /// What an account syncs and what forgetting the password means; shown next
 /// to the [AccountForm].
@@ -11,7 +12,8 @@ const accountSyncExplanation =
     'de cero en la nube.';
 
 /// Email and password form to sign in or create an account, with password
-/// recovery and the confirmation code of a new account. Shared by Ajustes →
+/// recovery, the confirmation code of a new account and, where it works,
+/// "Continuar con Google". Shared by Ajustes →
 /// Cuenta and the welcome screen (inside a dialog, so its hints are inline
 /// text, never SnackBars). Shows the [account]'s last error and a progress
 /// bar while an action runs.
@@ -22,7 +24,8 @@ class AccountForm extends StatefulWidget {
 
   /// Called when an action of this form leaves a session open: signed in, or
   /// in a state still to settle in Ajustes → Cuenta
-  /// ([AccountStatus.needsReset], [AccountStatus.chooseLocalData]).
+  /// ([AccountStatus.needsReset], [AccountStatus.chooseLocalData],
+  /// [AccountStatus.needsPassword]).
   final VoidCallback? onSignedIn;
 
   @override
@@ -206,6 +209,12 @@ class _AccountFormState extends State<AccountForm> {
                   onPressed: _busy ? null : _signUp,
                   child: const Text('Crear cuenta'),
                 ),
+                if (_account.supportsGoogle)
+                  GoogleSignInButton(
+                    account: _account,
+                    enabled: !_busy,
+                    onSignedIn: widget.onSignedIn,
+                  ),
                 TextButton(
                   onPressed: _busy ? null : _forgotPassword,
                   child: const Text('¿Olvidaste la contraseña?'),

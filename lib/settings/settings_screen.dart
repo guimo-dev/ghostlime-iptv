@@ -916,6 +916,26 @@ class _AccountSectionState extends State<_AccountSection> {
     await _run(() => account.resetRemoteData(values.first));
   }
 
+  /// Asks once on this device for the password of an account that signed in
+  /// with Google but is encrypted with its password, and opens it.
+  Future<void> _unlockWithPassword(AccountService account) async {
+    final values = await showDialog<List<String>>(
+      context: context,
+      builder: (_) => PasswordDialog(
+        title: 'Contraseña de la cuenta',
+        message:
+            'Tus datos están cifrados con la contraseña de esta cuenta. '
+            'Escríbela una vez en este dispositivo para abrirlos.',
+        labels: const ['Contraseña'],
+        confirmLabel: 'Abrir',
+        validate: (values) =>
+            values.first.isEmpty ? 'Escribe la contraseña.' : null,
+      ),
+    );
+    if (values == null) return;
+    await _run(() => account.unlockWithPassword(values.first));
+  }
+
   Future<void> _discardLocalData(AccountService account) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -1107,6 +1127,28 @@ class _AccountSectionState extends State<_AccountSection> {
                 OutlinedButton(
                   onPressed: _busy ? null : () => _discardLocalData(account),
                   child: const Text('Descartar datos locales'),
+                ),
+                OutlinedButton(
+                  onPressed: _busy ? null : () => _signOut(account),
+                  child: const Text('Cerrar sesión'),
+                ),
+              ],
+            ),
+          ),
+          AccountStatus.needsPassword => _Row(
+            title: account.email ?? 'Sesión iniciada con Google',
+            subtitle:
+                'Esta cuenta se creó con email y contraseña, y tus datos '
+                'están cifrados con esa contraseña: ni siquiera el servidor '
+                'puede leerlos. Escríbela una vez en este dispositivo para '
+                'abrirlos; no se guarda en el servidor.',
+            trailing: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton(
+                  onPressed: _busy ? null : () => _unlockWithPassword(account),
+                  child: const Text('Escribir la contraseña'),
                 ),
                 OutlinedButton(
                   onPressed: _busy ? null : () => _signOut(account),

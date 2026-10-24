@@ -3,6 +3,8 @@
 --
 -- Todo lo que guarda la app aquí va CIFRADO en el dispositivo (AES-256-GCM con
 -- una clave que solo conoce el usuario). El servidor solo ve blobs opacos.
+-- Excepción, aceptada por el propietario: en las cuentas que entran con Google
+-- la clave la custodia el servidor (columna escrowed_key, más abajo).
 
 -- Perfil de cifrado de cada usuario: sal de Argon2id y clave de datos envuelta.
 create table if not exists public.profiles (
@@ -22,6 +24,24 @@ create table if not exists public.sync_items (
   deleted boolean not null default false,
   synced_at timestamptz not null default now(), -- hora del servidor, para descargas incrementales
   primary key (user_id, kind, item_id)
+);
+
+-- Clave de datos de las cuentas de Google, custodiada por el servidor: va
+-- cifrada (AES-256-GCM) con el secreto KEY_ESCROW_SECRET, que solo conoce la
+-- Edge Function `key-escrow`, y atada al user_id (no sirve copiada a otra
+-- fila). La app nunca la escribe directamente: va por la función. La RLS de
+-- abajo deja a cada usuario ver solo su fila; ver la suya cifrada no le da
+-- nada que no obtenga ya por la función, y nadie ve la de otro. Una fila de
+-- Google no tiene sal ni clave envuelta con contraseña; una cuenta con
+-- contraseña nunca recibe clave custodiada (la función lo impide), así que
+-- sigue siendo de extremo a extremo.
+alter table public.profiles add column if not exists escrowed_key text; -- base64(nonce | cifrado | tag)
+alter table public.profiles alter column kdf_salt drop not null;
+alter table public.profiles alter column wrapped_key drop not null;
+alter table public.profiles drop constraint if exists profiles_has_key;
+alter table public.profiles add constraint profiles_has_key check (
+  (kdf_salt is null) = (wrapped_key is null)
+  and (wrapped_key is not null or escrowed_key is not null)
 );
 
 create index if not exists sync_items_user_synced

@@ -47,6 +47,66 @@ git clone https://github.com/guimo-dev/ghostlime-iptv.git
 La clave `anon` es pública por diseño: la seguridad la ponen las políticas RLS del
 esquema y el cifrado de extremo a extremo de la app.
 
+### Edge Functions
+
+`delete-account` (borrar la cuenta) y `key-escrow` (clave de las cuentas de Google) se
+despliegan como explica `supabase/functions/README.md`. `key-escrow` necesita el secreto
+`KEY_ESCROW_SECRET`: 32 bytes aleatorios en base64, generados una sola vez, por ejemplo con
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+y guardados en Edge Functions → Secrets (CLI: `supabase secrets set KEY_ESCROW_SECRET=...`).
+Guárdalo también fuera de Supabase, en un sitio seguro: **si se pierde o se cambia, las
+cuentas de Google ya no pueden abrir sus datos de la nube** (tendrían que empezar de cero).
+No lo pongas nunca en el repositorio, en `env/dev.json` ni en la app.
+
+### Entrar con Google (una vez)
+
+Necesita una cuenta de Google Cloud del propietario (Claude no crea cuentas).
+
+1. <https://console.cloud.google.com> → crear un proyecto (o usar uno) → APIs y servicios →
+   **Pantalla de consentimiento de OAuth**: tipo "Externo", nombre "Ghostlime IPTV", email
+   de asistencia `[EMAIL_CONTACTO]`, ámbitos solo `email`, `profile` y `openid` (no hace
+   falta más). Mientras esté "En pruebas", solo pueden entrar los usuarios de prueba que
+   añadas; para todos, "Publicar la aplicación".
+2. APIs y servicios → Credenciales → Crear credenciales → **ID de cliente de OAuth** →
+   tipo **Aplicación web**. En "URIs de redireccionamiento autorizados" pon la URL de
+   callback que muestra Supabase en el paso 3 (`https://<ID_DEL_PROYECTO>.supabase.co/auth/v1/callback`).
+   Copia el **ID de cliente** y el **secreto de cliente**.
+3. Supabase → Authentication → Sign In / Providers → **Google**: activar, pegar el ID y el
+   secreto del paso 2 y guardar.
+4. Supabase → Authentication → URL Configuration → **Redirect URLs**: añadir
+   `ghostlime://login-callback` (es adonde vuelve el navegador; sin ella Supabase manda al
+   "Site URL" y la app no se entera).
+5. Ejecutar otra vez `supabase/schema.sql` (añade la columna `escrowed_key`) y desplegar
+   `key-escrow` con su secreto (arriba).
+
+Cómo funciona en Windows: la app abre el navegador del sistema (flujo PKCE); al terminar,
+Google → Supabase → `ghostlime://login-callback?code=...`. El instalador registra el
+esquema `ghostlime` para el usuario (sin admin; para todos si se instala como admin) y lo
+quita al desinstalar. El navegador abre una segunda copia de la app con el enlace, que se
+lo pasa a la ventana ya abierta y se cierra. **La versión portable (zip) no registra el
+esquema**: ahí "Continuar con Google" abre el navegador pero no vuelve a la app; se puede
+usar email y contraseña.
+
+Mismo email con contraseña y con Google: Supabase enlaza las dos identidades. Si la
+cuenta ya tenía contraseña, entrar con Google pide esa contraseña una vez por dispositivo
+y la cuenta sigue cifrada de extremo a extremo (la función se niega a custodiar su clave).
+
+Para probar en desarrollo (`flutter run`), registra el esquema apuntando al ejecutable de
+depuración (y bórralo al acabar con `reg delete HKCU\Software\Classes\ghostlime /f`):
+
+```bat
+reg add HKCU\Software\Classes\ghostlime /ve /d "URL:Ghostlime IPTV" /f
+reg add HKCU\Software\Classes\ghostlime /v "URL Protocol" /d "" /f
+reg add HKCU\Software\Classes\ghostlime\shell\open\command /ve /d "\"C:\ruta\al\repo\build\windows\x64\runner\Debug\iptv_player.exe\" \"%1\"" /f
+```
+
+Si además está instalada la versión normal, el esquema apunta a la que se registró la
+última vez, y el enlace solo llega a una ventana de ese mismo ejecutable.
+
 ## 3. Firma de Android (una vez, necesaria para publicar Android)
 
 Sin estos secretos el workflow **no publica Android** (deja un aviso): cada build de CI

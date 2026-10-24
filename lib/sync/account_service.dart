@@ -36,6 +36,12 @@ enum AccountStatus {
   /// still has local playlists. Nothing syncs until the user decides with
   /// [AccountService.resolveLocalData].
   chooseLocalData,
+
+  /// Signed in with Google to an account whose data key is wrapped with its
+  /// password (it was created with email and password). Nothing syncs until
+  /// the password is typed once on this device with
+  /// [AccountService.unlockWithPassword]; the account stays end-to-end.
+  needsPassword,
 }
 
 /// Shortest password accepted for a new account or a password change.
@@ -51,8 +57,11 @@ const _cryptoError =
 ///
 /// The data key is created on the first device, wrapped with a key derived
 /// from the password and stored in the backend; this service unwraps it on
-/// sign-in and keeps it in the [DataKeyStore]. Passwords and keys are never
-/// logged and errors reach the UI only as Spanish text in [lastError].
+/// sign-in and keeps it in the [DataKeyStore]. Accounts created with Google
+/// have no password: their key is kept by the server instead (the
+/// `key-escrow` Edge Function, see [signInWithGoogle]). Passwords and keys
+/// are never logged and errors reach the UI only as Spanish text in
+/// [lastError].
 class AccountService extends ChangeNotifier {
   AccountService({
     required this._db,
@@ -111,9 +120,8 @@ class AccountService extends ChangeNotifier {
   /// Email of the signed-in user, if any.
   String? get email => _auth.email;
 
-  /// Whether signing in with Google is available. Not yet: the welcome screen
-  /// shows the button disabled until the auth gateway supports it.
-  bool get supportsGoogle => false;
+  /// Whether signing in with Google works on this platform.
+  bool get supportsGoogle => _auth.supportsGoogle;
 
   /// Whether a sync is running.
   bool get syncing => _syncing;
@@ -180,6 +188,40 @@ class AccountService extends ChangeNotifier {
     await _openSession(password);
   });
 
+  /// Signs in with Google in the browser. The data key is the one the server
+  /// keeps for the account (created and handed to it the first time), so
+  /// nothing is asked. An account that already has a password keeps its
+  /// end-to-end key: the state becomes [AccountStatus.needsPassword] and the
+  /// key is never handed to the server. Cancelled or failed, everything stays
+  /// signed out.
+  Future<void> signInWithGoogle() => _guard(() async {
+    await _auth.signInWithOAuthGoogle();
+    await _openGoogleSession();
+  });
+
+  /// Gives up a [signInWithGoogle] that is waiting for the browser; it then
+  /// fails with a "cancelled" message.
+  void cancelGoogleSignIn() => _auth.cancelOAuthGoogle();
+
+  /// Opens the password-wrapped data key with [password] after a Google
+  /// sign-in ([AccountStatus.needsPassword]) and syncs. The key stays on this
+  /// device, so the password is asked once; it is never handed to the server.
+  /// A wrong password keeps the state.
+  Future<void> unlockWithPassword(String password) => _guard(() async {
+    if (_status != AccountStatus.needsPassword) {
+      throw const AccountException('No hay nada que abrir ahora.');
+    }
+    final profile = await _backend.loadProfile();
+    if (profile == null) throw const AccountException(_networkError);
+    final dataKey = await _unwrapOrNull(profile, password);
+    if (dataKey == null) {
+      throw const AccountException('La contraseña no es correcta.');
+    }
+    await _keys.write(dataKey);
+    _useKey(dataKey);
+    await _finishSignIn();
+  });
+
   /// Ends the session and forgets the data key and the sync cursor. Local data
   /// stays. Anything scheduled or running is stopped before the first await,
   /// so nothing can sync (or save a cursor) while the session is closing.
@@ -201,9 +243,14 @@ class AccountService extends ChangeNotifier {
   Future<void> changePassword(String oldPassword, String newPassword) =>
       _guard(() async {
         _requireLongPassword(newPassword);
+        _requireSignedIn();
         final profile = await _backend.loadProfile();
-        if (_status != AccountStatus.signedIn || profile == null) {
-          throw const AccountException('Entra en tu cuenta primero.');
+        if (profile == null) {
+          // Signed in without a password profile: the key is escrowed.
+          throw const AccountException(
+            'Esta cuenta entra con Google y no tiene contraseña de '
+            'sincronización.',
+          );
         }
         final dataKey = await _unwrapOrNull(profile, oldPassword);
         if (dataKey == null) {
@@ -471,6 +518,43 @@ class AccountService extends ChangeNotifier {
       await _dropSession();
       rethrow;
     }
+    await _finishSignIn();
+  }
+
+  /// After a Google sign-in: a password profile means an end-to-end account
+  /// ([AccountStatus.needsPassword]); otherwise the key kept by the server is
+  /// used, or a new one is created and handed to it. The key read back from
+  /// the server is the one used, so when two devices race the first one
+  /// stored wins. If anything fails the session is closed again.
+  Future<void> _openGoogleSession() async {
+    _db.saveSyncCursor(null);
+    try {
+      if (await _backend.loadProfile() != null) {
+        _status = AccountStatus.needsPassword;
+        notifyListeners();
+        return;
+      }
+      var dataKey = await _auth.fetchEscrowedKey();
+      if (dataKey == null) {
+        await _auth.storeEscrowedKey(
+          Uint8List.fromList(SyncCrypto.randomBytes(32)),
+        );
+        dataKey = await _auth.fetchEscrowedKey();
+        if (dataKey == null) throw const AccountException(_networkError);
+      }
+      await _keys.write(dataKey);
+      _useKey(dataKey);
+    } catch (_) {
+      await _dropSession();
+      rethrow;
+    }
+    await _finishSignIn();
+  }
+
+  /// Once the data key is in use: asks what to do when another account's
+  /// playlists are on this device ([AccountStatus.chooseLocalData]), else
+  /// records the user and syncs. Does nothing unless signed in.
+  Future<void> _finishSignIn() async {
     if (_status != AccountStatus.signedIn) return;
     final last = _db.syncUserId();
     if (last != null && last != _auth.userId && _db.playlists().isNotEmpty) {

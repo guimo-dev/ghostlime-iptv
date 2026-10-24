@@ -22,18 +22,19 @@ class SupabaseSyncBackend implements SyncBackend {
     return id;
   }
 
+  /// The password profile. A row of a Google account holds only the escrowed
+  /// key (no salt, no wrapped key) and counts as no profile.
   @override
   Future<RemoteProfile?> loadProfile() async {
     final row = await _client
         .from('profiles')
-        .select()
+        .select('kdf_salt, wrapped_key')
         .eq('user_id', _userId)
         .maybeSingle();
-    if (row == null) return null;
-    return RemoteProfile(
-      kdfSalt: row['kdf_salt'] as String,
-      wrappedKey: row['wrapped_key'] as String,
-    );
+    final kdfSalt = row?['kdf_salt'] as String?;
+    final wrappedKey = row?['wrapped_key'] as String?;
+    if (kdfSalt == null || wrappedKey == null) return null;
+    return RemoteProfile(kdfSalt: kdfSalt, wrappedKey: wrappedKey);
   }
 
   @override

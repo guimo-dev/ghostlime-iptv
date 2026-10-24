@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iptv_player/catalog/catalog_db.dart';
@@ -39,11 +41,16 @@ ButtonStyleButton _button(WidgetTester tester, String label) =>
           .first,
     );
 
-/// An account service on [db] whose fake backend knows [accounts].
-AccountService _service(CatalogDb db, Map<String, String> accounts) {
+/// An account service on [db] whose fake backend knows [accounts]; [auth]
+/// replaces its fake gateway (e.g. one with Google).
+AccountService _service(
+  CatalogDb db,
+  Map<String, String> accounts, {
+  FakeAuthGateway? auth,
+}) {
   final service = AccountService(
     db: db,
-    auth: FakeAuthGateway(accounts),
+    auth: auth ?? FakeAuthGateway(accounts),
     backend: InMemorySyncBackend(),
     keys: FakeKeyStore(),
     passwords: FakePasswords(),
@@ -104,6 +111,63 @@ void main() {
       expect(find.byTooltip('Disponible pronto'), findsOneWidget);
     },
   );
+
+  testWidgets('"Continuar con Google" signs in and ends the welcome', (
+    tester,
+  ) async {
+    final db = CatalogDb.inMemory();
+    addTearDown(db.close);
+    final auth = FakeAuthGateway({})..supportsGoogle = true;
+    final account = _service(db, {}, auth: auth);
+    var done = 0;
+    await _pump(tester, WelcomeScreen(account: account, onDone: () => done++));
+    expect(_button(tester, 'Continuar con Google').enabled, isFalse);
+    expect(find.byTooltip('Disponible pronto'), findsNothing);
+    await tester.tap(find.text('Acepto y continúo'));
+    await tester.pump();
+    expect(_button(tester, 'Continuar con Google').enabled, isTrue);
+
+    await tester.tap(find.text('Continuar con Google'));
+    await tester.pumpAndSettle();
+
+    expect(account.status, AccountStatus.signedIn);
+    expect(auth.escrowStores, 1);
+    expect(done, 1);
+    expect(find.text('Continúa en el navegador'), findsNothing);
+    // Stops the periodic sync before the test ends.
+    await account.signOut();
+  });
+
+  testWidgets('"Cancelar" while in the browser stays with its message', (
+    tester,
+  ) async {
+    final db = CatalogDb.inMemory();
+    addTearDown(db.close);
+    final auth = FakeAuthGateway({})
+      ..supportsGoogle = true
+      ..browser = Completer<void>();
+    final account = _service(db, {}, auth: auth);
+    var done = 0;
+    await _pump(tester, WelcomeScreen(account: account, onDone: () => done++));
+    await tester.tap(find.text('Acepto y continúo'));
+    await tester.pump();
+
+    await tester.tap(find.text('Continuar con Google'));
+    // The dialog's progress bar never settles.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Continúa en el navegador'), findsOneWidget);
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+
+    expect(auth.oauthCancels, 1);
+
+    expect(account.status, AccountStatus.signedOut);
+    expect(done, 0);
+    expect(find.text('Se ha cancelado el acceso con Google.'), findsOneWidget);
+    expect(find.text('Continúa en el navegador'), findsNothing);
+    expect(_button(tester, 'Continuar con Google').enabled, isTrue);
+  });
 
   testWidgets('the links open the terms and the privacy policy', (
     tester,

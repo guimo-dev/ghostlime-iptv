@@ -3,7 +3,9 @@
 #include <windows.h>
 
 #include <cstdlib>
+#include <cwchar>
 
+#include "app_links/app_links_plugin_c_api.h"
 #include "flutter_window.h"
 #include "utils.h"
 
@@ -31,6 +33,16 @@ static Win32Window::Point WindowOrigin() {
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
+  // The browser returns from "Continuar con Google" by opening
+  // ghostlime://login-callback?code=..., which starts a second copy of the
+  // app. Hand the link to the window already open (app_links, the plugin
+  // supabase_flutter listens to, via WM_COPYDATA) and quit. Other launches,
+  // and a link with no window open, start the app as usual.
+  if (std::wcsstr(command_line, L"ghostlime://") != nullptr &&
+      SendAppLinkToInstance()) {
+    return EXIT_SUCCESS;
+  }
+
   // Attach to console when present (e.g., 'flutter run') or create a
   // new console when running with a debugger.
   if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {

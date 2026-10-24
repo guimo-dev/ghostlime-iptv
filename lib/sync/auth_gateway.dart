@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -63,11 +66,51 @@ abstract class AuthGateway {
   /// Edge Function, called with the current session). Throws
   /// [AccountException].
   Future<void> deleteAccount();
+
+  /// Whether [signInWithOAuthGoogle] works on this platform.
+  bool get supportsGoogle;
+
+  /// Signs in with Google in the system browser and returns once the session
+  /// has started. Throws [AccountException] when the user cancels (see
+  /// [cancelOAuthGoogle]), denies access or the sign-in fails.
+  Future<void> signInWithOAuthGoogle();
+
+  /// Gives up a pending [signInWithOAuthGoogle], which then throws; does
+  /// nothing when none is pending.
+  void cancelOAuthGoogle();
+
+  /// The signed-in user's data key kept by the server (the `key-escrow` Edge
+  /// Function), or `null` when it keeps none. Throws [AccountException].
+  Future<Uint8List?> fetchEscrowedKey();
+
+  /// Hands [key] to the server to keep as the user's data key. The server
+  /// keeps only the first one, so when another device got there first this
+  /// changes nothing: read the kept key back with [fetchEscrowedKey]. Throws
+  /// [AccountException].
+  Future<void> storeEscrowedKey(Uint8List key);
 }
+
+/// Where the browser sends the user back after signing in with Google. The
+/// installer registers the `ghostlime` scheme for the app, and Supabase must
+/// list this URL under Auth → URL Configuration → Redirect URLs.
+const googleRedirectUrl = 'ghostlime://login-callback';
 
 /// [AuthGateway] over Supabase Auth. Needs `Supabase.initialize` to have run.
 class SupabaseAuthGateway implements AuthGateway {
+  /// Listens to the auth events from the start, so the events replayed to a
+  /// new listener (the stream keeps them all) arrive long before a Google
+  /// sign-in waits for its own.
+  SupabaseAuthGateway() {
+    _auth.onAuthStateChange.listen(_onAuthState, onError: _onAuthError);
+  }
+
   GoTrueClient get _auth => Supabase.instance.client.auth;
+
+  /// The Google sign-in waiting for the browser to come back, if any.
+  Completer<void>? _pendingOAuth;
+
+  /// How long a Google sign-in waits for the browser before giving up.
+  static const _oauthTimeout = Duration(minutes: 5);
 
   @override
   String? get userId => _auth.currentUser?.id;
@@ -138,6 +181,118 @@ class SupabaseAuthGateway implements AuthGateway {
     }
   });
 
+  /// Google comes back through the `ghostlime` scheme, registered by the
+  /// Windows installer; other platforms are not set up yet.
+  @override
+  bool get supportsGoogle => Platform.isWindows;
+
+  /// Opens Google in the system browser (PKCE, the supabase_flutter default)
+  /// and waits for [googleRedirectUrl]. supabase_flutter receives that link
+  /// (app_links; the runner forwards it to the open window) and exchanges the
+  /// code for the session, which arrives here as a `signedIn` event; a failed
+  /// exchange arrives as a stream error.
+  @override
+  Future<void> signInWithOAuthGoogle() async {
+    cancelOAuthGoogle();
+    final pending = _pendingOAuth = Completer<void>();
+    // A cancel can fail it before anyone awaits; the await below still sees
+    // the error.
+    pending.future.ignore();
+    try {
+      if (!await _launchGoogle()) {
+        throw const AccountException(_browserError);
+      }
+      await pending.future.timeout(
+        _oauthTimeout,
+        onTimeout: () => throw const AccountException(_oauthTimeoutError),
+      );
+    } finally {
+      if (identical(_pendingOAuth, pending)) _pendingOAuth = null;
+    }
+  }
+
+  /// Opens the Google sign-in page; `false` when no browser could open it.
+  Future<bool> _launchGoogle() async {
+    try {
+      return await _translate(
+        () => _auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: googleRedirectUrl,
+        ),
+      );
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  @override
+  void cancelOAuthGoogle() =>
+      _finishOAuth(const AccountException(_oauthCancelledError));
+
+  /// Ends the pending Google sign-in, if any: successfully, or with [error].
+  void _finishOAuth([AccountException? error]) {
+    final pending = _pendingOAuth;
+    _pendingOAuth = null;
+    if (pending == null || pending.isCompleted) return;
+    if (error == null) {
+      pending.complete();
+    } else {
+      pending.completeError(error);
+    }
+  }
+
+  /// A new session ends the pending Google sign-in, if any. Sessions started
+  /// otherwise (email, codes) arrive with none pending and change nothing.
+  void _onAuthState(AuthState state) {
+    if (state.event == AuthChangeEvent.signedIn && state.session != null) {
+      _finishOAuth();
+    }
+  }
+
+  /// The browser came back with an error (`access_denied` when the user
+  /// said no) or the code could not be exchanged. Never logged.
+  void _onAuthError(Object error) => _finishOAuth(
+    AccountException(
+      error is AuthException && error.code == 'access_denied'
+          ? _oauthCancelledError
+          : _oauthFailedError,
+    ),
+  );
+
+  /// GET on the `key-escrow` Edge Function: `{key: base64}`, or 404 when the
+  /// server keeps no key for this user.
+  @override
+  Future<Uint8List?> fetchEscrowedKey() async {
+    try {
+      final response = await Supabase.instance.client.functions.invoke(
+        'key-escrow',
+        method: HttpMethod.get,
+      );
+      final data = response.data as Map<String, dynamic>;
+      return base64Decode(data['key'] as String);
+    } on FunctionException catch (e) {
+      if (e.status == 404) return null;
+      throw const AccountException(_fetchEscrowError);
+    }
+  }
+
+  /// PUT on the `key-escrow` Edge Function. 409 means the server already
+  /// keeps a key (another device was first, or the account has a password):
+  /// nothing changes, as the [AuthGateway] contract says.
+  @override
+  Future<void> storeEscrowedKey(Uint8List key) async {
+    try {
+      await Supabase.instance.client.functions.invoke(
+        'key-escrow',
+        method: HttpMethod.put,
+        body: {'key': base64Encode(key)},
+      );
+    } on FunctionException catch (e) {
+      if (e.status == 409) return;
+      throw const AccountException(_storeEscrowError);
+    }
+  }
+
   /// Email of the signed-in user; throws [AccountException] without one.
   String _currentEmail() =>
       _auth.currentUser?.email ??
@@ -164,6 +319,20 @@ class SupabaseAuthGateway implements AuthGateway {
   static const _deleteError =
       'No se ha podido borrar la cuenta. Pide un código nuevo con '
       '«Reenviar código» e inténtalo otra vez.';
+
+  static const _browserError =
+      'No se ha podido abrir el navegador para entrar con Google.';
+  static const _oauthCancelledError = 'Se ha cancelado el acceso con Google.';
+  static const _oauthFailedError =
+      'No se ha podido entrar con Google. Inténtalo de nuevo.';
+  static const _oauthTimeoutError =
+      'Se ha agotado el tiempo para entrar con Google. Inténtalo de nuevo.';
+  static const _fetchEscrowError =
+      'No se ha podido recuperar tu clave de sincronización. '
+      'Inténtalo de nuevo.';
+  static const _storeEscrowError =
+      'No se ha podido guardar tu clave de sincronización. '
+      'Inténtalo de nuevo.';
 
   static const _networkMessage =
       'No hay conexión con el servidor. Comprueba tu red e inténtalo de nuevo.';

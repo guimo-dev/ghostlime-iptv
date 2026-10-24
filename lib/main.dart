@@ -178,7 +178,8 @@ class _IptvAppState extends State<IptvApp> {
   /// Records the welcome as done and the current terms as accepted, then
   /// uncovers the playlists and runs their start-up work. An account opened
   /// in the welcome that still needs a decision (data that cannot be opened,
-  /// or another account's data here) goes to Ajustes, whose Cuenta section
+  /// another account's data here, or the password of an account entered with
+  /// Google) goes to Ajustes, whose Cuenta section
   /// at the top shows the choice, instead of the last playlist.
   void _finishFirstRun() {
     widget.db.saveWelcomeDone();
@@ -187,7 +188,8 @@ class _IptvAppState extends State<IptvApp> {
     navigator.pop();
     final status = widget.account?.status;
     if (status == AccountStatus.needsReset ||
-        status == AccountStatus.chooseLocalData) {
+        status == AccountStatus.chooseLocalData ||
+        status == AccountStatus.needsPassword) {
       unawaited(_playlistsKey.currentState?.refreshStale());
       navigator.push(
         MaterialPageRoute<void>(

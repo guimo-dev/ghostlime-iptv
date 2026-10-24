@@ -50,3 +50,81 @@ existen. En local: `supabase start` y `supabase functions serve delete-account`.
 
 Nota: no se ha podido ejecutar en este equipo (no hay Deno ni CLI de Supabase), así
 que la función está sin probar hasta el primer despliegue.
+
+## `key-escrow`
+
+Custodia la clave de datos de las cuentas que entran con Google, para que no tengan que
+escribir ninguna contraseña de sincronización (opción B del diseño). Verifica el JWT del
+usuario con `auth.getUser` y toma el usuario **solo del token**; sin JWT válido, 401.
+
+- `GET` → `200 { "key": "<base64 de 32 bytes>" }`, o `404` si no hay clave custodiada.
+- `PUT { "key": "<base64 de 32 bytes>" }` → `200` si la guarda; `409` si ya había una
+  (nunca la sustituye) o si la cuenta tiene perfil con contraseña (sigue siendo de
+  extremo a extremo); `400` si la clave no es de 32 bytes.
+- Otros métodos: `405`. Secreto ausente o mal formado: `500 not_configured`.
+
+En `profiles.escrowed_key` guarda `base64(nonce | cifrado | tag)`: AES-256-GCM con el
+secreto `KEY_ESCROW_SECRET` y el `user_id` como datos asociados (un valor copiado a la
+fila de otro usuario no se abre). Una copia de la base de datos sin el secreto no basta
+para leer las claves; quien controle el proyecto de Supabase sí podría. No registra
+claves, tokens ni cuerpos.
+
+### Secreto
+
+32 bytes aleatorios en base64, generados una vez:
+
+```
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+supabase secrets set KEY_ESCROW_SECRET=<el valor>
+```
+
+O en el panel: Edge Functions → Secrets. Guárdalo también fuera de Supabase: si se pierde
+o se cambia, las cuentas de Google no pueden abrir sus datos de la nube.
+
+### Desplegar
+
+```
+supabase functions deploy key-escrow
+```
+
+(o "Via Editor" con el nombre `key-escrow`). Lo mismo que en `delete-account` sobre
+"Verify JWT" y `SUPABASE_SERVICE_ROLE_KEY`. Antes, ejecutar otra vez `schema.sql`
+(columna `escrowed_key` y `kdf_salt`/`wrapped_key` opcionales).
+
+### Probar
+
+Con un usuario de prueba (nunca uno real) y su `access_token`:
+
+```
+# Sin JWT: 401
+curl -i "$SUPABASE_URL/functions/v1/key-escrow"
+
+# Sin clave todavía: 404
+curl -i "$SUPABASE_URL/functions/v1/key-escrow" \
+  -H "Authorization: Bearer $USER_JWT" -H "apikey: $SUPABASE_PUBLISHABLE_KEY"
+
+# Guardar una clave de prueba: 200; repetirlo (o con otra clave): 409
+KEY=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")
+curl -i -X PUT "$SUPABASE_URL/functions/v1/key-escrow" \
+  -H "Authorization: Bearer $USER_JWT" -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+  -H "Content-Type: application/json" -d "{\"key\":\"$KEY\"}"
+
+# Leerla: 200 con la misma clave
+curl -i "$SUPABASE_URL/functions/v1/key-escrow" \
+  -H "Authorization: Bearer $USER_JWT" -H "apikey: $SUPABASE_PUBLISHABLE_KEY"
+
+# Clave mal formada: 400
+curl -i -X PUT "$SUPABASE_URL/functions/v1/key-escrow" \
+  -H "Authorization: Bearer $USER_JWT" -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+  -H "Content-Type: application/json" -d '{"key":"corta"}'
+```
+
+Comprueba también: con el JWT de un usuario con contraseña (perfil con `wrapped_key`),
+el `PUT` da 409 y `escrowed_key` sigue vacío; en Table Editor, `escrowed_key` no
+contiene la clave en claro; con el JWT de otro usuario, el `GET` da 404. Borra los
+usuarios de prueba al acabar.
+
+Nota: sin Deno en este equipo, la lógica se probó en Node 24 con un cliente de Supabase
+falso (401/405/404/400, primer `PUT` 200, segundo 409, `GET` devuelve la clave, cuenta
+con contraseña 409, valor copiado a otro usuario ilegible, secreto ausente o corto 500,
+nada en los logs). Falta la prueba contra un Supabase real.
