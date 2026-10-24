@@ -52,11 +52,13 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                 ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Text(
-                    accountSyncExplanation,
-                    style: TextStyle(color: AppColors.textMuted),
+                    accountSyncExplanation(
+                      supportsGoogle: account.supportsGoogle,
+                    ),
+                    style: const TextStyle(color: AppColors.textMuted),
                   ),
                 ),
                 AccountForm(

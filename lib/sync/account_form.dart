@@ -4,12 +4,14 @@ import 'account_service.dart';
 import 'auth_gateway.dart' show AccountException;
 import 'google_sign_in.dart';
 
-/// What an account syncs and what forgetting the password means; shown next
-/// to the [AccountForm].
-const accountSyncExplanation =
-    'Tus listas, favoritos, progreso y ajustes se sincronizan cifrados: el '
-    'servidor no puede leerlos. Si olvidas la contraseña tendrás que empezar '
-    'de cero en la nube.';
+/// What an account syncs and how each kind keeps its key; shown next to the
+/// [AccountForm]. The Google sentence only when [supportsGoogle].
+String accountSyncExplanation({required bool supportsGoogle}) =>
+    'Con email, tus listas, favoritos, progreso y ajustes se sincronizan '
+    'cifrados de extremo a extremo: el servidor no puede leerlos y, si olvidas '
+    'la contraseña, tendrás que empezar de cero en la nube.'
+    '${supportsGoogle ? ' Con Google, la clave de cifrado la guarda el '
+              'servidor, así que no hay contraseña que olvidar.' : ''}';
 
 /// Email and password form to sign in or create an account, with password
 /// recovery, the confirmation code of a new account and, where it works,
