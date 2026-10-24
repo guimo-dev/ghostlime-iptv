@@ -29,6 +29,9 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
+      - name: Legal placeholders
+        if: github.ref_type == 'tag'
+        run: flutter test test/legal --dart-define=LEGAL_RELEASE_CHECK=true
 
   windows:
     needs: test

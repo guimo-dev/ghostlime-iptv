@@ -29,12 +29,12 @@ void main() {
     expect(hasPlaceholders('texto limpio'), isFalse);
   });
 
-  // Release guard: only runs when compiled with -Ddart.vm.product=true, so a
-  // release pipeline fails while any placeholder is left in the texts.
+  // Release guard: only runs when compiled with -DLEGAL_RELEASE_CHECK=true, so the
+  // release workflow (tag builds) fails while any placeholder is left in the texts.
   test('no placeholders left', () async {
     for (final doc in LegalDoc.values) {
       final text = await loadLegalText(doc);
       expect(hasPlaceholders(text), isFalse, reason: doc.name);
     }
-  }, skip: !const bool.fromEnvironment('dart.vm.product'));
+  }, skip: !const bool.fromEnvironment('LEGAL_RELEASE_CHECK'));
 }

@@ -12,4 +12,16 @@ void main() {
     expect(find.text('Política de privacidad'), findsWidgets);
     expect(find.textContaining('AES-256-GCM'), findsOneWidget);
   });
+
+  testWidgets('LegalScreen renders a heading and a bullet', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: LegalScreen(doc: LegalDoc.privacy)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Qué datos se guardan'), findsOneWidget);
+    expect(
+      find.textContaining('•  El email de tu cuenta', findRichText: true),
+      findsOneWidget,
+    );
+  });
 }

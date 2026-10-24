@@ -2,7 +2,7 @@
 
 Borrador pendiente de revisión por el responsable.
 
-Responsable: [RESPONSABLE]. Contacto: [EMAIL_CONTACTO]. Más información: [DOMINIO]/terminos.
+Responsable: [RESPONSABLE]. Contacto: [EMAIL_CONTACTO]. Más información: https://github.com/guimo-dev/ghostlime-iptv/blob/main/docs/legal/terminos.md.
 
 ## Qué es Ghostlime
 

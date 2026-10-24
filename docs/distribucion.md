@@ -14,6 +14,10 @@ puede hacer por él: crear cuentas, pagar, firmar con sus claves).
 - La sincronización usa **Supabase** (gratuito); sin sus claves la app funciona igual,
   sin cuentas.
 
+## Antes de publicar: textos legales
+
+Antes de publicar, sustituir los marcadores `[DOMINIO]`, `[EMAIL_CONTACTO]` y `[RESPONSABLE]` en `docs/legal/` (y revisar los textos). La build de una etiqueta falla si quedan: el job `test` ejecuta `flutter test test/legal --dart-define=LEGAL_RELEASE_CHECK=true`.
+
 ## 1. Repositorio en GitHub
 
 El repositorio ya existe: <https://github.com/guimo-dev/ghostlime-iptv>.
