@@ -96,6 +96,24 @@ class FakeAuthGateway implements AuthGateway {
   @override
   Future<void> verifySignupCode(String email, String code) =>
       verifyRecoveryCode(email, code);
+
+  /// How many account codes [sendEmailCode] has sent.
+  int emailCodesSent = 0;
+
+  @override
+  Future<void> sendEmailCode() async {
+    if (_email == null) {
+      throw const AccountException('Entra en tu cuenta primero.');
+    }
+    emailCodesSent++;
+  }
+
+  @override
+  Future<void> verifyEmailCode(String code) async {
+    if (_email == null || code != validCode) {
+      throw const AccountException('El código no es correcto o ha caducado.');
+    }
+  }
 }
 
 class FakeKeyStore implements DataKeyStore {
@@ -960,5 +978,44 @@ void main() {
         expect(AppSettings.fromJson(b.db.loadSettings()).networkCacheSecs, 60);
       },
     );
+  });
+
+  group('parental PIN reset codes', () {
+    test('signed out, no code is sent', () async {
+      final a = Device(backend, accounts);
+      await expectLater(
+        a.service.sendPinResetCode(),
+        throwsA(isA<AccountException>()),
+      );
+      expect(a.auth.emailCodesSent, 0);
+    });
+
+    test('signed in, the code goes to the account email', () async {
+      final a = Device(backend, accounts);
+      await a.service.signUp(_email, _password);
+
+      await a.service.sendPinResetCode();
+
+      expect(a.auth.emailCodesSent, 1);
+      expect(a.service.lastError, isNull);
+    });
+
+    test('a wrong code is rejected and a valid one accepted', () async {
+      final a = Device(backend, accounts);
+      await a.service.signUp(_email, _password);
+
+      await expectLater(
+        a.service.verifyPinResetCode('000000'),
+        throwsA(
+          isA<AccountException>().having(
+            (e) => e.message,
+            'message',
+            'El código no es correcto o ha caducado.',
+          ),
+        ),
+      );
+      await a.service.verifyPinResetCode(FakeAuthGateway.validCode);
+      expect(a.service.status, AccountStatus.signedIn);
+    });
   });
 }

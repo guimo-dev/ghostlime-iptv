@@ -247,6 +247,28 @@ class AccountService extends ChangeNotifier {
         await _openSession(password);
       });
 
+  /// Emails a code to the account so a forgotten parental PIN can be replaced
+  /// (see [verifyPinResetCode]). Throws [AccountException] without a session
+  /// or when sending fails; [lastError] is left alone, the PIN dialog shows it.
+  Future<void> sendPinResetCode() async {
+    _requireSignedIn();
+    await _auth.sendEmailCode();
+  }
+
+  /// Checks the [code] emailed by [sendPinResetCode]. Throws
+  /// [AccountException] on a wrong or expired code. The code is never logged.
+  Future<void> verifyPinResetCode(String code) async {
+    _requireSignedIn();
+    await _auth.verifyEmailCode(code);
+  }
+
+  /// Throws an [AccountException] unless the account is signed in.
+  void _requireSignedIn() {
+    if (_status != AccountStatus.signedIn) {
+      throw const AccountException('Entra en tu cuenta primero.');
+    }
+  }
+
   /// Settles [AccountStatus.chooseLocalData]: with [merge] the playlists and
   /// data on this device are added to the account; without it they are deleted
   /// (with their passwords) and the account's data is downloaded instead.

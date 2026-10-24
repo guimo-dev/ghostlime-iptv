@@ -49,6 +49,15 @@ abstract class AuthGateway {
   /// a session on success. Throws [AccountException] on a wrong or expired
   /// code.
   Future<void> verifySignupCode(String email, String code);
+
+  /// Emails the signed-in user a one-time code that proves they own the
+  /// account (used to replace a forgotten parental PIN). Throws
+  /// [AccountException].
+  Future<void> sendEmailCode();
+
+  /// Checks the [code] sent by [sendEmailCode]. Throws [AccountException] on a
+  /// wrong or expired code.
+  Future<void> verifyEmailCode(String code);
 }
 
 /// [AuthGateway] over Supabase Auth. Needs `Supabase.initialize` to have run.
@@ -92,6 +101,30 @@ class SupabaseAuthGateway implements AuthGateway {
   Future<void> verifySignupCode(String email, String code) => _translate(
     () => _auth.verifyOTP(email: email, token: code, type: OtpType.signup),
   );
+
+  /// Sends an email sign-in code to the current user ("Magic Link" template,
+  /// which must include `{{ .Token }}`). Not `reauthenticate()`: its code can
+  /// only be checked by a password update, and that would re-key the sync.
+  @override
+  Future<void> sendEmailCode() => _translate(
+    () => _auth.signInWithOtp(email: _currentEmail(), shouldCreateUser: false),
+  );
+
+  /// Verifies the sign-in code; on success Supabase renews the session of the
+  /// same user.
+  @override
+  Future<void> verifyEmailCode(String code) => _translate(
+    () => _auth.verifyOTP(
+      email: _currentEmail(),
+      token: code,
+      type: OtpType.email,
+    ),
+  );
+
+  /// Email of the signed-in user; throws [AccountException] without one.
+  String _currentEmail() =>
+      _auth.currentUser?.email ??
+      (throw const AccountException('Entra en tu cuenta primero.'));
 
   /// Runs [action], turning any Supabase or network failure into an
   /// [AccountException] with a Spanish message.
