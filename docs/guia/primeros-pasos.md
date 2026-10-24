@@ -19,7 +19,7 @@ La primera vez que abres la app aparece la bienvenida. Antes de nada hay que pul
 eliges cómo seguir:
 
 - **Entrar con email** o **Crear cuenta**, para sincronizar entre dispositivos.
-- **Continuar con Google**, solo en versiones compiladas con `GOOGLE_SIGN_IN` (si no,
+- **Continuar con Google**, solo en las versiones de Windows compiladas con `GOOGLE_SIGN_IN` (si no,
   aparece desactivado con "Disponible pronto").
 - **Continuar sin cuenta**: la app funciona igual, solo en este dispositivo. Puedes
   crear una cuenta más tarde en **Ajustes** > **Cuenta**. Si cambian los términos, la app

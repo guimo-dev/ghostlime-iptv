@@ -3,7 +3,7 @@
 Opcional. Con una cuenta, tus listas, favoritos, progreso y ajustes viajan entre
 dispositivos cifrados. Con **email y contraseña** el cifrado es **de extremo a extremo**:
 la clave se deriva de tu contraseña y ni URLs, ni usuarios, ni nombres de canales viajan
-en claro. Con **Google** no escribes ninguna clave: se guarda en el servidor, protegida
+en claro. Con **Google** (solo en versiones de Windows compiladas con `GOOGLE_SIGN_IN`) no escribes ninguna clave: se guarda en el servidor, protegida
 por una función que solo se la entrega a tu usuario. Una copia de la base de datos no
 basta para leer tus datos, pero quien controle el proyecto del servidor sí podría (ver
 la [política de privacidad](../legal/privacidad.md)).
@@ -35,7 +35,8 @@ cuenta**. Se eliminan la cuenta y todos sus datos en la nube, y **no se puede de
 ## Exportar mis datos
 
 En **Ajustes** > **Cuenta** (o en la sección de cuenta aunque no hayas entrado),
-**Exportar mis datos** > **Exportar** guarda un fichero JSON con tus listas, favoritos,
+**Exportar mis datos** > **Exportar** guarda un fichero JSON con lo que hay en este
+dispositivo (con una cuenta, coincide con lo sincronizado): tus listas, favoritos,
 progreso y ajustes, incluidas la dirección del servidor y el usuario Xtream de cada
 lista, pero sin contraseñas ni PIN.
 

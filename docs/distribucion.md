@@ -18,6 +18,8 @@ puede hacer por él: crear cuentas, pagar, firmar con sus claves).
 
 Antes de publicar, sustituir los marcadores `[DOMINIO]`, `[EMAIL_CONTACTO]` y `[RESPONSABLE]` en `docs/legal/` (y revisar los textos). La build de una etiqueta falla si quedan: el job `test` ejecuta `flutter test test/legal --dart-define=LEGAL_RELEASE_CHECK=true`.
 
+**Cada build de etiqueta falla mientras queden marcadores sin sustituir. Es intencionado**: impide publicar con textos legales a medias.
+
 ## 1. Repositorio en GitHub
 
 El repositorio ya existe: <https://github.com/guimo-dev/ghostlime-iptv>.
@@ -91,7 +93,8 @@ Necesita una cuenta de Google Cloud del propietario (Claude no crea cuentas).
 1. <https://console.cloud.google.com> → crear un proyecto (o usar uno) → APIs y servicios →
    **Pantalla de consentimiento de OAuth**: tipo "Externo", nombre "Ghostlime IPTV", email
    de asistencia `[EMAIL_CONTACTO]`, ámbitos solo `email`, `profile` y `openid` (no hace
-   falta más). Mientras esté "En pruebas", solo pueden entrar los usuarios de prueba que
+   falta más; Supabase pide siempre `email` y `profile`, y guarda el nombre, la foto y el
+   id de Google en sus tablas de autenticación; la app no los usa). Mientras esté "En pruebas", solo pueden entrar los usuarios de prueba que
    añadas; para todos, "Publicar la aplicación".
 2. APIs y servicios → Credenciales → Crear credenciales → **ID de cliente de OAuth** →
    tipo **Aplicación web**. En "URIs de redireccionamiento autorizados" pon la URL de

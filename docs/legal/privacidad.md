@@ -9,9 +9,10 @@ Solo guardamos lo imprescindible. Sin cuenta, ningún dato tuyo llega a servidor
 ## Qué datos se guardan
 
 - El email de tu cuenta, si creas una.
+- Si entras con Google, Supabase guarda en sus tablas de autenticación lo que Google le envía al entrar: tu nombre, la URL de tu foto de perfil y el identificador de tu cuenta de Google. Ghostlime no los usa para nada.
 - Lo que sincronizas, si usas cuenta: tus listas (con sus credenciales), favoritos, progreso y ajustes.
 
-No pedimos nombre, teléfono, fecha de nacimiento ni nada más.
+Ghostlime no te pide nombre, teléfono, fecha de nacimiento ni nada más.
 
 ## Cómo se protegen
 
@@ -32,7 +33,7 @@ Solo para que puedas iniciar sesión y sincronizar tus datos entre dispositivos.
 
 ## Dónde se guardan
 
-En servidores de Supabase, que actúa como encargado del tratamiento. La región es la que muestra el proyecto de Supabase (pendiente de confirmar: UE).
+En servidores de Supabase, que actúa como encargado del tratamiento. La región es la que muestra el proyecto de Supabase (pendiente de confirmar: UE). Supabase conserva además registros técnicos (dirección IP, agente de usuario y horas de acceso) por seguridad durante un tiempo limitado.
 
 ## Cuánto tiempo
 
@@ -44,6 +45,6 @@ Ghostlime no tiene analíticas, telemetría, informes de fallos, publicidad ni r
 
 ## Tus derechos
 
-- **Acceso y portabilidad:** en Ajustes → Cuenta → "Exportar mis datos" obtienes un fichero JSON con tus datos.
+- **Acceso y portabilidad:** en Ajustes → Cuenta → "Exportar mis datos" obtienes un fichero JSON con los datos que hay en este dispositivo (con una cuenta, coinciden con lo sincronizado).
 - **Borrado:** en Ajustes → Cuenta → "Borrar mi cuenta" se borran tu cuenta y tus datos del servidor.
 - **Otros derechos** (rectificación, oposición, limitación) o dudas: escribe a [EMAIL_CONTACTO]. También puedes reclamar ante la autoridad de protección de datos de tu país.
