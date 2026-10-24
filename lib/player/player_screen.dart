@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -137,8 +138,17 @@ class PlayerScreen extends StatefulWidget {
 
 class _PlayerScreenState extends State<PlayerScreen> {
   late final Player _player = Player();
-  late final VideoController _controller = VideoController(_player);
   late final AppSettings _settings = SettingsScope.read(context).value;
+
+  /// `hwdec` forced by the settings, or `null` to keep media_kit's choice.
+  late final String? _hwdec = hwdecFor(
+    hardwareDecoding: _settings.hardwareDecoding,
+    isAndroid: Platform.isAndroid,
+  );
+  late final VideoController _controller = VideoController(
+    _player,
+    configuration: VideoControllerConfiguration(hwdec: _hwdec),
+  );
   late final PlaybackLog? _log = PlaybackLogScope.read(context);
   late final ReconnectPolicy _reconnectPolicy = ReconnectPolicy(
     isLive: widget.isLive,
@@ -235,7 +245,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final platform = _player.platform;
     if (platform is NativePlayer) {
       final properties = {
-        'hwdec': _settings.hardwareDecoding ? 'auto-safe' : 'no',
+        if (_hwdec != null) 'hwdec': _hwdec,
         'cache': 'yes',
         'cache-secs': '${_settings.networkCacheSecs}',
         'demuxer-readahead-secs': '${_settings.networkCacheSecs}',

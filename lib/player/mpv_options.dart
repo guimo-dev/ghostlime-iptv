@@ -20,3 +20,12 @@ Future<void> useSafeDemuxerOptions(Player player) async {
     await platform.setProperty('demuxer-lavf-o', demuxerLavfOptions);
   }
 }
+
+/// The mpv `hwdec` to force for the "hardware decoding" setting, or `null` to
+/// keep media_kit's own choice. On Android media_kit already picks
+/// `auto-safe`, or `no` on an emulator (whose decoder never outputs frames),
+/// so only switching it off is forced there.
+String? hwdecFor({required bool hardwareDecoding, required bool isAndroid}) {
+  if (!hardwareDecoding) return 'no';
+  return isAndroid ? null : 'auto-safe';
+}
