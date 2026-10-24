@@ -76,11 +76,15 @@ class FakeAuthGateway implements AuthGateway {
   /// How many account codes [sendEmailCode] has sent.
   int emailCodesSent = 0;
 
+  /// When set, [sendEmailCode] throws it (e.g. the rate limit).
+  AccountException? emailCodeError;
+
   @override
   Future<void> sendEmailCode() async {
     if (_email == null) {
       throw const AccountException('Entra en tu cuenta primero.');
     }
+    if (emailCodeError case final error?) throw error;
     emailCodesSent++;
   }
 
