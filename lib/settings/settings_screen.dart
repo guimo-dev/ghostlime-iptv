@@ -65,33 +65,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _snack(String text) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
 
+  /// Asks for the PIN, offering the emailed reset when signed in.
+  Future<bool> _verifyPin() =>
+      verifyPin(context, _pins, account: AccountScope.read(context));
+
   /// Parental changes need the PIN unless the session is already unlocked.
   Future<bool> _authorized() async {
     if (!_settings.parentalLock || ParentalSession.unlocked.value) return true;
-    final ok = await verifyPin(context, _pins);
+    final ok = await _verifyPin();
     if (ok) ParentalSession.unlocked.value = true;
     return ok;
   }
 
+  /// Turning the lock on always creates a new PIN; turning it off asks for
+  /// the current one and deletes it.
   Future<void> _toggleParentalLock(bool on) async {
     if (on) {
-      if (!await _pins.hasPin()) {
-        if (!mounted) return;
-        final pin = await askPin(context, title: 'Crea un PIN', confirm: true);
-        if (pin == null) return;
-        await _pins.setPin(pin);
-      }
+      final pin = await askPin(context, title: 'Crea un PIN', confirm: true);
+      if (pin == null) return;
+      await _pins.setPin(pin);
       ParentalSession.unlocked.value = false;
       if (mounted) _update(_settings.copyWith(parentalLock: true));
-    } else if (await _authorized() && mounted) {
-      _update(_settings.copyWith(parentalLock: false));
+    } else if (await _verifyPin()) {
+      await _pins.clear();
+      ParentalSession.unlocked.value = false;
+      if (mounted) _update(_settings.copyWith(parentalLock: false));
     }
   }
 
   Future<void> _changePin() async {
     final hasPin = await _pins.hasPin();
     if (!mounted) return;
-    if (hasPin && !await verifyPin(context, _pins)) return;
+    if (hasPin && !await _verifyPin()) return;
     if (!mounted) return;
     final pin = await askPin(context, title: 'Nuevo PIN', confirm: true);
     if (pin == null) return;
@@ -101,7 +106,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _unlockSession() async {
-    final ok = await verifyPin(context, _pins);
+    final ok = await _verifyPin();
     if (!mounted) return;
     if (ok) {
       ParentalSession.unlocked.value = true;
@@ -245,6 +250,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final s = SettingsScope.of(context).value;
     final hasPlaylist = widget.playlist != null;
+    // Without an account no PIN can be created; a lock left on can still be
+    // turned off with its PIN.
+    final canUseLock =
+        AccountScope.of(context)?.status == AccountStatus.signedIn ||
+        s.parentalLock;
     return AppBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -414,9 +424,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   _SwitchRow(
                     title: 'Control parental con PIN',
-                    subtitle: 'Las categorías bloqueadas desaparecen hasta poner el PIN.',
+                    subtitle: canUseLock
+                        ? 'Las categorías bloqueadas desaparecen hasta poner el PIN.'
+                        : 'Inicia sesión para usar el control parental.',
                     value: s.parentalLock,
-                    onChanged: _toggleParentalLock,
+                    onChanged: canUseLock ? _toggleParentalLock : null,
                   ),
                   if (s.parentalLock)
                     _Row(
@@ -651,7 +663,9 @@ class _SwitchRow extends StatelessWidget {
   final String title;
   final String? subtitle;
   final bool value;
-  final ValueChanged<bool> onChanged;
+
+  /// `null` shows the switch disabled.
+  final ValueChanged<bool>? onChanged;
 
   @override
   Widget build(BuildContext context) => _Row(
@@ -967,13 +981,18 @@ class _AccountSectionState extends State<_AccountSection> {
     if (ok == true) await _run(() => account.resolveLocalData(merge: false));
   }
 
+  /// Signs out after confirming. With the parental lock on it asks for the
+  /// PIN first and, when right, turns the lock off and deletes the PIN (no
+  /// PIN can exist without an account); cancelling keeps the session.
   Future<void> _signOut(AccountService account) async {
+    final locked = SettingsScope.read(context).value.parentalLock;
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        content: const Text(
+        content: Text(
           '¿Cerrar sesión? Tus datos se quedan en este dispositivo, pero '
-          'dejarán de sincronizarse.',
+          'dejarán de sincronizarse.'
+          '${locked ? ' El control parental se desactivará y se borrará el PIN.' : ''}',
         ),
         actions: [
           TextButton(
@@ -987,7 +1006,17 @@ class _AccountSectionState extends State<_AccountSection> {
         ],
       ),
     );
-    if (ok == true) await _run(account.signOut);
+    if (ok != true || !mounted) return;
+    if (locked) {
+      final pins = PinScope.read(context);
+      if (!await verifyPin(context, pins, account: account)) return;
+      await pins.clear();
+      ParentalSession.unlocked.value = false;
+      if (!mounted) return;
+      final settings = SettingsScope.read(context);
+      settings.update(settings.value.copyWith(parentalLock: false));
+    }
+    await _run(account.signOut);
   }
 
   /// "20/10 14:32" style time for the last sync line.
