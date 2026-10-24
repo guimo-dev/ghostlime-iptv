@@ -250,17 +250,12 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
     categories: _allCategories,
   );
 
-  /// Name to show for [channel]: the clean title when prefixes are stripped.
-  String _displayName(AppSettings settings, Channel channel) =>
-      settings.stripChannelPrefix
-      ? displayTitle(channel.name).title
-      : channel.name;
-
-  /// Display names of the current group's channels by key; same-named ones get
-  /// a suffix, keyed by channel so filtering does not renumber them.
-  Map<String, String> _namesByKey(AppSettings settings) => {
+  /// Display names of the current group's channels by key: the provider's
+  /// name, with a suffix on same-named ones, keyed by channel so filtering
+  /// does not renumber them.
+  Map<String, String> _namesByKey() => {
     for (final (index, name) in distinctNames([
-      for (final c in _channels) _displayName(settings, c),
+      for (final c in _channels) c.name,
     ]).indexed)
       _channels[index].key: name,
   };
@@ -273,7 +268,6 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
         .where(
           (c) =>
               !hidden.contains(c.categoryId) &&
-              !(settings.hideSeparators && isSeparatorName(c.name)) &&
               (query.isEmpty || foldText(c.name).contains(query)),
         )
         .toList();
@@ -438,8 +432,7 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
                 channel: _selected,
                 channelName: _selected == null
                     ? ''
-                    : _namesByKey(settings)[_selected!.key] ??
-                          _displayName(settings, _selected!),
+                    : _namesByKey()[_selected!.key] ?? _selected!.name,
                 now: _guide[_selected?.epgId]?.$1,
                 upcoming: _upcoming,
                 controller: _preview == null ? null : _previewController,
@@ -591,7 +584,7 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
       db: _db,
       playlistId: _playlistId,
       channels: channels,
-      names: _namesByKey(settings),
+      names: _namesByKey(),
       selectedKey: _selected?.key,
       onChannel: _onChannel,
       revision: _guideRevision,
@@ -606,7 +599,7 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
         child: BrandMessage(title: 'No hay canales en este grupo'),
       );
     }
-    final names = _namesByKey(settings);
+    final names = _namesByKey();
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
       itemExtent: _rowHeight,
@@ -619,7 +612,7 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
           child: ChannelRow(
             number: index + 1,
             channel: channel,
-            name: names[channel.key] ?? _displayName(settings, channel),
+            name: names[channel.key] ?? channel.name,
             now: now,
             next: next,
             selected: channel.key == _selected?.key,

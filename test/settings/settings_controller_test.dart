@@ -18,11 +18,11 @@ void main() {
   });
 
   test('update persists and a new controller loads it', () {
-    SettingsController(
-      db,
-    ).update(const AppSettings(videoFit: VideoFit.fill, networkCacheSecs: 60));
+    SettingsController(db).update(
+      const AppSettings(posterSize: PosterSize.large, networkCacheSecs: 60),
+    );
     final loaded = SettingsController(db).value;
-    expect(loaded.videoFit, VideoFit.fill);
+    expect(loaded.posterSize, PosterSize.large);
     expect(loaded.networkCacheSecs, 60);
   });
 

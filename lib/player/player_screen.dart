@@ -239,10 +239,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
         'cache': 'yes',
         'cache-secs': '${_settings.networkCacheSecs}',
         'demuxer-readahead-secs': '${_settings.networkCacheSecs}',
-        if (_settings.audioLanguage.isNotEmpty)
-          'alang': _settings.audioLanguage,
-        if (_settings.subtitleLanguage.isNotEmpty)
-          'slang': _settings.subtitleLanguage,
       };
       for (final MapEntry(:key, :value) in properties.entries) {
         await platform.setProperty(key, value);
@@ -393,12 +389,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
     log.sample(cacheSecs: cache, speedBytesPerSec: speed?.round());
   }
 
-  BoxFit get _boxFit => switch (_settings.videoFit) {
-    VideoFit.contain => BoxFit.contain,
-    VideoFit.cover => BoxFit.cover,
-    VideoFit.fill => BoxFit.fill,
-  };
-
   void _toggleInfo() => setState(() => _showInfo = !_showInfo);
 
   /// Handles `I` (toggle info) and `Esc` (go back).
@@ -464,7 +454,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 child: MaterialVideoControlsTheme(
                   normal: mobileControlsTheme,
                   fullscreen: mobileControlsTheme,
-                  child: Video(controller: _controller, fit: _boxFit),
+                  child: Video(controller: _controller, fit: BoxFit.contain),
                 ),
               ),
               if (_startFailed)

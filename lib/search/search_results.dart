@@ -7,7 +7,6 @@ import '../player/play_target.dart';
 import '../player/resume.dart';
 import '../playlists/password_store.dart';
 import '../playlists/playlist.dart';
-import '../settings/app_settings.dart';
 import '../settings/content_filters.dart';
 import '../settings/parental_session.dart';
 import '../settings/settings_scope.dart';
@@ -104,31 +103,21 @@ class _SearchResultsState extends State<SearchResults> {
   /// Runs the search for the current query; call inside `setState` or
   /// before the first build.
   void _search() {
-    final settings = SettingsScope.read(context).value;
     _query = widget.query.trim();
     final hidden = _hiddenCategories();
-    bool hiddenSeparator(Channel c) =>
-        c.kind == MediaKind.live &&
-        settings.hideSeparators &&
-        isSeparatorName(c.name);
     _results = _query.length < _minQueryLength
         ? const []
         : widget.db
               .searchChannels(_playlistId, _query)
-              .where(
-                (c) =>
-                    !hidden.contains((c.kind, c.categoryId)) &&
-                    !hiddenSeparator(c),
-              )
+              .where((c) => !hidden.contains((c.kind, c.categoryId)))
               .toList();
-    _titles = _displayNames(settings);
+    _titles = _displayNames();
     _favorites = widget.db.favoriteKeys(_playlistId, MediaKind.live);
   }
 
-  /// Names for [_results]: live channels as Live shows them (the clean title
-  /// when the setting asks, a suffix for names repeated within their group);
-  /// other items as they come.
-  List<String> _displayNames(AppSettings settings) {
+  /// Names for [_results]: live channels as Live shows them (a suffix for
+  /// names repeated within their group); other items as they come.
+  List<String> _displayNames() {
     final titles = [for (final c in _results) c.name];
     final groups = <String, List<int>>{};
     for (final (index, c) in _results.indexed) {
@@ -136,12 +125,7 @@ class _SearchResultsState extends State<SearchResults> {
       groups.putIfAbsent(c.categoryId, () => []).add(index);
     }
     for (final indexes in groups.values) {
-      final names = distinctNames([
-        for (final i in indexes)
-          settings.stripChannelPrefix
-              ? displayTitle(_results[i].name).title
-              : _results[i].name,
-      ]);
+      final names = distinctNames([for (final i in indexes) _results[i].name]);
       for (final (n, i) in indexes.indexed) {
         titles[i] = names[n];
       }

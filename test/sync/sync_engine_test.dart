@@ -137,7 +137,9 @@ void main() {
       'Categoría X',
       const ChannelSort(),
     );
-    a.db.saveSettings(const AppSettings(audioLanguage: 'klingon').toJson());
+    a.db.saveSettings(
+      const AppSettings(hiddenHomeRails: {HomeRail.favoriteMovies}).toJson(),
+    );
     await a.sync();
 
     expect(backend.items, hasLength(5));
@@ -150,7 +152,7 @@ void main() {
       'Peli',
       'xm:5',
       'Categor',
-      'klingon',
+      'favoriteMovies',
       'Mi proveedor',
     ]) {
       expect(everything, isNot(contains(secret)));

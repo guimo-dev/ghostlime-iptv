@@ -91,23 +91,6 @@ void main() {
     ]);
   });
 
-  testWidgets('names drop the prefix when the setting asks, and react to it', (
-    tester,
-  ) async {
-    await pumpResults(tester);
-    settings.update(settings.value.copyWith(stripChannelPrefix: true));
-    await tester.pump();
-    expect(titles(tester).take(2), ['Noticias 24', 'Noticias 24 · 2']);
-  });
-
-  testWidgets('separators go away when the setting hides them', (tester) async {
-    await pumpResults(tester);
-    settings.update(settings.value.copyWith(hideSeparators: true));
-    await tester.pump();
-    expect(titles(tester), isNot(contains('##### Noticias 24 #####')));
-    expect(titles(tester), hasLength(3));
-  });
-
   testWidgets('a locked group shows up once the session is unlocked', (
     tester,
   ) async {

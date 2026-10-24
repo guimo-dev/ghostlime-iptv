@@ -8,14 +8,9 @@ void main() {
     expect(s.hardwareDecoding, isTrue);
     expect(s.networkCacheSecs, 10);
     expect(s.autoReconnect, isTrue);
-    expect(s.audioLanguage, 'es,spa');
-    expect(s.subtitleLanguage, '');
     expect(s.resumePolicy, ResumePolicy.ask);
     expect(s.autoNextEpisode, isTrue);
-    expect(s.videoFit, VideoFit.contain);
     expect(s.previewSound, isFalse);
-    expect(s.hideSeparators, isFalse);
-    expect(s.stripChannelPrefix, isFalse);
     expect(s.defaultLiveFormat, LiveFormat.ts);
     expect(s.startSection, StartSection.home);
     expect(s.openLastPlaylist, isFalse);
@@ -40,14 +35,9 @@ void main() {
       hardwareDecoding: false,
       networkCacheSecs: 45,
       autoReconnect: false,
-      audioLanguage: 'en',
-      subtitleLanguage: 'es',
       resumePolicy: ResumePolicy.restart,
       autoNextEpisode: false,
-      videoFit: VideoFit.cover,
       previewSound: true,
-      hideSeparators: true,
-      stripChannelPrefix: true,
       defaultLiveFormat: LiveFormat.m3u8,
       startSection: StartSection.last,
       openLastPlaylist: true,
@@ -72,20 +62,20 @@ void main() {
   test('unknown keys and values fall back to defaults without throwing', () {
     final s = AppSettings.fromJson({
       'mystery': 1,
-      'videoFit': 'stretch',
+      'posterSize': 'huge',
       'resumePolicy': 3,
       'hardwareDecoding': 'yes',
-      'audioLanguage': 42,
+      'autoReconnect': 42,
       'networkCacheSecs': 'ten',
       'lastPlaylistId': 'x',
       'hiddenHomeRails': ['nope', 'favoriteSeries', 5],
       'lockedCategories': 'not a list',
       'defaultLiveFormat': 'dash',
     });
-    expect(s.videoFit, VideoFit.contain);
+    expect(s.posterSize, PosterSize.medium);
     expect(s.resumePolicy, ResumePolicy.ask);
     expect(s.hardwareDecoding, isTrue);
-    expect(s.audioLanguage, 'es,spa');
+    expect(s.autoReconnect, isTrue);
     expect(s.networkCacheSecs, 10);
     expect(s.lastPlaylistId, isNull);
     expect(s.hiddenHomeRails, {HomeRail.favoriteSeries});
@@ -112,30 +102,32 @@ void main() {
     expect(AppSettings.fromJson({'epgRefreshHours': 0}).epgRefreshHours, 6);
   });
 
-  test('separators show by default', () {
-    expect(AppSettings.fromJson(const {}).hideSeparators, isFalse);
-  });
-
-  test('settings saved before the separators change show them once', () {
-    // Older versions saved every field, so `true` was just their default.
+  test('settings saved with removed options still load, without them', () {
     final old = AppSettings.fromJson(const {
-      'hideSeparators': true,
+      'settingsVersion': 2,
       'audioLanguage': 'en',
+      'subtitleLanguage': 'es',
+      'videoFit': 'cover',
+      'hideSeparators': true,
+      'stripChannelPrefix': true,
+      'networkCacheSecs': 30,
     });
-    expect(old.hideSeparators, isFalse);
-    expect(old.audioLanguage, 'en');
-    expect(old.toJson()['settingsVersion'], settingsVersion);
-  });
-
-  test('a choice made after the change is kept', () {
-    final chosen = const AppSettings(hideSeparators: true).toJson();
-    expect(chosen['settingsVersion'], settingsVersion);
-    expect(AppSettings.fromJson(chosen).hideSeparators, isTrue);
+    expect(old.networkCacheSecs, 30);
+    expect(old.toJson().keys, isNot(contains('settingsVersion')));
+    for (final removed in [
+      'audioLanguage',
+      'subtitleLanguage',
+      'videoFit',
+      'hideSeparators',
+      'stripChannelPrefix',
+    ]) {
+      expect(old.toJson().keys, isNot(contains(removed)));
+    }
   });
 
   test('copyWith replaces only the given fields', () {
-    final s = const AppSettings().copyWith(videoFit: VideoFit.fill);
-    expect(s.videoFit, VideoFit.fill);
+    final s = const AppSettings().copyWith(posterSize: PosterSize.large);
+    expect(s.posterSize, PosterSize.large);
     expect(s.networkCacheSecs, 10);
   });
 }

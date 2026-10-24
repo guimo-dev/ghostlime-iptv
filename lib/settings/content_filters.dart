@@ -9,15 +9,9 @@ final _adultPattern = RegExp(
   unicode: true,
 );
 
-final _separatorPattern = RegExp(r'^\s*#{3,}|^[^\p{L}\p{N}]*$', unicode: true);
-
 /// Whether a category name looks like adult content: `xxx`, `adult(s|o|os)`,
 /// `porn`, `+18` or `18+` as whole words, ignoring case.
 bool isAdultCategory(String name) => _adultPattern.hasMatch(name);
-
-/// Whether a channel name is a decorative separator: it starts with three or
-/// more `#`, or has no letters or digits at all.
-bool isSeparatorName(String name) => _separatorPattern.hasMatch(name);
 
 /// Whether [category] may be shown: hidden when it is adult and
 /// `settings.hideAdult` is on, or when it is locked and the lock is on and not

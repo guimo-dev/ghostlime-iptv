@@ -33,13 +33,14 @@ class _Device {
   /// Local id of the playlist with [syncId].
   int playlist(String syncId) => db.playlistIdForSyncId(syncId)!;
 
-  /// Saves settings with [audio] as the audio language, stamped at [at].
-  void saveAudio(String audio, DateTime at) {
-    db.saveSettings(AppSettings(audioLanguage: audio).toJson());
+  /// Saves settings with [cache] as the network cache seconds, stamped at
+  /// [at].
+  void saveCache(int cache, DateTime at) {
+    db.saveSettings(AppSettings(networkCacheSecs: cache).toJson());
     db.markDirty(settingsKind, settingsItemId, at: at);
   }
 
-  String get audio => AppSettings.fromJson(db.loadSettings()).audioLanguage;
+  int get cache => AppSettings.fromJson(db.loadSettings()).networkCacheSecs;
 }
 
 void main() {
@@ -77,7 +78,7 @@ void main() {
     'switched off, settings and list prefs stay home; the rest travels',
     () async {
       a.db.saveSyncSettingsEnabled(false);
-      a.saveAudio('en', t1);
+      a.saveCache(30, t1);
       a.db.saveChannelSort(
         a.playlist(syncId),
         MediaKind.live,
@@ -92,7 +93,7 @@ void main() {
       final report = await b.sync();
 
       expect(report.settingsApplied, isFalse);
-      expect(b.audio, isNot('en'));
+      expect(b.cache, isNot(30));
       expect(
         b.db.hasOwnChannelSort(b.playlist(syncId), MediaKind.live, 'c'),
         isFalse,
@@ -103,7 +104,7 @@ void main() {
 
   test('switched off, remote settings and prefs are not applied', () async {
     b.db.saveSyncSettingsEnabled(false);
-    a.saveAudio('en', t1);
+    a.saveCache(30, t1);
     a.db.saveChannelSort(
       a.playlist(syncId),
       MediaKind.live,
@@ -116,7 +117,7 @@ void main() {
     final report = await b.sync();
 
     expect(report.settingsApplied, isFalse);
-    expect(b.audio, isNot('en'));
+    expect(b.cache, isNot(30));
     expect(
       b.db.hasOwnChannelSort(b.playlist(syncId), MediaKind.live, 'c'),
       isFalse,
@@ -126,8 +127,8 @@ void main() {
 
   test('switched back on, a newer remote change wins', () async {
     b.db.saveSyncSettingsEnabled(false);
-    b.saveAudio('fr', t1);
-    a.saveAudio('en', t2);
+    b.saveCache(45, t1);
+    a.saveCache(30, t2);
     a.db.saveChannelSort(
       a.playlist(syncId),
       MediaKind.live,
@@ -136,34 +137,34 @@ void main() {
     );
     await a.sync();
     await b.sync();
-    expect(b.audio, 'fr');
+    expect(b.cache, 45);
 
     b.db.saveSyncSettingsEnabled(true);
     final report = await b.sync();
 
     expect(report.settingsApplied, isTrue);
-    expect(b.audio, 'en');
+    expect(b.cache, 30);
     expect(
       b.db.channelSort(b.playlist(syncId), MediaKind.live, 'c').mode,
       SortMode.alphaAsc,
     );
     await a.sync();
-    expect(a.audio, 'en');
+    expect(a.cache, 30);
   });
 
   test('switched back on, a newer local change wins and is uploaded', () async {
     b.db.saveSyncSettingsEnabled(false);
-    a.saveAudio('en', t1);
+    a.saveCache(30, t1);
     await a.sync();
     await b.sync();
-    b.saveAudio('fr', t2);
+    b.saveCache(45, t2);
     await b.sync();
 
     b.db.saveSyncSettingsEnabled(true);
     await b.sync();
-    expect(b.audio, 'fr');
+    expect(b.cache, 45);
     await a.sync();
-    expect(a.audio, 'fr');
+    expect(a.cache, 45);
   });
 
   test('catching up happens once', () async {

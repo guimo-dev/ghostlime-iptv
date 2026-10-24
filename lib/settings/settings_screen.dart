@@ -285,19 +285,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     value: s.autoReconnect,
                     onChanged: (v) => _update(s.copyWith(autoReconnect: v)),
                   ),
-                  _TextRow(
-                    title: 'Idioma de audio preferido',
-                    subtitle:
-                        'Códigos ISO separados por comas, por ejemplo es,spa.',
-                    value: s.audioLanguage,
-                    onChanged: (v) => _update(s.copyWith(audioLanguage: v)),
-                  ),
-                  _TextRow(
-                    title: 'Idioma de subtítulos preferido',
-                    subtitle: 'Vacío para no mostrarlos.',
-                    value: s.subtitleLanguage,
-                    onChanged: (v) => _update(s.copyWith(subtitleLanguage: v)),
-                  ),
                   _ChoiceRow<ResumePolicy>(
                     title: 'Al abrir algo empezado',
                     value: s.resumePolicy,
@@ -314,16 +301,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     value: s.autoNextEpisode,
                     onChanged: (v) => _update(s.copyWith(autoNextEpisode: v)),
                   ),
-                  _ChoiceRow<VideoFit>(
-                    title: 'Formato de imagen',
-                    value: s.videoFit,
-                    options: const {
-                      VideoFit.contain: 'Ajustar',
-                      VideoFit.cover: 'Rellenar',
-                      VideoFit.fill: 'Estirar',
-                    },
-                    onChanged: (v) => _update(s.copyWith(videoFit: v)),
-                  ),
                 ],
               ),
               _Section(
@@ -334,19 +311,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Sonido en la vista previa',
                     value: s.previewSound,
                     onChanged: (v) => _update(s.copyWith(previewSound: v)),
-                  ),
-                  _SwitchRow(
-                    title: 'Ocultar separadores del proveedor',
-                    subtitle: 'Las filas tipo "##### ES - … #####".',
-                    value: s.hideSeparators,
-                    onChanged: (v) => _update(s.copyWith(hideSeparators: v)),
-                  ),
-                  _SwitchRow(
-                    title: 'Limpiar prefijos en los nombres',
-                    subtitle: '"ES - La 1 FHD" se muestra como "La 1 FHD".',
-                    value: s.stripChannelPrefix,
-                    onChanged: (v) =>
-                        _update(s.copyWith(stripChannelPrefix: v)),
                   ),
                   _ChoiceRow<LiveFormat>(
                     title: 'Formato de las listas nuevas',
@@ -809,76 +773,6 @@ class _SliderRowState extends State<_SliderRow> {
       ),
     );
   }
-}
-
-/// Short text setting (language codes); saves when editing finishes.
-class _TextRow extends StatefulWidget {
-  const _TextRow({
-    required this.title,
-    required this.value,
-    required this.onChanged,
-    this.subtitle,
-  });
-
-  final String title;
-  final String? subtitle;
-  final String value;
-  final ValueChanged<String> onChanged;
-
-  @override
-  State<_TextRow> createState() => _TextRowState();
-}
-
-class _TextRowState extends State<_TextRow> {
-  late final _controller = TextEditingController(text: widget.value);
-  final _focusNode = FocusNode();
-
-  @override
-  void initState() {
-    super.initState();
-    _focusNode.addListener(() {
-      if (!_focusNode.hasFocus) _save();
-    });
-  }
-
-  @override
-  void didUpdateWidget(_TextRow oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.value != oldWidget.value &&
-        !_focusNode.hasFocus &&
-        _controller.text != widget.value) {
-      _controller.text = widget.value;
-    }
-  }
-
-  @override
-  void dispose() {
-    _focusNode.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  /// Reports the typed text, normalised, unless it is already the value.
-  void _save() {
-    final text = _controller.text.trim().toLowerCase();
-    if (text != widget.value) widget.onChanged(text);
-  }
-
-  @override
-  Widget build(BuildContext context) => _Row(
-    title: widget.title,
-    subtitle: widget.subtitle,
-    trailing: SizedBox(
-      width: 120,
-      child: TextField(
-        controller: _controller,
-        focusNode: _focusNode,
-        textAlign: TextAlign.center,
-        onSubmitted: (_) => _save(),
-        onTapOutside: (_) => _focusNode.unfocus(),
-      ),
-    ),
-  );
 }
 
 /// "Cuenta" section: sign in or up, sync state and password management.

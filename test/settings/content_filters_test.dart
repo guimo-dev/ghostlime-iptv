@@ -49,15 +49,6 @@ void main() {
     }
   });
 
-  test('isSeparatorName detects hash banners and symbol-only names', () {
-    expect(isSeparatorName('##### ES - CINE #####'), isTrue);
-    expect(isSeparatorName('  ### X'), isTrue);
-    expect(isSeparatorName('-----'), isTrue);
-    expect(isSeparatorName('La 1'), isFalse);
-    expect(isSeparatorName('# not enough'), isFalse);
-    expect(isSeparatorName('24h'), isFalse);
-  });
-
   test('adult categories are hidden only when hideAdult is on', () {
     final adult = _category('XXX Night');
     expect(_visible(const AppSettings(), adult), isFalse);
