@@ -78,7 +78,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   /// Turning the lock on always creates a new PIN; turning it off asks for
-  /// the current one and deletes it.
+  /// the current one and deletes it. Without a session and without a stored
+  /// PIN there is nothing to check, so the lock just turns off.
   Future<void> _toggleParentalLock(bool on) async {
     if (on) {
       final pin = await askPin(context, title: 'Crea un PIN', confirm: true);
@@ -86,7 +87,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await _pins.setPin(pin);
       ParentalSession.unlocked.value = false;
       if (mounted) _update(_settings.copyWith(parentalLock: true));
-    } else if (await _verifyPin()) {
+    } else {
+      final signedIn =
+          AccountScope.read(context)?.status == AccountStatus.signedIn;
+      final nothingToVerify = !signedIn && !await _pins.hasPin();
+      if (!mounted || (!nothingToVerify && !await _verifyPin())) return;
       await _pins.clear();
       ParentalSession.unlocked.value = false;
       if (mounted) _update(_settings.copyWith(parentalLock: false));
@@ -250,11 +255,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final s = SettingsScope.of(context).value;
     final hasPlaylist = widget.playlist != null;
-    // Without an account no PIN can be created; a lock left on can still be
-    // turned off with its PIN.
-    final canUseLock =
-        AccountScope.of(context)?.status == AccountStatus.signedIn ||
-        s.parentalLock;
+    // Without an account no PIN can be created or changed; a lock left on can
+    // still be turned off.
+    final signedIn = AccountScope.of(context)?.status == AccountStatus.signedIn;
+    final canUseLock = signedIn || s.parentalLock;
     return AppBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -424,8 +428,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   _SwitchRow(
                     title: 'Control parental con PIN',
-                    subtitle: canUseLock
+                    subtitle: signedIn
                         ? 'Las categorías bloqueadas desaparecen hasta poner el PIN.'
+                        : s.parentalLock
+                        ? 'Al desactivarlo necesitarás iniciar sesión para volver a activarlo.'
                         : 'Inicia sesión para usar el control parental.',
                     value: s.parentalLock,
                     onChanged: canUseLock ? _toggleParentalLock : null,
@@ -445,10 +451,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               onPressed: _editLockedCategories,
                               child: const Text('Elegir categorías'),
                             ),
-                          OutlinedButton(
-                            onPressed: _changePin,
-                            child: const Text('Cambiar PIN'),
-                          ),
+                          if (signedIn)
+                            OutlinedButton(
+                              onPressed: _changePin,
+                              child: const Text('Cambiar PIN'),
+                            ),
                           if (!ParentalSession.unlocked.value)
                             OutlinedButton(
                               onPressed: _unlockSession,

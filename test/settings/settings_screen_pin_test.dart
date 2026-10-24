@@ -9,6 +9,7 @@ import 'package:iptv_player/settings/settings_scope.dart';
 import 'package:iptv_player/settings/settings_screen.dart';
 import 'package:iptv_player/sync/account_scope.dart';
 import 'package:iptv_player/sync/account_service.dart';
+import 'package:iptv_player/sync/auth_gateway.dart' show AccountException;
 import 'package:iptv_player/sync/sync_backend.dart';
 
 import '../sync/fake_account.dart';
@@ -16,6 +17,8 @@ import '../sync/fake_passwords.dart';
 
 const _lockTitle = 'Control parental con PIN';
 const _forgot = '¿Olvidaste el PIN?';
+const _offWithoutSession =
+    'Al desactivarlo necesitarás iniciar sesión para volver a activarlo.';
 
 void main() {
   late CatalogDb db;
@@ -196,22 +199,52 @@ void main() {
     await tester.enterText(dialogField(0), '000000');
     await tester.tap(find.text('Comprobar'));
     await tester.pumpAndSettle();
+    // The error shows in the dialog, which stays open for another try.
     expect(
-      find.text('El código no es correcto o ha caducado.'),
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('El código no es correcto o ha caducado.'),
+      ),
       findsOneWidget,
     );
     expect(await pins.verify('1234'), isTrue);
 
-    await tapLockSwitch(tester);
-    await tester.tap(find.text(_forgot));
-    await tester.pumpAndSettle();
     await tester.enterText(dialogField(0), FakeAuthGateway.validCode);
     await tester.tap(find.text('Comprobar'));
     await tester.pumpAndSettle();
     await enterPin(tester, '5678', fields: 2);
 
+    expect(auth.emailCodesSent, 1);
     expect(await pins.verify('5678'), isTrue);
     expect(settings.value.parentalLock, isTrue);
+  });
+
+  testWidgets('the code can be sent again, unless the rate limit says no', (
+    tester,
+  ) async {
+    await signIn(tester);
+    lockWith('1234');
+    await pump(tester);
+    await tapLockSwitch(tester);
+    await tester.tap(find.text(_forgot));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Reenviar código'));
+    await tester.pumpAndSettle();
+    expect(auth.emailCodesSent, 2);
+    expect(find.text('Te hemos enviado otro código.'), findsOneWidget);
+
+    const limit =
+        'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.';
+    auth.emailCodeError = const AccountException(limit);
+    await tester.tap(find.text('Reenviar código'));
+    await tester.pumpAndSettle();
+    expect(auth.emailCodesSent, 2);
+    expect(
+      find.descendant(of: find.byType(AlertDialog), matching: find.text(limit)),
+      findsOneWidget,
+    );
+    expect(find.text('Recuperar el PIN'), findsOneWidget);
   });
 
   testWidgets('without a session the PIN dialog offers no reset', (
@@ -220,9 +253,37 @@ void main() {
     lockWith('1234');
     await pump(tester);
 
+    expect(find.text(_offWithoutSession), findsOneWidget);
+    expect(find.text('Cambiar PIN'), findsNothing);
     await tapLockSwitch(tester);
     expect(find.text('Introduce el PIN'), findsOneWidget);
     expect(find.text(_forgot), findsNothing);
+  });
+
+  testWidgets('without a session or a PIN, the lock turns off directly', (
+    tester,
+  ) async {
+    settings.update(settings.value.copyWith(parentalLock: true));
+    await pump(tester);
+    expect(find.text(_offWithoutSession), findsOneWidget);
+    expect(find.text('Cambiar PIN'), findsNothing);
+
+    await tapLockSwitch(tester);
+
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(settings.value.parentalLock, isFalse);
+    expect(
+      find.text('Inicia sesión para usar el control parental.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('with a session, the PIN can be changed', (tester) async {
+    await signIn(tester);
+    lockWith('1234');
+    await pump(tester);
+    expect(find.text('Cambiar PIN'), findsOneWidget);
+    expect(find.text(_offWithoutSession), findsNothing);
   });
 
   group('signing out with the lock on', () {
