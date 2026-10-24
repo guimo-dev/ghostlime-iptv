@@ -17,6 +17,8 @@ void main() {
       final html = File('supabase/templates/$name.html').readAsStringSync();
       expect(html, contains('{{ .Token }}'));
       expect(html, isNot(contains('{{ .ConfirmationURL }}')));
+      expect(html, isNot(contains('<a ')));
+      expect(html, isNot(contains('href=')));
       expect(html, contains('Si no has sido tú, ignora este correo.'));
       final images = RegExp(r'<img\s[^>]*src="([^"]+)"').allMatches(html);
       expect(images.map((match) => match.group(1)), [

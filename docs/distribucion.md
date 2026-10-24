@@ -49,8 +49,8 @@ git clone https://github.com/guimo-dev/ghostlime-iptv.git
    | Confirm signup | `confirmar-alta.html` | Código al crear la cuenta |
    | Reset password | `recuperar-contrasena.html` | Código para restablecer la contraseña |
    | Magic Link | `codigo-acceso.html` | Recuperar el PIN del control parental y confirmar el borrado de la cuenta (la app no inicia sesión con enlaces) |
-   | Change Email Address | `cambio-email.html` | Código al cambiar el email |
-   | Reauthentication | `reautenticacion.html` | Código para confirmar operaciones sensibles |
+   | Change Email Address | `cambio-email.html` | No usada por la app hoy; plantilla de reserva |
+   | Reauthentication | `reautenticacion.html` | No usada por la app hoy; plantilla de reserva |
 
    Todas llevan `{{ .Token }}` (el código); sin él, el correo solo traería un enlace
    que la app no puede usar. Solo usan la imagen del logo de GitHub (cámbiala por la de

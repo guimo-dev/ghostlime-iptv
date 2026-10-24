@@ -77,8 +77,9 @@ How releases are built (GitHub Actions, Android signing, Google Play):
 
 ## Privacy
 
-Accounts are optional and sync data end-to-end encrypted. See the
-[privacy policy](docs/legal/privacidad.md) (Spanish).
+Accounts are optional. Email accounts sync end-to-end encrypted; for Google accounts
+the encryption key is kept on the server, so the project owner could access that data.
+See the [privacy policy](docs/legal/privacidad.md) (Spanish).
 
 ## Disclaimer
 

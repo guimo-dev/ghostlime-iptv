@@ -1,16 +1,19 @@
 # Cuenta y sincronización
 
 Opcional. Con una cuenta, tus listas, favoritos, progreso y ajustes viajan entre
-dispositivos con **cifrado de extremo a extremo**: el servidor solo guarda datos
-cifrados con una clave derivada de tu contraseña. Ni URLs, ni usuarios, ni nombres de
-canales viajan en claro.
+dispositivos cifrados. Con **email y contraseña** el cifrado es **de extremo a extremo**:
+la clave se deriva de tu contraseña y ni URLs, ni usuarios, ni nombres de canales viajan
+en claro. Con **Google** no escribes ninguna clave: se guarda en el servidor, protegida
+por una función que solo se la entrega a tu usuario. Una copia de la base de datos no
+basta para leer tus datos, pero quien controle el proyecto del servidor sí podría (ver
+la [política de privacidad](../legal/privacidad.md)).
 
 ![Sección Cuenta en una versión sin servicio de sincronización](img/ajustes-cuenta-sin-supabase.png)
 
 ## Pasos
 
 1. Puedes crearla en la pantalla de bienvenida (**Entrar con email**, **Crear cuenta** o
-   **Continuar con Google**) o después en **Ajustes** > **Cuenta**.
+   **Continuar con Google**, que solo aparece en versiones compiladas con él) o después en **Ajustes** > **Cuenta**.
 2. Con email: escribe email y contraseña, y pulsa **Crear cuenta** (o **Entrar** si ya
    tienes). Con Google: pulsa **Continuar con Google** y termina en el navegador; no hay
    contraseña de sincronización que escribir.
@@ -33,7 +36,8 @@ cuenta**. Se eliminan la cuenta y todos sus datos en la nube, y **no se puede de
 
 En **Ajustes** > **Cuenta** (o en la sección de cuenta aunque no hayas entrado),
 **Exportar mis datos** > **Exportar** guarda un fichero JSON con tus listas, favoritos,
-progreso y ajustes, sin contraseñas ni PIN.
+progreso y ajustes, incluidas la dirección del servidor y el usuario Xtream de cada
+lista, pero sin contraseñas ni PIN.
 
 ## Consejos y límites
 
