@@ -31,7 +31,8 @@ class GoogleDevice {
     Map<String, Uint8List> escrow,
   ) : auth = FakeAuthGateway(accounts, escrow: escrow)
         ..supportsGoogle = true
-        ..googleEmail = _googleEmail {
+        ..googleEmail = _googleEmail
+        ..profiles = backend {
     service = AccountService(
       db: db,
       auth: auth,
@@ -53,6 +54,28 @@ class GoogleDevice {
     final id = db.savePlaylist(_xtream);
     await passwords.write(id, 'secret-pass');
   }
+}
+
+/// A backend whose next [loadProfile] answers "none", as when a password
+/// device creates the profile right after this one looked.
+class _LateProfileBackend extends InMemorySyncBackend {
+  bool hideProfileOnce = false;
+
+  @override
+  Future<RemoteProfile?> loadProfile() async {
+    if (hideProfileOnce) {
+      hideProfileOnce = false;
+      return null;
+    }
+    return super.loadProfile();
+  }
+}
+
+/// A backend holding a Google account's row: no password profile, and no
+/// room to create one.
+class _GoogleRowBackend extends InMemorySyncBackend {
+  @override
+  Future<bool> createProfile(RemoteProfile profile) async => false;
 }
 
 /// Throws the [AccountException] with [message].
@@ -247,6 +270,88 @@ void main() {
     expect(a.auth.escrowStores, 0);
     expect(a.db.syncUserId(), isNull);
   });
+
+  test('the escrow never takes the key of a password account', () async {
+    final a = GoogleDevice(backend, accounts, escrow);
+    await a.service.signUp(_googleEmail, _password);
+
+    await a.auth.storeEscrowedKey(
+      Uint8List.fromList(SyncCrypto.randomBytes(32)),
+    );
+
+    expect(escrow, isEmpty);
+  });
+
+  test('a password profile created meanwhile is never escrowed over', () async {
+    final lateBackend = _LateProfileBackend();
+    final a = GoogleDevice(lateBackend, accounts, escrow);
+    await a.service.signUp(_googleEmail, _password);
+    await a.service.signOut();
+    final b = GoogleDevice(lateBackend, accounts, escrow);
+    lateBackend.hideProfileOnce = true;
+
+    await expectLater(
+      b.service.signInWithGoogle(),
+      throwsA(isA<AccountException>()),
+    );
+
+    expect(b.service.status, AccountStatus.signedOut);
+    expect(b.auth.userId, isNull);
+    expect(b.keys.key, isNull);
+    expect(escrow, isEmpty);
+  });
+
+  test('an escrowed key of the wrong size is refused', () async {
+    escrow['user-$_googleEmail'] = Uint8List(16);
+    final a = GoogleDevice(backend, accounts, escrow);
+
+    await expectLater(
+      a.service.signInWithGoogle(),
+      _throwsAccount(
+        'La clave de sincronización guardada en el servidor no es válida.',
+      ),
+    );
+
+    expect(a.service.status, AccountStatus.signedOut);
+    expect(a.auth.userId, isNull);
+    expect(a.keys.key, isNull);
+  });
+
+  test('a failed Google sign-in drops a stray session', () async {
+    accounts['other@example.com'] = _password;
+    final a = GoogleDevice(backend, accounts, escrow);
+    // A session the service does not know about, e.g. a late browser return.
+    await a.auth.signIn('other@example.com', _password);
+    a.auth.oauthError = const AccountException(_cancelled);
+
+    await expectLater(a.service.signInWithGoogle(), _throwsAccount(_cancelled));
+
+    expect(a.auth.userId, isNull);
+    expect(a.service.status, AccountStatus.signedOut);
+  });
+
+  test(
+    'a Google account using password recovery is told to use Google',
+    () async {
+      accounts[_googleEmail] = 'old password';
+      final a = GoogleDevice(_GoogleRowBackend(), accounts, escrow);
+
+      await expectLater(
+        a.service.recoverPassword(
+          _googleEmail,
+          FakeAuthGateway.validCode,
+          'a new password',
+        ),
+        _throwsAccount(
+          'Esta cuenta entra con Google. Usa «Continuar con Google».',
+        ),
+      );
+
+      expect(a.service.status, AccountStatus.signedOut);
+      expect(a.auth.userId, isNull);
+      expect(a.keys.key, isNull);
+    },
+  );
 
   test('cancelGoogleSignIn tells the gateway', () {
     final a = GoogleDevice(backend, accounts, escrow);

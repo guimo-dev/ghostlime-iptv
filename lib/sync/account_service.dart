@@ -49,6 +49,8 @@ const minPasswordLength = 10;
 
 const _networkError =
     'No se ha podido conectar con el servidor. Inténtalo de nuevo.';
+const _googleAccountError =
+    'Esta cuenta entra con Google. Usa «Continuar con Google».';
 const _cryptoError =
     'No se pueden descifrar los datos de la nube. Si cambiaste la contraseña '
     'en otro dispositivo, cierra sesión y vuelve a entrar.';
@@ -195,7 +197,14 @@ class AccountService extends ChangeNotifier {
   /// key is never handed to the server. Cancelled or failed, everything stays
   /// signed out.
   Future<void> signInWithGoogle() => _guard(() async {
-    await _auth.signInWithOAuthGoogle();
+    try {
+      await _auth.signInWithOAuthGoogle();
+    } catch (_) {
+      // A session that arrived anyway (e.g. the browser finished right after
+      // a cancel) must not linger behind a signed-out account.
+      if (_auth.userId != null) await _dropSession();
+      rethrow;
+    }
     await _openGoogleSession();
   });
 
@@ -542,6 +551,11 @@ class AccountService extends ChangeNotifier {
         dataKey = await _auth.fetchEscrowedKey();
         if (dataKey == null) throw const AccountException(_networkError);
       }
+      if (dataKey.length != 32) {
+        throw const AccountException(
+          'La clave de sincronización guardada en el servidor no es válida.',
+        );
+      }
       await _keys.write(dataKey);
       _useKey(dataKey);
     } catch (_) {
@@ -612,8 +626,9 @@ class AccountService extends ChangeNotifier {
   /// Creates a new data key and encryption profile for [password], stores the
   /// key and forgets the cursor so the next sync uploads everything. The
   /// profile is inserted only if none exists: when another device created one
-  /// in the meantime, that one is opened instead. With [replace] (starting
-  /// over) the existing profile is overwritten.
+  /// in the meantime, that one is opened instead; when the row belongs to a
+  /// Google account (no password profile), the user is told to use Google.
+  /// With [replace] (starting over) the existing profile is overwritten.
   Future<void> _createProfile(String password, {bool replace = false}) async {
     final dataKey = SyncCrypto.randomBytes(32);
     final wrapped = await _wrap(password, dataKey);
@@ -621,7 +636,8 @@ class AccountService extends ChangeNotifier {
       await _backend.saveProfile(wrapped);
     } else if (!await _backend.createProfile(wrapped)) {
       final existing = await _backend.loadProfile();
-      if (existing == null) throw const AccountException(_networkError);
+      // A row exists but holds no password profile: a Google account.
+      if (existing == null) throw const AccountException(_googleAccountError);
       await _openProfile(existing, password);
       return;
     }

@@ -82,12 +82,21 @@ Necesita una cuenta de Google Cloud del propietario (Claude no crea cuentas).
    "Site URL" y la app no se entera).
 5. Ejecutar otra vez `supabase/schema.sql` (añade la columna `escrowed_key`) y desplegar
    `key-escrow` con su secreto (arriba).
+6. **Encender el botón.** "Continuar con Google" solo funciona en builds compilados con
+   `--dart-define=GOOGLE_SIGN_IN=true` (sin él se ve deshabilitado, "Disponible pronto").
+   Hazlo solo cuando el proveedor de Google y `key-escrow` ya funcionen: en
+   `.github/workflows/release.yml`, añadir `"--dart-define=GOOGLE_SIGN_IN=true"` a la línea
+   `flutter build windows --release ...`; en local, a `flutter run` o a `env/dev.json`
+   (`"GOOGLE_SIGN_IN": "true"`).
 
 Cómo funciona en Windows: la app abre el navegador del sistema (flujo PKCE); al terminar,
 Google → Supabase → `ghostlime://login-callback?code=...`. El instalador registra el
 esquema `ghostlime` para el usuario (sin admin; para todos si se instala como admin) y lo
 quita al desinstalar. El navegador abre una segunda copia de la app con el enlace, que se
-lo pasa a la ventana ya abierta y se cierra. **La versión portable (zip) no registra el
+lo pasa a la ventana ya abierta y se cierra. La app solo acepta ese enlace mientras espera
+un "Continuar con Google" y solo con un `code` (o `error`) en la consulta; un enlace con
+`access_token`/`refresh_token` se ignora siempre (evita que una web cuele otra sesión).
+**La versión portable (zip) no registra el
 esquema**: ahí "Continuar con Google" abre el navegador pero no vuelve a la app; se puede
 usar email y contraseña.
 

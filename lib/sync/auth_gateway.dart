@@ -95,6 +95,31 @@ abstract class AuthGateway {
 /// list this URL under Auth → URL Configuration → Redirect URLs.
 const googleRedirectUrl = 'ghostlime://login-callback';
 
+/// Whether supabase_flutter may turn the incoming deep link [uri] into a
+/// session: only while a Google sign-in is [pending], only
+/// [googleRedirectUrl], and only a PKCE `code` (or an `error`) in the query.
+/// Links carrying tokens are refused even then: gotrue would accept implicit
+/// tokens in PKCE mode, so a crafted link could slip in someone else's
+/// session (and with it their escrowed key, to which this device would then
+/// upload its playlists). A `code` alone is harmless: it only exchanges
+/// with the code verifier this device stored when the sign-in began.
+bool acceptsGoogleCallback(Uri uri, {required bool pending}) {
+  if (!pending) return false;
+  if (uri.scheme != 'ghostlime' || uri.host != 'login-callback') return false;
+  if (uri.path.isNotEmpty && uri.path != '/') return false;
+  try {
+    final query = uri.queryParameters;
+    final fragment = Uri.splitQueryString(uri.fragment);
+    const tokens = ['access_token', 'refresh_token'];
+    if (tokens.any(query.containsKey) || tokens.any(fragment.containsKey)) {
+      return false;
+    }
+    return query.containsKey('code') || query.containsKey('error');
+  } on FormatException {
+    return false;
+  }
+}
+
 /// [AuthGateway] over Supabase Auth. Needs `Supabase.initialize` to have run.
 class SupabaseAuthGateway implements AuthGateway {
   /// Listens to the auth events from the start, so the events replayed to a
@@ -182,9 +207,16 @@ class SupabaseAuthGateway implements AuthGateway {
   });
 
   /// Google comes back through the `ghostlime` scheme, registered by the
-  /// Windows installer; other platforms are not set up yet.
+  /// Windows installer; other platforms are not set up yet. Off unless the
+  /// build passes `--dart-define=GOOGLE_SIGN_IN=true` (once the Google
+  /// provider and the `key-escrow` function are live).
   @override
-  bool get supportsGoogle => Platform.isWindows;
+  bool get supportsGoogle =>
+      Platform.isWindows && const bool.fromEnvironment('GOOGLE_SIGN_IN');
+
+  /// Whether a Google sign-in is waiting for the browser; deep links are
+  /// ignored otherwise (see [acceptsGoogleCallback]).
+  bool get googleSignInPending => _pendingOAuth != null;
 
   /// Opens Google in the system browser (PKCE, the supabase_flutter default)
   /// and waits for [googleRedirectUrl]. supabase_flutter receives that link

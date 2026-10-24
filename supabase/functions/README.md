@@ -69,6 +69,12 @@ fila de otro usuario no se abre). Una copia de la base de datos sin el secreto n
 para leer las claves; quien controle el proyecto de Supabase sí podría. No registra
 claves, tokens ni cuerpos.
 
+Solo la función escribe `escrowed_key`: `schema.sql` quita a `anon`/`authenticated` los permisos
+de escritura de tabla en `profiles` y devuelve los de las columnas que usa la app (`user_id`,
+`kdf_salt`, `wrapped_key`). Comprueba tras ejecutar el SQL que el alta con email y contraseña
+sigue funcionando (crea y actualiza el perfil) y que un `PATCH` de `escrowed_key` con el JWT de
+un usuario por la API REST da error de permisos (42501).
+
 ### Secreto
 
 32 bytes aleatorios en base64, generados una vez:

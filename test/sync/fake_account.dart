@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:iptv_player/sync/auth_gateway.dart';
 import 'package:iptv_player/sync/key_store.dart';
+import 'package:iptv_player/sync/sync_backend.dart';
 
 /// Auth that keeps accounts in a map shared between "devices"; each instance
 /// has its own session.
@@ -167,17 +168,23 @@ class FakeAuthGateway implements AuthGateway {
   /// How many keys [storeEscrowedKey] was asked to store.
   int escrowStores = 0;
 
+  /// The backend holding the password profiles; when set, [storeEscrowedKey]
+  /// refuses accounts that have one, like the `key-escrow` function (409).
+  SyncBackend? profiles;
+
   @override
   Future<Uint8List?> fetchEscrowedKey() async {
     if (escrowError case final error?) throw error;
     return escrow[_signedInUserId()];
   }
 
-  /// Like the `key-escrow` function: keeps the first key, never replaces it.
+  /// Like the `key-escrow` function: keeps the first key, never replaces it,
+  /// and never escrows the key of an account with a password profile.
   @override
   Future<void> storeEscrowedKey(Uint8List key) async {
     await beforeStoreEscrowedKey?.call();
     escrowStores++;
+    if (await profiles?.loadProfile() != null) return;
     escrow.putIfAbsent(_signedInUserId(), () => key);
   }
 

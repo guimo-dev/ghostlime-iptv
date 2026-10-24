@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:media_kit/media_kit.dart' show MediaKit;
 import 'package:path_provider/path_provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show Supabase;
+import 'package:supabase_flutter/supabase_flutter.dart'
+    show FlutterAuthClientOptions, Supabase;
 
 import 'catalog/catalog_db.dart';
 import 'legal/legal_info.dart';
@@ -89,13 +90,23 @@ Future<AccountService?> _createAccountService(
   SettingsController settings,
 ) async {
   if (_supabaseUrl.isEmpty || _supabaseAnonKey.isEmpty) return null;
+  // Deep links become sessions only as the callback of a pending Google
+  // sign-in; a link may arrive before the gateway exists, and is then ignored.
+  SupabaseAuthGateway? auth;
   await Supabase.initialize(
     url: _supabaseUrl,
     publishableKey: _supabaseAnonKey,
+    authOptions: FlutterAuthClientOptions(
+      detectSessionInUriPredicate: (uri) => acceptsGoogleCallback(
+        uri,
+        pending: auth?.googleSignInPending ?? false,
+      ),
+    ),
   );
+  auth = SupabaseAuthGateway();
   return AccountService(
     db: db,
-    auth: SupabaseAuthGateway(),
+    auth: auth,
     backend: SupabaseSyncBackend(),
     keys: const DataKeyStore(),
     passwords: passwords,

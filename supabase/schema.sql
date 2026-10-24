@@ -44,6 +44,18 @@ alter table public.profiles add constraint profiles_has_key check (
   and (wrapped_key is not null or escrowed_key is not null)
 );
 
+-- escrowed_key solo lo escribe la función (con la clave de servicio, que no
+-- pasa por estos permisos). Un "revoke ... (escrowed_key)" suelto no basta:
+-- Supabase da a anon/authenticated permisos sobre la tabla entera, y un permiso
+-- de tabla cubre todas las columnas. Por eso se quitan los de tabla y se dan
+-- de nuevo solo para las columnas que la app escribe (user_id, kdf_salt,
+-- wrapped_key: alta y upsert del perfil con contraseña). Lectura y borrado no
+-- cambian; la RLS sigue limitando todo a la fila propia.
+revoke insert, update on public.profiles from anon, authenticated;
+grant insert (user_id, kdf_salt, wrapped_key),
+      update (user_id, kdf_salt, wrapped_key)
+  on public.profiles to authenticated;
+
 create index if not exists sync_items_user_synced
   on public.sync_items (user_id, synced_at);
 
