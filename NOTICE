@@ -1,0 +1,17 @@
+Ghostlime IPTV
+Copyright 2026 guimo-dev
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The names "Ghostlime" and "Ghostlime IPTV" and the Ghostlime logo are not
+licensed under the Apache License (see section 6). Forks must use their own
+name and logo.
+
+Ghostlime IPTV does not include, provide or sell any TV channels, playlists or
+other content; it only plays the playlists its users add.
+
+This product includes third-party software, each under its own license:
+- Flutter and the Dart SDK (BSD 3-Clause), https://flutter.dev
+- media_kit (MIT) and libmpv / FFmpeg (LGPL-2.1 or later), https://github.com/media-kit/media-kit
+- The other Dart packages listed in pubspec.lock, under their respective licenses
+  (shown in the app under Ajustes > Acerca de > Licencias).

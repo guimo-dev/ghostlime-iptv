@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Android adaptive icon foreground: ghost inside the 66% safe zone, transparent background (#14151f). -->
+  <g transform="translate(512 512) scale(6.2) translate(-60 -63)"><path d="M28 102 L28 56 A32 32 0 0 1 92 56 L92 102 L81 92 L71 102 L60 92 L49 102 L39 92 Z" fill="#c6f432"/><path d="M52 46 L76 60 L52 74 Z" fill="#14151f"/></g>
+</svg>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <rect width="1200" height="630" fill="#14151f"/>
+  <!-- Icon: same artwork as ghostlime.svg, scaled to 360 px. -->
+  <g transform="translate(90 135) scale(0.3515625)">
+    <rect width="1024" height="1024" rx="240" fill="#1d1f2d"/>
+    <g transform="scale(8.5333) translate(0 -3)"><path d="M28 102 L28 56 A32 32 0 0 1 92 56 L92 102 L81 92 L71 102 L60 92 L49 102 L39 92 Z" fill="#c6f432"/><path d="M52 46 L76 60 L52 74 Z" fill="#1d1f2d"/></g>
+  </g>
+  <g font-family="Segoe UI Variable, Segoe UI, system-ui, sans-serif">
+    <text x="500" y="325" font-size="84" font-weight="700" fill="#ffffff">Ghostlime IPTV</text>
+    <text x="504" y="395" font-size="44" fill="#c6f432">Tu IPTV, a tu manera</text>
+  </g>
+</svg>

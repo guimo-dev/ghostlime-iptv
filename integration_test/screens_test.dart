@@ -1,0 +1,652 @@
+import 'package:flutter/foundation.dart'
+    show LicenseEntryWithLineBreaks, LicenseRegistry;
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:integration_test/integration_test.dart';
+import 'package:iptv_player/catalog/catalog_models.dart';
+import 'package:iptv_player/epg/programme.dart';
+import 'package:iptv_player/live/live_tv_screen.dart';
+import 'package:iptv_player/player/play_target.dart';
+import 'package:iptv_player/player/player_screen.dart';
+import 'package:iptv_player/settings/parental_session.dart';
+import 'package:iptv_player/browse/catalog_images.dart' show ChannelLogo;
+import 'package:iptv_player/ui/backdrop.dart' show GradientProgress;
+import 'package:iptv_player/ui/focus_card.dart';
+import 'package:media_kit_video/media_kit_video.dart'
+    show MaterialDesktopSeekBar, Video;
+
+import '../tool/demo_server/demo_data.dart';
+import 'support/golden.dart';
+import 'support/harness.dart';
+
+/// Captures one screen: reaches it from a fresh [AppHarness] and calls
+/// `expectScreen` with [name].
+typedef _Capture = Future<void> Function(
+  WidgetTester tester,
+  AppHarness harness,
+  String name,
+);
+
+/// Name of the playlist every test adds.
+const _playlistName = 'Demo';
+
+/// Pumps (letting real time pass) until [done] is true; fails after [limit].
+Future<void> _pumpUntil(
+  WidgetTester tester,
+  bool Function() done, {
+  Duration limit = const Duration(seconds: 25),
+}) async {
+  final watch = Stopwatch()..start();
+  while (!done() && watch.elapsed < limit) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+  expect(done(), isTrue, reason: 'condition not met within $limit');
+}
+
+/// Lets [duration] of real time pass while pumping, e.g. for video to play.
+Future<void> _pumpRealTime(WidgetTester tester, Duration duration) async {
+  final watch = Stopwatch()..start();
+  while (watch.elapsed < duration) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+}
+
+/// Opens the "Añadir lista" form from the playlists screen.
+Future<void> _openForm(WidgetTester tester) async {
+  await tester.tap(find.text('Añadir lista'));
+  await tester.pumpAndSettle();
+}
+
+/// Fills the Xtream form with the demo server and [password].
+Future<void> _fillXtreamForm(
+  WidgetTester tester,
+  AppHarness harness, {
+  String password = demoPassword,
+}) async {
+  Future<void> fill(String label, String value) =>
+      tester.enterText(find.widgetWithText(TextFormField, label), value);
+  await fill('Nombre', _playlistName);
+  await fill('Servidor', harness.server.baseUrl.toString());
+  await fill('Usuario', demoUser);
+  await fill('Contraseña', password);
+}
+
+/// Mask for the demo server address, whose port changes on every run.
+Finder _serverField() => find.widgetWithText(TextFormField, 'Servidor');
+
+/// Adds the demo Xtream playlist through the form and waits until its catalog
+/// and guide are downloaded and the playlists screen is idle again.
+Future<void> _addPlaylist(WidgetTester tester, AppHarness harness) async {
+  await _openForm(tester);
+  await _fillXtreamForm(tester, harness);
+  await tester.tap(find.text('Guardar'));
+  await _pumpUntil(tester, () => harness.db.playlists().isNotEmpty);
+  final id = harness.db.playlists().single.id!;
+  await _pumpUntil(
+    tester,
+    () =>
+        harness.db.playlists().single.refreshedAt != null &&
+        harness.db.epgRefreshedAt(id) != null,
+  );
+  await _pumpUntil(
+    tester,
+    () => find.byType(CircularProgressIndicator).evaluate().isEmpty,
+  );
+  await tester.pumpAndSettle();
+}
+
+/// Id of the playlist added by [_addPlaylist].
+int _playlistId(AppHarness harness) => harness.db.playlists().single.id!;
+
+/// Replaces the guide with fixed titles: every demo channel has a programme
+/// from an hour ago to an hour ahead and the next one for two hours more. With
+/// [forGuideGrid], it also lays programmes on the window the guide grid shows
+/// after moving forward twice, so their cells never depend on the time of day.
+void _seedGuide(AppHarness harness, {bool forGuideGrid = false}) {
+  final now = DateTime.now();
+  final onAirStart = now.toUtc().subtract(const Duration(hours: 1));
+  final rounded = DateTime(
+    now.year,
+    now.month,
+    now.day,
+    now.hour,
+    now.minute < 30 ? 0 : 30,
+  );
+  final guideStart = rounded
+      .subtract(const Duration(minutes: 30))
+      .add(const Duration(hours: 2))
+      .toUtc();
+  final programmes = <Programme>[];
+  for (final channel in demoChannels) {
+    if (forGuideGrid) {
+      for (var slot = -1; slot < 4; slot++) {
+        final start = guideStart.add(Duration(minutes: 90 * slot));
+        programmes.add(
+          Programme(
+            channelId: channel.epgId,
+            start: start,
+            stop: start.add(const Duration(minutes: 90)),
+            title: 'Programa ${(slot + channel.id) % 5 + 1}',
+            description: 'Descripción de ejemplo.',
+          ),
+        );
+      }
+    } else {
+      programmes
+        ..add(
+          Programme(
+            channelId: channel.epgId,
+            start: onAirStart,
+            stop: onAirStart.add(const Duration(hours: 2)),
+            title: 'En emisión ${channel.id}',
+            description: 'Descripción de ejemplo del programa en emisión.',
+          ),
+        )
+        ..add(
+          Programme(
+            channelId: channel.epgId,
+            start: onAirStart.add(const Duration(hours: 2)),
+            stop: onAirStart.add(const Duration(hours: 4)),
+            title: 'Después ${channel.id}',
+          ),
+        );
+    }
+  }
+  harness.db.replaceEpg(_playlistId(harness), programmes, DateTime.now());
+}
+
+/// Channels (or movies, or series) of [kind] in the first [categories] of the
+/// catalog, in catalog order.
+List<Channel> _items(AppHarness harness, MediaKind kind, {int categories = 1}) {
+  final id = _playlistId(harness);
+  return [
+    for (final category in harness.db.categories(id, kind).take(categories))
+      ...harness.db.channels(id, category.id),
+  ];
+}
+
+/// Marks the first [count] items of [kind] as favorites.
+void _seedFavorites(AppHarness harness, MediaKind kind, int count) {
+  final id = _playlistId(harness);
+  for (final item in _items(harness, kind).take(count)) {
+    harness.db.setFavorite(id, kind, item.key, true);
+  }
+}
+
+/// Marks the first [count] items of [kind] as watched, at fixed times.
+void _seedRecents(AppHarness harness, MediaKind kind, int count) {
+  final id = _playlistId(harness);
+  final items = _items(harness, kind, categories: 2).skip(1).take(count);
+  for (final (index, item) in items.indexed) {
+    harness.db.addRecent(
+      id,
+      kind,
+      item.key,
+      at: DateTime(2026, 1, 1, 12, index),
+    );
+  }
+}
+
+/// Leaves the first [count] movies half watched, at fixed times.
+void _seedProgress(AppHarness harness, int count) {
+  final id = _playlistId(harness);
+  final movies = _items(harness, MediaKind.movie, categories: 2).take(count);
+  for (final (index, movie) in movies.indexed) {
+    harness.db.saveProgress(
+      id,
+      PlayTarget.fromChannel(movie),
+      Duration(minutes: 20 + index * 15),
+      const Duration(minutes: 100),
+      at: DateTime(2026, 1, 1, 12, index),
+    );
+  }
+}
+
+/// Seeds what the playlist home shows: favorites of each kind, recent
+/// channels and unfinished movies.
+void _seedHome(AppHarness harness) {
+  _seedGuide(harness);
+  _seedFavorites(harness, MediaKind.live, 3);
+  _seedFavorites(harness, MediaKind.movie, 3);
+  _seedFavorites(harness, MediaKind.series, 3);
+  _seedRecents(harness, MediaKind.live, 3);
+  _seedProgress(harness, 3);
+}
+
+/// Opens the added playlist from the playlists screen.
+Future<void> _openPlaylist(WidgetTester tester) async {
+  await tester.tap(find.text(_playlistName));
+  await settle(tester, timeout: const Duration(seconds: 2));
+}
+
+/// Adds the playlist, runs [seed] on the harness, opens the playlist and goes
+/// to the side-bar section named [section] when given.
+Future<void> _enter(
+  WidgetTester tester,
+  AppHarness harness, {
+  void Function(AppHarness harness)? seed,
+  String? section,
+}) async {
+  await settle(tester);
+  await _addPlaylist(tester, harness);
+  seed?.call(harness);
+  await _openPlaylist(tester);
+  if (section != null) await _goTo(tester, section);
+}
+
+/// The poster card of the browse grid item titled [title] (the title itself
+/// is outside the tappable card).
+Finder _posterOf(String title) => find.descendant(
+  of: find.ancestor(of: find.text(title), matching: find.byType(Column)).first,
+  matching: find.byType(FocusCard),
+);
+
+/// Taps the side-bar button [section].
+Future<void> _goTo(WidgetTester tester, String section) async {
+  await tester.tap(find.text(section).first);
+  await settle(tester, timeout: const Duration(seconds: 2));
+}
+
+/// Masks for everything in live TV that follows the clock or the preview:
+/// start times (rows and the day's schedule), time left and progress.
+List<Finder> _liveMasks() => [
+  find.textContaining(RegExp(r'^\d\d:\d\d')),
+  find.textContaining('quedan'),
+  find.descendant(
+    of: find.byType(NowPanel),
+    matching: find.byType(GradientProgress),
+  ),
+  _programmeProgress(),
+  find.descendant(
+    of: find.byType(NowPanel),
+    matching: find.byType(AspectRatio),
+  ),
+];
+
+/// Masks for the clocks of the guide grid: the time labels and its header
+/// row, whose controls move sideways with the width of the "HH:mm–HH:mm"
+/// button.
+List<Finder> _guideMasks() => [
+  find.textContaining(RegExp(r'^\d\d:\d\d')),
+  find.ancestor(of: find.byType(FilterChip), matching: find.byType(Row)).first,
+];
+
+/// Mask for the content of the playlist cards: the subtitle (counts and "hace
+/// N min") changes width, so its own rectangle would leave part of it visible.
+List<Finder> _playlistsMasks() => [
+  find
+      .ancestor(
+        of: find.textContaining(RegExp(r'directo|Sin actualizar|Actualizando')),
+        matching: find.byType(Column),
+      )
+      .first,
+];
+
+/// Mask for the progress bars of programmes on air in channel rows and cards:
+/// their fill follows the clock.
+Finder _programmeProgress() => find.descendant(
+  of: find.ancestor(
+    of: find.byType(ChannelLogo),
+    matching: find.byType(FocusCard),
+  ),
+  matching: find.byType(GradientProgress),
+);
+
+/// Plays the second live channel full screen and waits for the clip to play.
+Future<void> _playLive(WidgetTester tester) async {
+  final row = find.byType(ChannelRow).at(1);
+  await tester.tap(row);
+  await settle(tester, timeout: const Duration(seconds: 2));
+  await tester.tap(row);
+  await _pumpUntil(
+    tester,
+    () => find.byType(PlayerScreen).evaluate().isNotEmpty,
+  );
+  await _freezePlayback(tester);
+}
+
+/// Waits until the clip is playing and pauses it, so nothing moves while the
+/// screen is captured. The position itself still differs from run to run: the
+/// callers mask the position text and the seek bar.
+Future<void> _freezePlayback(WidgetTester tester) async {
+  final video = find.descendant(
+    of: find.byType(PlayerScreen),
+    matching: find.byType(Video),
+  );
+  final player = tester.widget<Video>(video).controller.player;
+  await _pumpUntil(
+    tester,
+    () => player.state.position > Duration.zero,
+    limit: const Duration(seconds: 20),
+  );
+  await tester.runAsync(player.pause);
+  await _pumpUntil(tester, () => !player.state.playing);
+  await _pumpRealTime(tester, const Duration(seconds: 1));
+}
+
+/// Removes the picture of every video so its controls and overlays show over
+/// black: the frames change from run to run, and masking the whole `Video`
+/// would hide the overlays too. Fails if any texture is still on screen, since
+/// a real frame in a reference would make it differ on every run.
+Future<void> _hideVideoPictures(WidgetTester tester) async {
+  for (final video in tester.widgetList<Video>(find.byType(Video))) {
+    video.controller.notifier.value!.id.value = null;
+  }
+  await tester.pump();
+  expect(
+    find.byType(Texture),
+    findsNothing,
+    reason: 'video picture not hidden',
+  );
+}
+
+/// Waits (in real time) until the current half hour has just started, so the
+/// guide window the seed is laid on is still the one the screen computes a few
+/// seconds later.
+Future<void> _waitForHalfHourStart(WidgetTester tester) async {
+  bool nearEnd() {
+    final now = DateTime.now();
+    return (now.minute % 30) * 60 + now.second > 30 * 60 - 20;
+  }
+
+  while (nearEnd()) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 500)),
+    );
+  }
+}
+
+/// Whether [_registerDemoLicenses] already ran in this process.
+var _demoLicensesRegistered = false;
+
+/// The test binding loads no licenses, so the licenses page would be empty:
+/// registers two fixed packages (once per process, so repeated runs show the
+/// same list).
+void _registerDemoLicenses() {
+  if (_demoLicensesRegistered) return;
+  _demoLicensesRegistered = true;
+  LicenseRegistry.addLicense(
+    () => Stream.fromIterable([
+      const LicenseEntryWithLineBreaks(['demo_player'], 'Licencia de ejemplo.'),
+      const LicenseEntryWithLineBreaks(['demo_ui'], 'Licencia de ejemplo.'),
+    ]),
+  );
+}
+
+/// Scrolls the settings page until [finder] is visible.
+Future<void> _scrollSettingsTo(WidgetTester tester, Finder finder) async {
+  await tester.scrollUntilVisible(
+    finder,
+    300,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.pumpAndSettle();
+}
+
+/// Taps the "Control parental con PIN" switch and types a PIN into the dialog.
+Future<void> _startParentalLock(WidgetTester tester) async {
+  await tester.tap(find.text('Ajustes'));
+  await settle(tester);
+  final title = find.text('Control parental con PIN');
+  await _scrollSettingsTo(tester, title);
+  final row = find.ancestor(of: title, matching: find.byType(Row)).first;
+  await tester.tap(find.descendant(of: row, matching: find.byType(Switch)));
+  await tester.pumpAndSettle();
+}
+
+/// Every screen, by the name of its reference image.
+final Map<String, _Capture> _screens = {
+  'inicio-vacio': (tester, harness, name) async {
+    await _enter(tester, harness);
+    await expectScreen(tester, name);
+  },
+  'listas': (tester, harness, name) async {
+    await settle(tester);
+    await _addPlaylist(tester, harness);
+    await settle(tester);
+    await expectScreen(tester, name, masks: _playlistsMasks());
+  },
+  'form-xtream': (tester, harness, name) async {
+    await settle(tester);
+    await _openForm(tester);
+    await expectScreen(tester, name);
+  },
+  'form-m3u-url': (tester, harness, name) async {
+    await settle(tester);
+    await _openForm(tester);
+    await tester.tap(find.text('M3U (URL)'));
+    await tester.pumpAndSettle();
+    await expectScreen(tester, name);
+  },
+  'form-m3u-archivo': (tester, harness, name) async {
+    await settle(tester);
+    await _openForm(tester);
+    await tester.tap(find.text('M3U (fichero)'));
+    await tester.pumpAndSettle();
+    await expectScreen(tester, name);
+  },
+  'form-error-credenciales': (tester, harness, name) async {
+    await settle(tester);
+    await _openForm(tester);
+    await _fillXtreamForm(tester, harness, password: 'mal');
+    await tester.tap(find.text('Guardar'));
+    await _pumpUntil(
+      tester,
+      () => find
+          .textContaining('rechazado las credenciales')
+          .evaluate()
+          .isNotEmpty,
+    );
+    await tester.pumpAndSettle();
+    await expectScreen(tester, name, masks: [_serverField()]);
+  },
+  'form-error-servidor': (tester, harness, name) async {
+    harness.server.down = true;
+    await settle(tester);
+    await _openForm(tester);
+    await _fillXtreamForm(tester, harness);
+    await tester.tap(find.text('Guardar'));
+    await _pumpUntil(
+      tester,
+      () => find.textContaining('HTTP 503').evaluate().isNotEmpty,
+    );
+    await tester.pumpAndSettle();
+    await expectScreen(tester, name, masks: [_serverField()]);
+  },
+  'inicio': (tester, harness, name) async {
+    await _enter(tester, harness, seed: _seedHome);
+    await expectScreen(tester, name, masks: [_programmeProgress()]);
+  },
+  'directo': (tester, harness, name) async {
+    await _enter(tester, harness, seed: _seedGuide, section: 'Directo');
+    await tester.tap(find.byType(ChannelRow).at(1));
+    await settle(tester, timeout: const Duration(seconds: 2));
+    await expectScreen(tester, name, masks: _liveMasks());
+  },
+  'directo-orden': (tester, harness, name) async {
+    await _enter(tester, harness, seed: _seedGuide, section: 'Directo');
+    await tester.tap(find.text('Orden'));
+    await tester.pumpAndSettle();
+    await expectScreen(tester, name, masks: _liveMasks());
+  },
+  'directo-reordenar': (tester, harness, name) async {
+    await _enter(tester, harness, seed: _seedGuide, section: 'Directo');
+    await tester.tap(find.text('Orden'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ordenar a mano…'));
+    await settle(tester, timeout: const Duration(seconds: 2));
+    await expectScreen(tester, name);
+  },
+  'directo-guia': (tester, harness, name) async {
+    await _waitForHalfHourStart(tester);
+    await _enter(
+      tester,
+      harness,
+      seed: (h) => _seedGuide(h, forGuideGrid: true),
+      section: 'Directo',
+    );
+    await tester.tap(find.byTooltip('Ver la guía de los canales'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Después'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Después'));
+    await settle(tester);
+    await expectScreen(tester, name, masks: _guideMasks());
+  },
+  'peliculas': (tester, harness, name) async {
+    await _enter(tester, harness, section: 'Películas');
+    await expectScreen(tester, name);
+  },
+  'ficha-pelicula': (tester, harness, name) async {
+    await _enter(tester, harness, section: 'Películas');
+    await tester.tap(_posterOf('La isla del faro perdido'));
+    await settle(tester, timeout: const Duration(seconds: 2));
+    await expectScreen(tester, name);
+  },
+  'series': (tester, harness, name) async {
+    await _enter(tester, harness, section: 'Series');
+    await expectScreen(tester, name);
+  },
+  'ficha-serie': (tester, harness, name) async {
+    await _enter(tester, harness, section: 'Series');
+    await tester.tap(_posterOf('Valle de las Sombras Demo'));
+    await settle(tester, timeout: const Duration(seconds: 2));
+    await expectScreen(tester, name);
+  },
+  'inicio-busqueda': (tester, harness, name) async {
+    await _enter(tester, harness);
+    await tester.enterText(find.byType(TextField).first, 'cine');
+    await tester.pump(const Duration(milliseconds: 400));
+    await settle(tester);
+    await expectScreen(tester, name);
+  },
+  'favoritos': (tester, harness, name) async {
+    await _enter(
+      tester,
+      harness,
+      seed: (h) => _seedFavorites(h, MediaKind.movie, 4),
+      section: 'Películas',
+    );
+    await tester.tap(find.text('Favoritos'));
+    await settle(tester);
+    await expectScreen(tester, name);
+  },
+  'recientes': (tester, harness, name) async {
+    await _enter(
+      tester,
+      harness,
+      seed: (h) => _seedRecents(h, MediaKind.movie, 4),
+      section: 'Películas',
+    );
+    await tester.tap(find.text('Recientes'));
+    await settle(tester);
+    await expectScreen(tester, name);
+  },
+  'reproductor-controles': (tester, harness, name) async {
+    await _enter(tester, harness, seed: _seedGuide, section: 'Directo');
+    await _playLive(tester);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    try {
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(tester.getCenter(find.byType(PlayerScreen)));
+      await _pumpRealTime(tester, const Duration(seconds: 1));
+      await _hideVideoPictures(tester);
+      await expectScreen(
+        tester,
+        name,
+        maskVideo: false,
+        masks: [
+          find.textContaining(RegExp(r'^\d\d:\d\d / ')),
+          find.byType(MaterialDesktopSeekBar),
+        ],
+      );
+    } finally {
+      await mouse.removePointer();
+    }
+  },
+  'reproductor-info': (tester, harness, name) async {
+    await _enter(tester, harness, seed: _seedGuide, section: 'Directo');
+    await _playLive(tester);
+    await tester.tap(find.byTooltip('Info del stream (I)'));
+    await _pumpUntil(
+      tester,
+      () => find.text('Resolución: 1280×720').evaluate().isNotEmpty,
+    );
+    await _hideVideoPictures(tester);
+    await expectScreen(tester, name, maskVideo: false);
+  },
+  'ajustes': (tester, harness, name) async {
+    await _enter(tester, harness);
+    await tester.tap(find.text('Ajustes'));
+    await settle(tester);
+    await _scrollSettingsTo(tester, find.text('Carruseles de Inicio'));
+    await expectScreen(tester, name);
+  },
+  'ajustes-control-parental': (tester, harness, name) async {
+    await _enter(tester, harness);
+    await _startParentalLock(tester);
+    await tester.enterText(find.widgetWithText(TextField, 'PIN'), '1234');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Repite el PIN'),
+      '1234',
+    );
+    await tester.tap(find.text('Aceptar'));
+    await tester.pumpAndSettle();
+    await _scrollSettingsTo(tester, find.text('Bloqueo'));
+    await expectScreen(tester, name);
+  },
+  'pin': (tester, harness, name) async {
+    await _enter(tester, harness);
+    await _startParentalLock(tester);
+    await tester.enterText(find.widgetWithText(TextField, 'PIN'), '1234');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Repite el PIN'),
+      '123',
+    );
+    await tester.pumpAndSettle();
+    await expectScreen(tester, name);
+  },
+  'ajustes-cuenta-sin-supabase': (tester, harness, name) async {
+    await settle(tester);
+    await tester.tap(find.byTooltip('Ajustes'));
+    await settle(tester);
+    await expectScreen(tester, name);
+  },
+  'licencias': (tester, harness, name) async {
+    _registerDemoLicenses();
+    await settle(tester);
+    await tester.tap(find.byTooltip('Ajustes'));
+    await settle(tester);
+    await _scrollSettingsTo(tester, find.text('Licencias'));
+    await tester.tap(find.text('Ver'));
+    await _pumpUntil(
+      tester,
+      () => find.text('demo_player').evaluate().isNotEmpty,
+    );
+    await settle(tester);
+    await expectScreen(tester, name);
+  },
+};
+
+/// One visual test per screen and size; each starts the app on throwaway data.
+void main() {
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  for (final size in [smallSize, mediumSize]) {
+    for (final MapEntry(key: name, value: capture) in _screens.entries) {
+      testWidgets('$name at ${sizeName(size)}', (tester) async {
+        ParentalSession.unlocked.value = false;
+        final harness = await AppHarness.start(tester, size: size);
+        addTearDown(harness.close);
+        await capture(tester, harness, name);
+      });
+    }
+  }
+}

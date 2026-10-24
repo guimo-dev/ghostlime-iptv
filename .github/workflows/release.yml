@@ -1,0 +1,170 @@
+# Builds installers for every tag `v*` and publishes them as a GitHub Release.
+# Secrets (repo Settings → Secrets and variables → Actions):
+#   SUPABASE_URL, SUPABASE_ANON_KEY      — sync backend (optional; without them sync is off)
+#   ANDROID_KEYSTORE_BASE64              — base64 of the release .jks (required to publish Android)
+#   ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD, ANDROID_STORE_PASSWORD
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: "3.47.7"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Build
+        shell: pwsh
+        run: flutter build windows --release "--dart-define=SUPABASE_URL=$env:SUPABASE_URL" "--dart-define=SUPABASE_ANON_KEY=$env:SUPABASE_ANON_KEY"
+      - name: Visual C++ runtime for the installer
+        shell: pwsh
+        run: Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile installer\vc_redist.x64.exe
+      - name: Installer (Inno Setup, preinstalled on the runner)
+        shell: pwsh
+        run: |
+          $version = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" -replace '^v', '' } else { "0.0.0-dev" }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\iscc.exe" "/DAppVersion=$version" installer\windows.iss
+      - name: Portable zip (no installer; needs the VC++ runtime already present)
+        shell: pwsh
+        run: |
+          $version = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" -replace '^v', '' } else { "0.0.0-dev" }
+          Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath "build\installer\Ghostlime-IPTV-$version-windows-portable.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            build/installer/*.exe
+            build/installer/*.zip
+
+  android:
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+    steps:
+      # Without the release key every build would be signed with a different
+      # throwaway debug key and could never update the previous version.
+      - name: Signing key required
+        if: env.HAS_KEYSTORE != 'true'
+        run: echo "::warning::ANDROID_KEYSTORE_BASE64 no está configurado; no se publica Android."
+      - uses: actions/checkout@v4
+        if: env.HAS_KEYSTORE == 'true'
+      - uses: actions/setup-java@v4
+        if: env.HAS_KEYSTORE == 'true'
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        if: env.HAS_KEYSTORE == 'true'
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Signing key
+        if: env.HAS_KEYSTORE == 'true'
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          printf '%s' "$KEYSTORE" | base64 --decode > android/app/release.jks
+          # Escape backslashes for java.util.Properties; values are never
+          # expanded by the shell because they come from the environment.
+          esc() { printf '%s' "$1" | sed 's/\\/\\\\/g'; }
+          {
+            printf 'storeFile=release.jks\n'
+            printf 'storePassword=%s\n' "$(esc "$STORE_PASSWORD")"
+            printf 'keyAlias=%s\n' "$(esc "$KEY_ALIAS")"
+            printf 'keyPassword=%s\n' "$(esc "$KEY_PASSWORD")"
+          } > android/key.properties
+      - name: Build APK and App Bundle
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          flutter build apk --release "--dart-define=SUPABASE_URL=$SUPABASE_URL" "--dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
+          flutter build appbundle --release "--dart-define=SUPABASE_URL=$SUPABASE_URL" "--dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then VERSION="${GITHUB_REF_NAME#v}"; else VERSION="0.0.0-dev"; fi
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/Ghostlime-IPTV-$VERSION-android.apk"
+          cp build/app/outputs/bundle/release/app-release.aab "dist/Ghostlime-IPTV-$VERSION-android.aab"
+      - uses: actions/upload-artifact@v4
+        if: env.HAS_KEYSTORE == 'true'
+        with:
+          name: android
+          path: dist/*
+
+  linux:
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux build dependencies (GTK, libmpv for media_kit, libsecret for secure storage)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libmpv-dev libsecret-1-dev libjsoncpp-dev
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Build
+        run: |
+          flutter build linux --release "--dart-define=SUPABASE_URL=$SUPABASE_URL" "--dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then VERSION="${GITHUB_REF_NAME#v}"; else VERSION="0.0.0-dev"; fi
+          mkdir -p dist
+          tar -C build/linux/x64/release/bundle -czf "dist/Ghostlime-IPTV-$VERSION-linux-x64.tar.gz" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*
+
+  publish:
+    needs: [windows, android, linux]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
