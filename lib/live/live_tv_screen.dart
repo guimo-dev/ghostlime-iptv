@@ -29,6 +29,8 @@ import '../ui/backdrop.dart';
 import '../ui/brand_state.dart';
 import '../ui/display_title.dart';
 import '../ui/focus_card.dart';
+import '../ui/form_factor.dart';
+import 'live_phone_view.dart';
 
 const _favoritesId = '__favorites__';
 const _recentsId = '__recents__';
@@ -52,6 +54,10 @@ double previewWidthFor(double panelWidth) =>
 /// open: the preview and the full player share one [LivePlayback], so going
 /// full screen carries on with the same stream, and it stops whenever this
 /// screen is hidden.
+///
+/// Without the desktop layout (phones, portrait tablets) it shows
+/// [LivePhoneView] instead; a phone turned to landscape goes full screen and
+/// back to the list when turned upright again.
 class LiveTvScreen extends StatefulWidget {
   const LiveTvScreen({
     super.key,
@@ -116,6 +122,13 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
   bool _fullScreenOpen = false;
   bool _visible = true;
 
+  /// Whether a phone is held in landscape, where Directo plays full screen.
+  bool _phoneLandscape = false;
+
+  /// The phone turned upright while the full player was open (or opening):
+  /// it is closed as soon as it covers this screen.
+  bool _leaveFullScreen = false;
+
   CatalogDb get _db => widget.db;
 
   bool get _isRealGroup =>
@@ -154,6 +167,7 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
     // have applied the (synced) guide toggle.
     AccountScope.of(context);
     _guideGrid = _db.liveGuideGrid(_playlistId);
+    _followOrientation();
     // Hidden by the shell (another section shown): free the connection.
     // Covered by the full player instead, the stream plays on there.
     final visible = TickerMode.valuesOf(context).enabled;
@@ -165,6 +179,35 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
       _startPreview();
     } else if (!_fullScreenOpen) {
       _playback.stop();
+    }
+  }
+
+  /// On a phone, turning to landscape opens the full player on the channel
+  /// in the preview, and turning upright again closes it (the stream plays
+  /// on: both share [_playback]). Only rotations act, so Back from the full
+  /// player in landscape stays on the list.
+  void _followOrientation() {
+    final size = MediaQuery.sizeOf(context);
+    // Depending on it brings us back here when the full player covers us.
+    final covered = ModalRoute.isCurrentOf(context) == false;
+    final landscape =
+        formFactorOf(size) == FormFactor.phone && size.width > size.height;
+    if (landscape != _phoneLandscape) {
+      _phoneLandscape = landscape;
+      _leaveFullScreen = !landscape && _fullScreenOpen;
+      if (landscape) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _phoneLandscape && _visible) _fullScreen();
+        });
+      }
+    }
+    if (_leaveFullScreen && covered) {
+      _leaveFullScreen = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _phoneLandscape || !_fullScreenOpen) return;
+        final route = ModalRoute.of(context);
+        Navigator.of(context).popUntil((r) => r == route);
+      });
     }
   }
 
@@ -261,10 +304,11 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
       _channels[index].key: name,
   };
 
-  /// Channels of the current group that the settings and the filter box allow.
-  List<Channel> _visibleChannels(AppSettings settings) {
+  /// Channels of the current group that the settings and the filter box
+  /// allow; the phone view has no filter box, so it passes [filtered] false.
+  List<Channel> _visibleChannels(AppSettings settings, {bool filtered = true}) {
     final hidden = _hiddenCategoryIds(settings);
-    final query = foldText(_filter.trim());
+    final query = filtered ? foldText(_filter.trim()) : '';
     return _channels
         .where(
           (c) =>
@@ -275,6 +319,7 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
   }
 
   /// First tap previews; tapping the selected channel again goes full screen.
+  /// A phone in landscape goes full screen straight away.
   void _onChannel(Channel channel) {
     if (_selected?.key == channel.key) {
       _fullScreen();
@@ -284,7 +329,11 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
       _selected = channel;
       _loadGuide();
     });
-    _startPreview();
+    if (_phoneLandscape) {
+      _fullScreen();
+    } else {
+      _startPreview();
+    }
   }
 
   /// Previews the selected channel while this screen is shown and the full
@@ -320,6 +369,7 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
       shared: _playback,
     );
     _fullScreenOpen = false;
+    _leaveFullScreen = false;
     if (!mounted) return;
     _playback.setVolume(_muted ? 0 : 100);
     setState(_loadChannels);
@@ -372,6 +422,9 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
         child: BrandMessage(title: 'No hay canales. Actualiza la lista.'),
       );
     }
+    if (!usesDesktopLayout(MediaQuery.sizeOf(context))) {
+      return _buildPhone(settings);
+    }
     return Row(
       children: [
         SizedBox(width: 250, child: _buildGroups(settings)),
@@ -407,6 +460,69 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
         ),
       ],
     );
+  }
+
+  /// The phone (and portrait tablet) layout: see [LivePhoneView].
+  Widget _buildPhone(AppSettings settings) {
+    final selected = _selected;
+    final names = _namesByKey();
+    return LivePhoneView(
+      groupName: _groupLabel(settings),
+      onPickGroup: () => _pickGroup(settings),
+      guideGrid: _guideGrid,
+      onToggleGuideGrid: _toggleGuideGrid,
+      onSort: _isRealGroup ? _sort : null,
+      channel: selected,
+      channelName: selected == null ? '' : names[selected.key] ?? selected.name,
+      now: _guide[selected?.epgId]?.$1,
+      upcoming: _upcoming,
+      controller: _playback.hasPlayer ? _playback.controller : null,
+      failed: _playback.startFailed,
+      muted: _muted,
+      favorite: _favorites.contains(selected?.key),
+      onFullScreen: _fullScreen,
+      onToggleSound: _toggleSound,
+      onToggleFavorite: selected == null
+          ? null
+          : () => _toggleFavorite(selected),
+      channels: _visibleChannels(settings, filtered: false),
+      names: names,
+      guide: _guide,
+      favorites: _favorites,
+      onChannel: _onChannel,
+      onToggleChannelFavorite: _toggleFavorite,
+      guideView: _guideGrid
+          ? _buildGuideGrid(settings, filtered: false)
+          : const SizedBox.shrink(),
+      clock: widget.clock,
+    );
+  }
+
+  /// The groups to choose from, as `(id, label)`: favorites, recents and
+  /// the categories the settings show.
+  List<(String, String)> _groupChoices(AppSettings settings) => [
+    (_favoritesId, 'Favoritos'),
+    (_recentsId, 'Recientes'),
+    for (final c in _visibleCategories(settings)) (c.id, c.name),
+  ];
+
+  /// Name of the group shown, for the phone's group button.
+  String _groupLabel(AppSettings settings) {
+    for (final (id, label) in _groupChoices(settings)) {
+      if (id == _groupId) return label;
+    }
+    return 'Grupos';
+  }
+
+  /// Lets the user pick the group in a bottom sheet (phones).
+  Future<void> _pickGroup(AppSettings settings) async {
+    final id = await showGroupSheet(
+      context,
+      groups: _groupChoices(settings),
+      selectedId: _groupId,
+      onOrganize: _organize,
+    );
+    if (id != null && mounted) _selectGroup(id);
   }
 
   Widget _buildGroups(AppSettings settings) {
@@ -523,8 +639,8 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
   }
 
   /// The guide grid over the current group's visible channels.
-  Widget _buildGuideGrid(AppSettings settings) {
-    final channels = _visibleChannels(settings);
+  Widget _buildGuideGrid(AppSettings settings, {bool filtered = true}) {
+    final channels = _visibleChannels(settings, filtered: filtered);
     if (channels.isEmpty) {
       return const Center(
         child: BrandMessage(title: 'No hay canales en este grupo'),
@@ -716,7 +832,7 @@ class NowPanel extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 6),
                                   GradientProgress(
-                                    value: _elapsed(now, time),
+                                    value: elapsedShare(now, time),
                                     height: 3,
                                   ),
                                 ],
@@ -737,7 +853,7 @@ class NowPanel extends StatelessWidget {
                                     ),
                                   ),
                                 for (final programme in upcoming)
-                                  _UpcomingRow(
+                                  UpcomingRow(
                                     programme: programme,
                                     timeStyle: mutedText,
                                   ),
@@ -782,56 +898,9 @@ class NowPanel extends StatelessWidget {
                       width: previewWidth,
                       child: AspectRatio(
                         aspectRatio: 16 / 9,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(14),
-                            boxShadow: AppStyle.cardShadow,
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(14),
-                            child: ColoredBox(
-                              color: Colors.black,
-                              child: Stack(
-                                children: [
-                                  Positioned.fill(
-                                    child: controller == null
-                                        ? const SizedBox.shrink()
-                                        : Video(
-                                            // A new controller (new player)
-                                            // needs a new Video state.
-                                            key: ObjectKey(controller),
-                                            controller: controller,
-                                            controls: NoVideoControls,
-                                          ),
-                                  ),
-                                  if (failed)
-                                    const Center(
-                                      child: Padding(
-                                        padding: EdgeInsets.all(12),
-                                        child: FittedBox(
-                                          fit: BoxFit.scaleDown,
-                                          child: BrandMessage(
-                                            title: 'No se ha podido abrir el canal',
-                                            logoSize: 48,
-                                            dimmed: true,
-                                          ),
-                                        ),
-                                      ),
-                                    )
-                                  else if (controller != null)
-                                    _PreviewLoader(
-                                      key: ObjectKey(controller),
-                                      controller: controller,
-                                    ),
-                                  const Positioned(
-                                    top: 10,
-                                    left: 10,
-                                    child: LiveBadge(),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                        child: LivePreviewBox(
+                          controller: controller,
+                          failed: failed,
                         ),
                       ),
                     ),
@@ -844,15 +913,90 @@ class NowPanel extends StatelessWidget {
 }
 
 /// Share of [programme] already aired at [time], from 0 to 1.
-double _elapsed(Programme programme, DateTime time) {
+double elapsedShare(Programme programme, DateTime time) {
   final total = programme.stop.difference(programme.start).inSeconds;
   final done = time.toUtc().difference(programme.start).inSeconds;
   return total > 0 ? (done / total).clamp(0.0, 1.0) : 0;
 }
 
+/// The live preview's video box: black until there is a picture, with the
+/// loader (or the failure message) and the "live" badge over it.
+class LivePreviewBox extends StatelessWidget {
+  const LivePreviewBox({
+    super.key,
+    required this.controller,
+    required this.failed,
+    this.radius = 14,
+  });
+
+  final VideoController? controller;
+
+  /// The preview did not start in time; shows a message over the black box.
+  final bool failed;
+
+  /// Corner radius (none when the preview spans a phone's width).
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = this.controller;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        boxShadow: AppStyle.cardShadow,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: ColoredBox(
+          color: Colors.black,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: controller == null
+                    ? const SizedBox.shrink()
+                    : Video(
+                        // A new controller (new player) needs a new Video
+                        // state.
+                        key: ObjectKey(controller),
+                        controller: controller,
+                        controls: NoVideoControls,
+                      ),
+              ),
+              if (failed)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(12),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: BrandMessage(
+                        title: 'No se ha podido abrir el canal',
+                        logoSize: 48,
+                        dimmed: true,
+                      ),
+                    ),
+                  ),
+                )
+              else if (controller != null)
+                _PreviewLoader(
+                  key: ObjectKey(controller),
+                  controller: controller,
+                ),
+              const Positioned(top: 10, left: 10, child: LiveBadge()),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// A later programme in the now panel: start time and title.
-class _UpcomingRow extends StatelessWidget {
-  const _UpcomingRow({required this.programme, required this.timeStyle});
+class UpcomingRow extends StatelessWidget {
+  const UpcomingRow({
+    super.key,
+    required this.programme,
+    required this.timeStyle,
+  });
 
   final Programme programme;
   final TextStyle? timeStyle;
