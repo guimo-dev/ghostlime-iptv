@@ -7,8 +7,12 @@ import 'package:iptv_player/main.dart';
 import 'package:iptv_player/playlists/memory_password_store.dart';
 import 'package:iptv_player/settings/memory_pin_store.dart';
 import 'package:iptv_player/settings/settings_controller.dart';
+import 'package:iptv_player/sync/account_service.dart';
+import 'package:iptv_player/sync/sync_backend.dart';
 import 'package:media_kit/media_kit.dart' show MediaKit;
 
+import '../../test/sync/account_service_test.dart'
+    show FakeAuthGateway, FakeKeyStore;
 import '../../tool/demo_server/demo_server.dart';
 
 /// Key of the [RepaintBoundary] around the app that `expectScreen` captures.
@@ -28,7 +32,8 @@ String sizeName(Size size) {
 }
 
 /// The real app on throwaway data: a temp catalog, in-memory passwords and
-/// PIN, no account, and a local demo server to add as a playlist.
+/// PIN, no account unless asked for a signed-in fake one, and a local demo
+/// server to add as a playlist.
 class AppHarness {
   AppHarness._(
     this._tester,
@@ -38,6 +43,7 @@ class AppHarness {
     this.pins,
     this.settings,
     this.server,
+    this.account,
   );
 
   final WidgetTester _tester;
@@ -52,12 +58,19 @@ class AppHarness {
   /// Demo Xtream/M3U server (credentials `demo` / `demo`).
   final DemoServer server;
 
+  /// Signed-in account over fakes (no network, no real secure storage), or
+  /// `null` as in a build without Supabase.
+  final AccountService? account;
+
   /// Starts the app in a window of [size] logical pixels at device pixel
-  /// ratio 1.0, with a non-blinking caret, and pumps the first frame. Whatever
-  /// was opened is released again if starting fails.
+  /// ratio 1.0, with a non-blinking caret, and pumps the first frame. With
+  /// [signedIn] the account is created and signed in first (as
+  /// `demo@example.com`). Whatever was opened is released again if starting
+  /// fails.
   static Future<AppHarness> start(
     WidgetTester tester, {
     required Size size,
+    bool signedIn = false,
   }) async {
     MediaKit.ensureInitialized();
     tester.view.physicalSize = size;
@@ -69,15 +82,31 @@ class AppHarness {
     try {
       db = CatalogDb.open('${dir.path}/catalog.db');
       server = await DemoServer.start();
+      final passwords = MemoryPasswordStore();
+      final account = signedIn
+          ? AccountService(
+              db: db,
+              auth: FakeAuthGateway({}),
+              backend: InMemorySyncBackend(),
+              keys: FakeKeyStore(),
+              passwords: passwords,
+            )
+          : null;
       final harness = AppHarness._(
         tester,
         dir,
         db,
-        MemoryPasswordStore(),
+        passwords,
         MemoryPinStore(),
         SettingsController(db),
         server,
+        account,
       );
+      if (account != null) {
+        await tester.runAsync(
+          () => account.signUp('demo@example.com', 'demo password'),
+        );
+      }
       await tester.pumpWidget(
         RepaintBoundary(
           key: screenBoundaryKey,
@@ -86,7 +115,7 @@ class AppHarness {
             passwords: harness.passwords,
             settings: harness.settings,
             pins: harness.pins,
-            account: null,
+            account: harness.account,
           ),
         ),
       );
@@ -101,6 +130,7 @@ class AppHarness {
   /// catalog, deletes the data directory and restores the window and caret.
   Future<void> close() async {
     await _tester.pumpWidget(const SizedBox.shrink());
+    account?.dispose();
     await _release(_tester, dir, db, server);
   }
 

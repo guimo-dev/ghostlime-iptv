@@ -401,6 +401,13 @@ Future<void> _startParentalLock(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// Screens that start signed in: parental control needs an account.
+const _signedInScreens = {'ajustes-control-parental', 'pin'};
+
+/// The account's "Última sincronización: dd/mm hh:mm" line, which shows the
+/// time of the run.
+Finder _lastSyncMask() => find.textContaining('Última sincronización');
+
 /// Every screen, by the name of its reference image.
 final Map<String, _Capture> _screens = {
   'inicio-vacio': (tester, harness, name) async {
@@ -600,7 +607,7 @@ final Map<String, _Capture> _screens = {
     await tester.tap(find.text('Aceptar'));
     await tester.pumpAndSettle();
     await _scrollSettingsTo(tester, find.text('Bloqueo'));
-    await expectScreen(tester, name);
+    await expectScreen(tester, name, masks: [_lastSyncMask()]);
   },
   'pin': (tester, harness, name) async {
     await _enter(tester, harness);
@@ -611,7 +618,7 @@ final Map<String, _Capture> _screens = {
       '123',
     );
     await tester.pumpAndSettle();
-    await expectScreen(tester, name);
+    await expectScreen(tester, name, masks: [_lastSyncMask()]);
   },
   'ajustes-cuenta-sin-supabase': (tester, harness, name) async {
     await settle(tester);
@@ -643,7 +650,11 @@ void main() {
     for (final MapEntry(key: name, value: capture) in _screens.entries) {
       testWidgets('$name at ${sizeName(size)}', (tester) async {
         ParentalSession.unlocked.value = false;
-        final harness = await AppHarness.start(tester, size: size);
+        final harness = await AppHarness.start(
+          tester,
+          size: size,
+          signedIn: _signedInScreens.contains(name),
+        );
         addTearDown(harness.close);
         await capture(tester, harness, name);
       });
