@@ -66,6 +66,10 @@ class _AppShellState extends State<AppShell> {
   };
   int _homeVersion = 0;
 
+  /// Keeps the sections alive when the layout switches between side and
+  /// bottom bar (a rotation), so a playing channel is not restarted.
+  final _contentKey = GlobalKey();
+
   /// Error of the last refresh when it left the playlist without a catalog;
   /// shown instead of the (empty) sections until a retry succeeds.
   late String? _syncError = _hasCatalog()
@@ -186,6 +190,7 @@ class _AppShellState extends State<AppShell> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
+              autofocus: true,
               leading: const Icon(Icons.swap_horiz),
               title: const Text('Listas'),
               onTap: () {
@@ -211,6 +216,7 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     final bottomBar = !usesDesktopLayout(MediaQuery.sizeOf(context));
     final content = Expanded(
+      key: _contentKey,
       child: _syncError == null
           ? SectionStack(
               index: _index,
@@ -235,19 +241,18 @@ class _AppShellState extends State<AppShell> {
             ? _BottomBar(selected: _index, onSelected: _go, onMore: _openMore)
             : null,
         body: AppBackground(
-          child: bottomBar
-              ? Column(children: [content])
-              : Row(
-                  children: [
-                    _SideBar(
-                      selected: _index,
-                      onSelected: _go,
-                      onExit: _exit,
-                      onSettings: _openSettings,
-                    ),
-                    content,
-                  ],
+          child: Row(
+            children: [
+              if (!bottomBar)
+                _SideBar(
+                  selected: _index,
+                  onSelected: _go,
+                  onExit: _exit,
+                  onSettings: _openSettings,
                 ),
+              content,
+            ],
+          ),
         ),
       ),
     );

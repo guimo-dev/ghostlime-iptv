@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iptv_player/catalog/catalog_db.dart';
+import 'package:iptv_player/catalog/catalog_models.dart';
+import 'package:iptv_player/home/home_screen.dart';
+import 'package:iptv_player/shell/section_stack.dart';
 import 'package:iptv_player/playlists/memory_password_store.dart';
 import 'package:iptv_player/playlists/playlist.dart';
 import 'package:iptv_player/settings/settings_controller.dart';
@@ -53,6 +56,7 @@ Future<void> _pumpShell(WidgetTester tester, Size size) async {
 }
 
 void main() {
+  _rotationTest();
   test('form factor goes by the shortest side', () {
     expect(formFactorOf(const Size(360, 640)), FormFactor.phone);
     expect(formFactorOf(const Size(640, 360)), FormFactor.phone);
@@ -120,5 +124,63 @@ void main() {
     await tester.state<NavigatorState>(find.byType(Navigator)).maybePop();
     await tester.pumpAndSettle();
     expect(find.text('Abrir'), findsOneWidget);
+  });
+}
+
+void _rotationTest() {
+  testWidgets('changing layout keeps the sections alive', (tester) async {
+    tester.view.physicalSize = const Size(800, 1280);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final db = CatalogDb.inMemory();
+    addTearDown(db.close);
+    final unsaved = Playlist(
+      name: 'Lista',
+      type: PlaylistType.m3uFile,
+      source: 'no-existe.m3u',
+    );
+    final playlist = unsaved.copyWith(id: db.savePlaylist(unsaved));
+    db.replaceCatalog(
+      playlist.id!,
+      const [Category(id: 'c', name: 'Cat', kind: MediaKind.live)],
+      const [
+        Channel(
+          key: 'k',
+          name: 'Canal uno',
+          categoryId: 'c',
+          kind: MediaKind.live,
+          url: 'http://h/1',
+        ),
+      ],
+      DateTime.now(),
+    );
+    await tester.pumpWidget(
+      SettingsScope(
+        controller: SettingsController(db),
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: AppShell(
+            db: db,
+            playlist: playlist,
+            passwords: MemoryPasswordStore(),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final home = tester.state(find.byType(HomeScreen));
+    final stack = tester.state(find.byType(SectionStack));
+    expect(find.byType(NavigationBar), findsOneWidget);
+
+    tester.view.physicalSize = const Size(1280, 800);
+    await tester.pump();
+    expect(find.byType(NavigationBar), findsNothing);
+    expect(tester.state(find.byType(HomeScreen)), same(home));
+    expect(tester.state(find.byType(SectionStack)), same(stack));
+
+    tester.view.physicalSize = const Size(800, 1280);
+    await tester.pump();
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(tester.state(find.byType(HomeScreen)), same(home));
   });
 }
