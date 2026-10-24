@@ -415,7 +415,17 @@ Finder _lastSyncMask() => find.textContaining('Última sincronización');
 final Map<String, _Capture> _screens = {
   'bienvenida': (tester, harness, name) async {
     await settle(tester);
-    await expectScreen(tester, name);
+    // The button autofocuses and a mouse left by an earlier test may hover
+    // it: park the pointer away, unfocus and let the highlights fade.
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    try {
+      await mouse.addPointer(location: const Offset(-10, -10));
+      FocusManager.instance.primaryFocus?.unfocus();
+      await _pumpRealTime(tester, const Duration(seconds: 1));
+      await expectScreen(tester, name);
+    } finally {
+      await mouse.removePointer();
+    }
   },
   'inicio-vacio': (tester, harness, name) async {
     await _enter(tester, harness);
