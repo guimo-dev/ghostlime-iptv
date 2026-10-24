@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import '../catalog/catalog_db.dart';
 import '../playlists/password_store.dart';
 import '../playlists/playlist.dart';
+import '../settings/app_settings.dart';
+import '../settings/pin_store.dart';
 import 'auth_gateway.dart';
 import 'key_store.dart';
 import 'sync_backend.dart';
@@ -58,6 +60,7 @@ class AccountService extends ChangeNotifier {
     required this._backend,
     required this._keys,
     required this._passwords,
+    this.pins,
     this.onSettingsChanged,
     this.debounce = const Duration(seconds: 3),
     this.progressDebounce = const Duration(seconds: 60),
@@ -69,6 +72,10 @@ class AccountService extends ChangeNotifier {
   final SyncBackend _backend;
   final DataKeyStore _keys;
   final PasswordStore _passwords;
+
+  /// The parental PIN, wiped together with the rest of the device data by
+  /// [deleteAccount]; `null` when there is none to wipe (tests).
+  final PinStore? pins;
 
   /// Called after a sync that applied remote settings, because that changes
   /// the database under the settings controller.
@@ -264,6 +271,61 @@ class AccountService extends ChangeNotifier {
   Future<void> verifyPinResetCode(String code) async {
     _requireSignedIn();
     await _auth.verifyEmailCode(code);
+  }
+
+  /// Emails a code to confirm [deleteAccount]. Throws [AccountException]
+  /// without a session or when sending fails.
+  Future<void> sendDeleteAccountCode() async {
+    _requireSignedIn();
+    await _auth.sendEmailCode();
+  }
+
+  /// Deletes the account and its server data after checking the emailed
+  /// [code], then closes the session and forgets the data key. Nothing is
+  /// deleted if the code is wrong or the server cannot be reached. Local
+  /// playlists stay unless [wipeDevice]: then the playlists (with their
+  /// passwords), favorites, progress, settings and PIN of this device go too.
+  /// The code is never logged.
+  Future<void> deleteAccount({
+    required String code,
+    required bool wipeDevice,
+  }) => _guard(() async {
+    _requireSignedIn();
+    await _auth.verifyEmailCode(code);
+    await _auth.deleteAccount();
+    _debounceTimer?.cancel();
+    _pullTimer?.cancel();
+    if (_db.onLocalChange == _scheduleSync) _db.onLocalChange = null;
+    _engine?.close();
+    _engine = null;
+    await _running;
+    await _dropSession();
+    await (wipeDevice ? _wipeDevice() : _turnParentalLockOff());
+  });
+
+  /// Without an account there is no PIN reset, so the parental lock goes off
+  /// and the PIN is deleted (as when signing out). Everything else stays.
+  Future<void> _turnParentalLockOff() async {
+    final settings = AppSettings.fromJson(_db.loadSettings());
+    if (settings.parentalLock) {
+      _db.saveSettings(settings.copyWith(parentalLock: false).toJson());
+      onSettingsChanged?.call();
+    }
+    await pins?.clear();
+  }
+
+  /// Deletes every playlist (and its password), the synced data, the settings
+  /// and the PIN of this device.
+  Future<void> _wipeDevice() async {
+    for (final playlist in _db.playlists()) {
+      await _passwords.delete(playlist.id!);
+    }
+    // Settings first: saving them marks them dirty, and deleteLocalLibrary
+    // clears that bookkeeping.
+    _db.saveSettings(const {});
+    _db.deleteLocalLibrary();
+    await pins?.clear();
+    onSettingsChanged?.call();
   }
 
   /// Throws an [AccountException] unless the account is signed in.

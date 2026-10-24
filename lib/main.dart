@@ -75,7 +75,7 @@ Future<void> main() async {
       // Isolated runs never touch the real sync key or an account.
       account: dataDir != null
           ? null
-          : await _createAccountService(db, passwords, settings),
+          : await _createAccountService(db, passwords, pins, settings),
     ),
   );
 }
@@ -85,6 +85,7 @@ Future<void> main() async {
 Future<AccountService?> _createAccountService(
   CatalogDb db,
   PasswordStore passwords,
+  PinStore pins,
   SettingsController settings,
 ) async {
   if (_supabaseUrl.isEmpty || _supabaseAnonKey.isEmpty) return null;
@@ -98,6 +99,7 @@ Future<AccountService?> _createAccountService(
     backend: SupabaseSyncBackend(),
     keys: const DataKeyStore(),
     passwords: passwords,
+    pins: pins,
     onSettingsChanged: settings.reload,
   );
 }

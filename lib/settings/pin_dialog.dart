@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../sync/account_service.dart';
 import '../sync/auth_gateway.dart' show AccountException;
+import 'email_code_dialog.dart';
 import 'pin_store.dart';
 
 /// What the PIN dialog returns for "¿Olvidaste el PIN?"; never a valid PIN.
@@ -73,7 +74,14 @@ Future<void> _resetForgottenPin(
   if (!context.mounted) return;
   final verified = await showDialog<bool>(
     context: context,
-    builder: (_) => _CodeDialog(account: account),
+    builder: (_) => EmailCodeDialog(
+      title: 'Recuperar el PIN',
+      email: account.email,
+      purpose: 'para crear un PIN nuevo.',
+      confirmLabel: 'Comprobar',
+      onSubmit: account.verifyPinResetCode,
+      onResend: account.sendPinResetCode,
+    ),
   );
   if (verified != true || !context.mounted) return;
   final pin = await askPin(context, title: 'Crea un PIN nuevo', confirm: true);
@@ -171,124 +179,6 @@ class _PinDialogState extends State<_PinDialog> {
           child: const Text('Cancelar'),
         ),
         FilledButton(onPressed: _submit, child: const Text('Aceptar')),
-      ],
-    );
-  }
-}
-
-/// Asks for the code emailed to reset the PIN and checks it with [account]
-/// without closing, so a mistyped code can be corrected; "Reenviar código"
-/// emails a new one. Returns `true` once a code is accepted, `null` when
-/// cancelled.
-class _CodeDialog extends StatefulWidget {
-  const _CodeDialog({required this.account});
-
-  final AccountService account;
-
-  @override
-  State<_CodeDialog> createState() => _CodeDialogState();
-}
-
-class _CodeDialogState extends State<_CodeDialog> {
-  final _code = TextEditingController();
-  bool _busy = false;
-  String? _error;
-
-  /// Confirmation shown after a code was sent again.
-  String? _notice;
-
-  @override
-  void dispose() {
-    _code.dispose();
-    super.dispose();
-  }
-
-  /// Runs [action] with the buttons disabled; an [AccountException] (wrong
-  /// code, rate limit, network) is shown in the dialog.
-  Future<void> _run(Future<void> Function() action) async {
-    setState(() {
-      _busy = true;
-      _error = null;
-      _notice = null;
-    });
-    try {
-      await action();
-    } on AccountException catch (e) {
-      if (mounted) setState(() => _error = e.message);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _submit() async {
-    final code = _code.text.trim();
-    if (code.isEmpty) {
-      setState(() => _error = 'Escribe el código.');
-      return;
-    }
-    await _run(() async {
-      await widget.account.verifyPinResetCode(code);
-      if (mounted) Navigator.pop(context, true);
-    });
-  }
-
-  Future<void> _resend() => _run(() async {
-    await widget.account.sendPinResetCode();
-    if (mounted) setState(() => _notice = 'Te hemos enviado otro código.');
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final email = widget.account.email;
-    final to = email == null ? '' : ' a $email';
-    return AlertDialog(
-      title: const Text('Recuperar el PIN'),
-      content: SizedBox(
-        width: 360,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Te hemos enviado un correo$to con un código. Escríbelo aquí '
-              'para crear un PIN nuevo.',
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _code,
-              autofocus: true,
-              decoration: const InputDecoration(labelText: 'Código del correo'),
-              onSubmitted: (_) => _busy ? null : _submit(),
-            ),
-            if (_error != null || _notice != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                _error ?? _notice!,
-                style: _error == null
-                    ? null
-                    : TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ],
-            if (_busy) ...[
-              const SizedBox(height: 12),
-              const LinearProgressIndicator(),
-            ],
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: _busy ? null : _resend,
-          child: const Text('Reenviar código'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(
-          onPressed: _busy ? null : _submit,
-          child: const Text('Comprobar'),
-        ),
       ],
     );
   }

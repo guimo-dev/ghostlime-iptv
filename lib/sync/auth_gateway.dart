@@ -58,6 +58,11 @@ abstract class AuthGateway {
   /// Checks the [code] sent by [sendEmailCode]. Throws [AccountException] on a
   /// wrong or expired code.
   Future<void> verifyEmailCode(String code);
+
+  /// Deletes the signed-in user and all their server data (the `delete-account`
+  /// Edge Function, called with the current session). Throws
+  /// [AccountException].
+  Future<void> deleteAccount();
 }
 
 /// [AuthGateway] over Supabase Auth. Needs `Supabase.initialize` to have run.
@@ -121,6 +126,17 @@ class SupabaseAuthGateway implements AuthGateway {
     ),
   );
 
+  /// Calls the `delete-account` Edge Function, which identifies the user by the
+  /// session token Supabase attaches to the call.
+  @override
+  Future<void> deleteAccount() => _translate(() async {
+    try {
+      await Supabase.instance.client.functions.invoke('delete-account');
+    } on FunctionException {
+      throw const AccountException(_deleteError);
+    }
+  });
+
   /// Email of the signed-in user; throws [AccountException] without one.
   String _currentEmail() =>
       _auth.currentUser?.email ??
@@ -143,6 +159,9 @@ class SupabaseAuthGateway implements AuthGateway {
       throw const AccountException(_networkMessage);
     }
   }
+
+  static const _deleteError =
+      'No se ha podido borrar la cuenta. Inténtalo de nuevo.';
 
   static const _networkMessage =
       'No hay conexión con el servidor. Comprueba tu red e inténtalo de nuevo.';

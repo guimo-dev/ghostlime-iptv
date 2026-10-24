@@ -21,6 +21,7 @@ import '../ui/content_width.dart';
 import '../ui/ghostlime_logo.dart';
 import '../xtream/xtream_urls.dart';
 import 'app_settings.dart';
+import 'email_code_dialog.dart';
 import 'parental_session.dart';
 import 'pin_dialog.dart';
 import 'pin_scope.dart';
@@ -943,6 +944,39 @@ class _AccountSectionState extends State<_AccountSection> {
     await _run(account.signOut);
   }
 
+  /// Deletes the account: emails a code and, once it is typed (with the
+  /// "Borrar también de este dispositivo" choice), deletes the account on the
+  /// server and closes the session. A failed first send shows the service's
+  /// error under the section.
+  Future<void> _deleteAccount(AccountService account) async {
+    try {
+      await account.sendDeleteAccountCode();
+    } on AccountException catch (e) {
+      if (mounted) _snack(e.message);
+      return;
+    }
+    if (!mounted) return;
+    var wipeDevice = false;
+    final deleted = await showDialog<bool>(
+      context: context,
+      builder: (_) => EmailCodeDialog(
+        title: 'Borrar mi cuenta',
+        email: account.email,
+        purpose:
+            'para borrar tu cuenta y todos sus datos en la nube. No se puede '
+            'deshacer.',
+        confirmLabel: 'Borrar cuenta',
+        onSubmit: (code) =>
+            account.deleteAccount(code: code, wipeDevice: wipeDevice),
+        onResend: account.sendDeleteAccountCode,
+        extra: _WipeDeviceCheckbox(onChanged: (value) => wipeDevice = value),
+      ),
+    );
+    if (deleted != true) return;
+    if (wipeDevice) ParentalSession.unlocked.value = false;
+    if (mounted) _snack('Cuenta borrada.');
+  }
+
   /// "20/10 14:32" style time for the last sync line.
   static String _time(DateTime time) {
     String two(int n) => n.toString().padLeft(2, '0');
@@ -1009,6 +1043,10 @@ class _AccountSectionState extends State<_AccountSection> {
                 OutlinedButton(
                   onPressed: _busy ? null : () => _signOut(account),
                   child: const Text('Cerrar sesión'),
+                ),
+                OutlinedButton(
+                  onPressed: _busy ? null : () => _deleteAccount(account),
+                  child: const Text('Borrar mi cuenta'),
                 ),
               ],
             ),
@@ -1086,6 +1124,38 @@ class _AccountSectionState extends State<_AccountSection> {
           ),
         if (_busy) const LinearProgressIndicator(),
       ],
+    );
+  }
+}
+
+/// The "Borrar también de este dispositivo" checkbox of the delete-account
+/// dialog; reports every change through [onChanged].
+class _WipeDeviceCheckbox extends StatefulWidget {
+  const _WipeDeviceCheckbox({required this.onChanged});
+
+  final ValueChanged<bool> onChanged;
+
+  @override
+  State<_WipeDeviceCheckbox> createState() => _WipeDeviceCheckboxState();
+}
+
+class _WipeDeviceCheckboxState extends State<_WipeDeviceCheckbox> {
+  bool _checked = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return CheckboxListTile(
+      contentPadding: EdgeInsets.zero,
+      controlAffinity: ListTileControlAffinity.leading,
+      value: _checked,
+      title: const Text('Borrar también de este dispositivo'),
+      subtitle: const Text(
+        'Listas, favoritos, progreso, ajustes y PIN de este dispositivo.',
+      ),
+      onChanged: (value) {
+        setState(() => _checked = value ?? false);
+        widget.onChanged(_checked);
+      },
     );
   }
 }

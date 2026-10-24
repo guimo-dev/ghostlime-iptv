@@ -94,6 +94,22 @@ class FakeAuthGateway implements AuthGateway {
       throw const AccountException('El código no es correcto o ha caducado.');
     }
   }
+
+  /// How many times [deleteAccount] succeeded.
+  int accountsDeleted = 0;
+
+  /// When set, [deleteAccount] throws it (e.g. no network).
+  AccountException? deleteAccountError;
+
+  @override
+  Future<void> deleteAccount() async {
+    if (_email == null) {
+      throw const AccountException('Entra en tu cuenta primero.');
+    }
+    if (deleteAccountError case final error?) throw error;
+    accounts.remove(_email);
+    accountsDeleted++;
+  }
 }
 
 /// In-memory stand-in for the secure storage of the sync key.
