@@ -94,6 +94,9 @@ typedef PlayerFactory = (Player, VideoController) Function(String? hwdec);
 /// [ReconnectPolicy] decides, gives up when a stream does not start within
 /// [startTimeout] and records everything in the playback log. The player is
 /// created on the first open, so a screen that never plays needs no libmpv.
+///
+/// A `PlayerScreen` that is given none creates its own, which then drives a
+/// movie or episode (VOD) the same way and lives as long as that screen.
 class LivePlayback extends ChangeNotifier {
   LivePlayback({
     required this._settings,
@@ -120,6 +123,10 @@ class LivePlayback extends ChangeNotifier {
 
   Player? _player;
   VideoController? _controller;
+
+  /// The mpv `hwdec` [_controller] was created with: it is fixed for the
+  /// life of the controller.
+  String? _playerHwdec;
   final List<StreamSubscription<Object?>> _subscriptions = [];
 
   /// Bumped by every play and stop: an open that is no longer the latest
@@ -166,13 +173,11 @@ class LivePlayback extends ChangeNotifier {
   Player _ensurePlayer() {
     final existing = _player;
     if (existing != null) return existing;
-    final hwdec = hwdecFor(
-      hardwareDecoding: _settings().hardwareDecoding,
-      isAndroid: Platform.isAndroid,
-    );
+    final hwdec = _hwdecSetting();
     final (player, controller) = _createPlayer(hwdec);
     _player = player;
     _controller = controller;
+    _playerHwdec = hwdec;
     _subscriptions.addAll([
       player.stream.error.listen(_onError),
       player.stream.completed.listen(_onCompleted),
@@ -181,6 +186,23 @@ class LivePlayback extends ChangeNotifier {
     ]);
     return player;
   }
+
+  /// Disposes the player and its controller; the next use creates new ones.
+  void _releasePlayer() {
+    for (final subscription in _subscriptions) {
+      subscription.cancel();
+    }
+    _subscriptions.clear();
+    _player?.dispose();
+    _player = null;
+    _controller = null;
+  }
+
+  /// The `hwdec` the current "hardware decoding" setting asks for.
+  String? _hwdecSetting() => hwdecFor(
+    hardwareDecoding: _settings().hardwareDecoding,
+    isAndroid: Platform.isAndroid,
+  );
 
   /// Whether the player exists, i.e. something was ever opened.
   bool get hasPlayer => _player != null;
@@ -207,8 +229,11 @@ class LivePlayback extends ChangeNotifier {
     final url = playTargetUrl(playlist, target, await password);
     if (generation != _generation) return;
     if (url == null) {
+      // Nothing to play: the previous channel must not go on.
       _key = null;
+      _media = null;
       notifyListeners();
+      await _player?.stop();
       return;
     }
     final userAgent = playlist.userAgent;
@@ -280,11 +305,8 @@ class LivePlayback extends ChangeNotifier {
     _disposed = true;
     _generation++;
     _cancelTimers();
-    for (final subscription in _subscriptions) {
-      subscription.cancel();
-    }
     _log?.flush();
-    _player?.dispose();
+    _releasePlayer();
     super.dispose();
   }
 
@@ -316,13 +338,15 @@ class LivePlayback extends ChangeNotifier {
       onGiveUp: (reason) =>
           _log?.record(PlaybackEvent.reconnectGaveUp, detail: reason),
     );
+    // The controller keeps the hwdec it was created with: when the setting
+    // changed since, start over with a new player and controller.
+    final hwdec = _hwdecSetting();
+    final recreate = _player != null && hwdec != _playerHwdec;
+    if (recreate) _releasePlayer();
     final player = this.player;
+    if (recreate) notifyListeners();
     final platform = player.platform;
     if (platform is NativePlayer) {
-      final hwdec = hwdecFor(
-        hardwareDecoding: settings.hardwareDecoding,
-        isAndroid: Platform.isAndroid,
-      );
       final properties = {
         'hwdec': ?hwdec,
         'cache': 'yes',
@@ -351,7 +375,9 @@ class LivePlayback extends ChangeNotifier {
     if (generation != _generation) {
       // Replaced or stopped while opening: the stop issued then may have
       // landed before the open, so close the stream now.
-      if (!_disposed && _openingGeneration == generation) await player.stop();
+      if (identical(player, _player) && _openingGeneration == generation) {
+        await player.stop();
+      }
       return;
     }
     _openedGeneration = generation;
@@ -380,7 +406,7 @@ class LivePlayback extends ChangeNotifier {
   }
 
   void _onBuffering(bool buffering) {
-    if (_media == null) return;
+    if (!_eventsAreCurrent) return;
     // mpv reports buffering while a file drains at its end: not a stall.
     final state = player.state;
     if (!_isLive && isEndOfFile(state.position, state.duration)) return;

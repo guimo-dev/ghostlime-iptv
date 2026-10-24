@@ -51,7 +51,8 @@ class PlayerScreen extends StatefulWidget {
 
   /// Playback owned by someone else (Directo); this screen neither opens
   /// nor closes it, so [url], [userAgent], [startPosition] and
-  /// [startTimeout] are not used.
+  /// [startTimeout] are not used. Its owner must outlive this screen's
+  /// route: the screen keeps using it until the route is gone.
   final LivePlayback? shared;
 
   final String url;
@@ -285,6 +286,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   normal: mobileControlsTheme,
                   fullscreen: mobileControlsTheme,
                   child: Video(
+                    // A new controller (new player) needs a new Video state.
+                    key: ObjectKey(_playback.controller),
                     controller: _playback.controller,
                     fit: BoxFit.contain,
                   ),

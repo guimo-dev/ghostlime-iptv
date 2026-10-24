@@ -797,6 +797,9 @@ class NowPanel extends StatelessWidget {
                                     child: controller == null
                                         ? const SizedBox.shrink()
                                         : Video(
+                                            // A new controller (new player)
+                                            // needs a new Video state.
+                                            key: ObjectKey(controller),
                                             controller: controller,
                                             controls: NoVideoControls,
                                           ),
@@ -816,7 +819,10 @@ class NowPanel extends StatelessWidget {
                                       ),
                                     )
                                   else if (controller != null)
-                                    _PreviewLoader(controller: controller),
+                                    _PreviewLoader(
+                                      key: ObjectKey(controller),
+                                      controller: controller,
+                                    ),
                                   const Positioned(
                                     top: 10,
                                     left: 10,
@@ -1018,7 +1024,7 @@ PreviewOverlay previewOverlay({
 /// Branded loader over the preview until playback starts, or a static
 /// "Solo audio" state when the stream has no picture.
 class _PreviewLoader extends StatefulWidget {
-  const _PreviewLoader({required this.controller});
+  const _PreviewLoader({super.key, required this.controller});
 
   final VideoController controller;
 
