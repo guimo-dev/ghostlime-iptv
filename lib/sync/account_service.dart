@@ -184,11 +184,7 @@ class AccountService extends ChangeNotifier {
   /// stays. Anything scheduled or running is stopped before the first await,
   /// so nothing can sync (or save a cursor) while the session is closing.
   Future<void> signOut() => _guard(() async {
-    _debounceTimer?.cancel();
-    _pullTimer?.cancel();
-    if (_db.onLocalChange == _scheduleSync) _db.onLocalChange = null;
-    _engine?.close();
-    _engine = null;
+    _stopSync();
     await _running;
     try {
       await _auth.signOut();
@@ -282,7 +278,8 @@ class AccountService extends ChangeNotifier {
 
   /// Deletes the account and its server data after checking the emailed
   /// [code], then closes the session and forgets the data key. Nothing is
-  /// deleted if the code is wrong or the server cannot be reached. Local
+  /// deleted if the code is wrong or the server cannot be reached (the code is
+  /// then spent: a new one is needed to retry). Local
   /// playlists stay unless [wipeDevice]: then the playlists (with their
   /// passwords), favorites, progress, settings and PIN of this device go too.
   /// The code is never logged.
@@ -293,11 +290,7 @@ class AccountService extends ChangeNotifier {
     _requireSignedIn();
     await _auth.verifyEmailCode(code);
     await _auth.deleteAccount();
-    _debounceTimer?.cancel();
-    _pullTimer?.cancel();
-    if (_db.onLocalChange == _scheduleSync) _db.onLocalChange = null;
-    _engine?.close();
-    _engine = null;
+    _stopSync();
     await _running;
     await _dropSession();
     await (wipeDevice ? _wipeDevice() : _turnParentalLockOff());
@@ -600,13 +593,18 @@ class AccountService extends ChangeNotifier {
     await _forgetSession();
   }
 
-  /// Forgets the data key, the cursor and the engine; local data stays.
-  Future<void> _forgetSession() async {
+  /// Stops everything that could sync: timers, the change hook and the engine.
+  void _stopSync() {
     _debounceTimer?.cancel();
     _pullTimer?.cancel();
     if (_db.onLocalChange == _scheduleSync) _db.onLocalChange = null;
     _engine?.close();
     _engine = null;
+  }
+
+  /// Forgets the data key, the cursor and the engine; local data stays.
+  Future<void> _forgetSession() async {
+    _stopSync();
     _db.itemIds = null;
     await _keys.clear();
     _db.saveSyncCursor(null);

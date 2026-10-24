@@ -132,7 +132,8 @@ class SupabaseAuthGateway implements AuthGateway {
   Future<void> deleteAccount() => _translate(() async {
     try {
       await Supabase.instance.client.functions.invoke('delete-account');
-    } on FunctionException {
+    } on Exception {
+      // The emailed code is already spent, so network failures say the same.
       throw const AccountException(_deleteError);
     }
   });
@@ -161,7 +162,8 @@ class SupabaseAuthGateway implements AuthGateway {
   }
 
   static const _deleteError =
-      'No se ha podido borrar la cuenta. Inténtalo de nuevo.';
+      'No se ha podido borrar la cuenta. Pide un código nuevo con '
+      '«Reenviar código» e inténtalo otra vez.';
 
   static const _networkMessage =
       'No hay conexión con el servidor. Comprueba tu red e inténtalo de nuevo.';

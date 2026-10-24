@@ -2,8 +2,8 @@
 
 ## `delete-account`
 
-Borra al usuario que la llama y todos sus datos (`sync_items`, `profiles` y el
-usuario de Auth). Supabase solo deja borrar usuarios con la clave de servicio, que
+Borra al usuario que la llama; sus filas de `sync_items` y `profiles` caen con él
+(`on delete cascade` de `schema.sql`), de forma atómica. Supabase solo deja borrar usuarios con la clave de servicio, que
 por eso vive únicamente en la función (`SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY`
 las inyecta Supabase; no hay que configurar nada). Verifica el JWT del usuario y
 borra **solo a ese usuario**; sin JWT válido responde 401. No registra tokens.
@@ -22,8 +22,13 @@ supabase functions deploy delete-account
 ```
 
 O desde el panel: Edge Functions → Deploy a new function → "Via Editor", nombre
-`delete-account`, pegar `delete-account/index.ts` y desplegar. Deja activada la
-verificación de JWT (opción por defecto).
+`delete-account`, pegar `delete-account/index.ts` y desplegar. La función verifica
+ella misma el token (`auth.getUser`), así que con las claves de firma JWT
+asimétricas nuevas y la clave publicable puede hacer falta **desactivar** el
+interruptor "Verify JWT" de la pasarela (CLI: `--no-verify-jwt`); si no, la
+pasarela puede rechazar con 401 tokens válidos. Comprueba también que
+`SUPABASE_SERVICE_ROLE_KEY` existe en el entorno de la función (en proyectos
+con claves nuevas puede haber que crearla como secreto con ese nombre).
 
 ### Probar
 

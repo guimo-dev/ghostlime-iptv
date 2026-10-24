@@ -13,6 +13,9 @@ import 'fake_passwords.dart';
 const _email = 'ana@example.com';
 const _password = 'correct horse';
 const _wrongCode = 'El código no es correcto o ha caducado.';
+const _deleteFailed =
+    'No se ha podido borrar la cuenta. Pide un código nuevo con '
+    '«Reenviar código» e inténtalo otra vez.';
 const _networkMessage =
     'No hay conexión con el servidor. Comprueba tu red e inténtalo de nuevo.';
 
@@ -94,6 +97,25 @@ void main() {
     expect(service.status, AccountStatus.signedIn);
     expect(keys.key, isNotNull);
     expect(await deviceIntact(), isTrue);
+  });
+
+  test('a server failure after a valid code can be retried', () async {
+    auth.deleteAccountError = const AccountException(_deleteFailed);
+    await expectLater(
+      service.deleteAccount(code: FakeAuthGateway.validCode, wipeDevice: true),
+      throwsA(isA<AccountException>()),
+    );
+    expect(service.status, AccountStatus.signedIn);
+    expect(await deviceIntact(), isTrue);
+
+    auth.deleteAccountError = null;
+    await service.deleteAccount(
+      code: FakeAuthGateway.validCode,
+      wipeDevice: true,
+    );
+
+    expect(auth.accountsDeleted, 1);
+    expect(service.status, AccountStatus.signedOut);
   });
 
   test('the right code deletes the account, signs out and drops the key, '

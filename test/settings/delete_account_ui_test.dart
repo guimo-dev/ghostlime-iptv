@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:iptv_player/catalog/catalog_db.dart';
 import 'package:iptv_player/playlists/playlist.dart';
 import 'package:iptv_player/settings/memory_pin_store.dart';
+import 'package:iptv_player/settings/parental_session.dart';
 import 'package:iptv_player/settings/pin_scope.dart';
 import 'package:iptv_player/settings/settings_controller.dart';
 import 'package:iptv_player/settings/settings_scope.dart';
@@ -18,17 +19,20 @@ void main() {
   late CatalogDb db;
   late FakeAuthGateway auth;
   late AccountService account;
+  late MemoryPinStore pins;
 
   setUp(() {
     db = CatalogDb.inMemory();
     auth = FakeAuthGateway({});
+    pins = MemoryPinStore();
+    ParentalSession.unlocked.value = true;
     account = AccountService(
       db: db,
       auth: auth,
       backend: InMemorySyncBackend(),
       keys: FakeKeyStore(),
       passwords: FakePasswords(),
-      pins: MemoryPinStore(),
+      pins: pins,
     );
   });
 
@@ -51,7 +55,7 @@ void main() {
         child: SettingsScope(
           controller: SettingsController(db),
           child: PinScope(
-            store: MemoryPinStore(),
+            store: pins,
             child: MaterialApp(
               home: SettingsScreen(db: db, passwords: FakePasswords()),
             ),
@@ -62,10 +66,17 @@ void main() {
     await tester.pump();
   }
 
+  /// Lets animations and async work run. Not pumpAndSettle: the section's
+  /// progress bar keeps animating while the dialog is open.
+  Future<void> settle(WidgetTester tester) async {
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+  }
+
   /// Taps "Borrar mi cuenta" and waits for the code dialog.
   Future<void> openDialog(WidgetTester tester) async {
     await tester.tap(find.text('Borrar mi cuenta'));
-    await tester.pumpAndSettle();
+    await settle(tester);
   }
 
   testWidgets('the dialog asks for the emailed code and the wipe choice', (
@@ -92,7 +103,7 @@ void main() {
 
     await tester.enterText(find.byType(TextField).last, '000000');
     await tester.tap(find.text('Borrar cuenta'));
-    await tester.pumpAndSettle();
+    await settle(tester);
 
     expect(
       find.descendant(
@@ -111,6 +122,7 @@ void main() {
     db.savePlaylist(
       const Playlist(name: 'A', type: PlaylistType.m3uUrl, source: 's'),
     );
+    await pins.setPin('1234');
     await pump(tester);
     await openDialog(tester);
 
@@ -121,11 +133,13 @@ void main() {
     await tester.tap(find.text('Borrar también de este dispositivo'));
     await tester.pump();
     await tester.tap(find.text('Borrar cuenta'));
-    await tester.pumpAndSettle();
+    await settle(tester);
 
     expect(auth.accountsDeleted, 1);
     expect(account.status, AccountStatus.signedOut);
     expect(db.playlists(), isEmpty);
+    expect(await pins.hasPin(), isFalse);
+    expect(ParentalSession.unlocked.value, isFalse);
     expect(find.text('Cuenta borrada.'), findsOneWidget);
   });
 }

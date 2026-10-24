@@ -946,9 +946,9 @@ class _AccountSectionState extends State<_AccountSection> {
 
   /// Deletes the account: emails a code and, once it is typed (with the
   /// "Borrar también de este dispositivo" choice), deletes the account on the
-  /// server and closes the session. A failed first send shows the service's
-  /// error under the section.
-  Future<void> _deleteAccount(AccountService account) async {
+  /// server and closes the session. A failed first send shows its error in a
+  /// snack bar. Buttons stay disabled meanwhile, so no second code is sent.
+  Future<void> _deleteAccount(AccountService account) => _run(() async {
     try {
       await account.sendDeleteAccountCode();
     } on AccountException catch (e) {
@@ -973,9 +973,9 @@ class _AccountSectionState extends State<_AccountSection> {
       ),
     );
     if (deleted != true) return;
-    if (wipeDevice) ParentalSession.unlocked.value = false;
+    ParentalSession.unlocked.value = false;
     if (mounted) _snack('Cuenta borrada.');
-  }
+  });
 
   /// "20/10 14:32" style time for the last sync line.
   static String _time(DateTime time) {
