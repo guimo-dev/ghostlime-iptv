@@ -409,6 +409,12 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
     _fullScreenOpen = false;
     _leaveFullScreen = false;
     _playerRoute = null;
+    // Opening recorded the first channel; zapping records only the one it
+    // ended on, not every channel swiped through.
+    final last = _selected;
+    if (last != null && last.key != channel.key) {
+      _db.addRecent(_playlistId, _kind, last.key);
+    }
     if (!mounted) return;
     _playback.setVolume(_muted ? 0 : 100);
     setState(_loadChannels);
@@ -418,8 +424,10 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
   /// Zaps the full player to the channel [step] places away in the group
   /// shown (wrapping around its ends) and returns its name and programme on
   /// air. [LivePlayback.play] cancels any start still pending, so fast
-  /// swipes end with only the last channel open.
+  /// swipes end with only the last channel open; [_fullScreen] records it
+  /// in recents when the player closes.
   ({String title, String? subtitle})? _stepChannel(int step) {
+    if (!mounted) return null;
     final settings = SettingsScope.read(context).value;
     final channels = _visibleChannels(
       settings,
@@ -437,7 +445,6 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
     });
     final target = PlayTarget.fromChannel(channel);
     _playback.play(target);
-    _db.addRecent(_playlistId, _kind, target.key);
     return (title: target.title, subtitle: _guide[channel.epgId]?.$1?.title);
   }
 

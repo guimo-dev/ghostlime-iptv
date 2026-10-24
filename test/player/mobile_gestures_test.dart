@@ -13,6 +13,7 @@ import 'package:iptv_player/player/mobile_gestures.dart';
 import 'package:iptv_player/player/player_screen.dart';
 import 'package:iptv_player/playlists/memory_password_store.dart';
 import 'package:iptv_player/playlists/playlist.dart';
+import 'package:iptv_player/settings/app_settings.dart';
 import 'package:iptv_player/settings/settings_controller.dart';
 import 'package:iptv_player/settings/settings_scope.dart';
 import 'package:iptv_player/settings/settings_screen.dart';
@@ -461,6 +462,26 @@ void main() {
     });
     tearDown(() => db.close());
 
+    /// Replaces the catalog with [channels] as (key, name, category id).
+    void catalog(
+      List<Category> categories,
+      List<(String, String, String)> channels,
+    ) => db.replaceCatalog(playlist.id!, categories, [
+      for (final (key, name, group) in channels)
+        Channel(
+          key: key,
+          name: name,
+          categoryId: group,
+          kind: MediaKind.live,
+          url: 'http://h/$key.ts',
+        ),
+    ], DateTime.now());
+
+    /// Keys of the recent channels, newest first.
+    List<String> recents() => [
+      for (final c in db.recentChannels(playlist.id!, MediaKind.live)) c.key,
+    ];
+
     /// Directo on a phone in landscape, full screen on channel "Uno".
     Future<void> pumpFullScreen(WidgetTester tester) async {
       tester.view.physicalSize = const Size(844, 390);
@@ -549,11 +570,77 @@ void main() {
         }
       }
 
-      // Back in the list, the preview shows the channel zapped to.
+      // Zapping does not flood the recents while it goes on.
+      expect(recents(), ['a']);
+
+      // Back in the list, the preview shows the channel zapped to, and only
+      // that one joins the recents.
       await tester.binding.handlePopRoute();
       await _settleRoutes(tester);
       expect(find.byType(PlayerScreen), findsNothing);
       expect(player.current, 'http://h/d.ts');
+      expect(recents(), ['d', 'a']);
+      await _leave(tester);
+    });
+
+    testWidgets('zapping skips adult and locked channels', (tester) async {
+      catalog(
+        const [
+          Category(id: 'c', name: 'Cat', kind: MediaKind.live),
+          Category(id: 'x', name: 'Adultos', kind: MediaKind.live),
+          Category(id: 'l', name: 'Bloqueada', kind: MediaKind.live),
+        ],
+        [
+          ('a', 'Uno', 'c'),
+          ('z', 'Equis', 'x'),
+          ('k', 'Ka', 'l'),
+          ('b', 'Dos', 'c'),
+        ],
+      );
+      // Directo opens on the favorites, which mix the three groups.
+      final start = DateTime(2026);
+      for (final (i, key) in ['a', 'z', 'k', 'b'].indexed) {
+        db.setFavorite(
+          playlist.id!,
+          MediaKind.live,
+          key,
+          true,
+          addedAt: start.add(Duration(minutes: i)),
+        );
+      }
+      db.saveSettings(
+        AppSettings(
+          parentalLock: true,
+          lockedCategories: {'${playlist.id}/live/l'},
+        ).toJson(),
+      );
+      await pumpFullScreen(tester);
+
+      await swipe(tester, -150);
+      expect(appBarTitle(tester), 'Dos');
+      await swipe(tester, -150);
+      expect(appBarTitle(tester), 'Uno');
+      await swipe(tester, 150);
+      expect(appBarTitle(tester), 'Dos');
+
+      expect(player.opened.toSet(), {'http://h/a.ts', 'http://h/b.ts'});
+      await _leave(tester);
+    });
+
+    testWidgets('in a group of one channel a swipe opens nothing', (
+      tester,
+    ) async {
+      catalog(
+        const [Category(id: 'c', name: 'Cat', kind: MediaKind.live)],
+        [('a', 'Uno', 'c')],
+      );
+      await pumpFullScreen(tester);
+
+      await swipe(tester, -150);
+      await swipe(tester, 150);
+
+      expect(player.opened, ['http://h/a.ts']);
+      expect(appBarTitle(tester), 'Uno');
       await _leave(tester);
     });
   });
