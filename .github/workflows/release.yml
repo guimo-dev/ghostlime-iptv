@@ -113,6 +113,23 @@ jobs:
             printf 'keyAlias=%s\n' "$(esc "$KEY_ALIAS")"
             printf 'keyPassword=%s\n' "$(esc "$KEY_PASSWORD")"
           } > android/key.properties
+      # media_kit_libs_android_video downloads its libmpv .jar files from
+      # GitHub with Java's default Accept header, which GitHub answers with
+      # 406. Its script skips files already there with the right MD5, so they
+      # are fetched here with curl, reading URLs and MD5s from that script.
+      - name: libmpv for Android
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          flutter pub get
+          plugin=$(grep -o '"rootUri": "file://[^"]*/media_kit_libs_android_video-[^"]*"' .dart_tool/package_config.json | sed 's|.*"file://||; s|"$||')
+          jars=$(sed -n 's|.*"url": "\([^"]*\)", "md5": "\([^"]*\)", "destination": file("$buildDir/\([^"]*\)").*|\1 \2 \3|p' "$plugin/android/build.gradle")
+          [ -n "$jars" ] || { echo "::error::No jar list found in $plugin/android/build.gradle"; exit 1; }
+          while read -r url md5 path; do
+            dest="build/media_kit_libs_android_video/$path"
+            mkdir -p "$(dirname "$dest")"
+            curl -fsSL --retry 3 -o "$dest" "$url"
+            echo "$md5  $dest" | md5sum -c -
+          done <<< "$jars"
       - name: Build APK and App Bundle
         if: env.HAS_KEYSTORE == 'true'
         run: |

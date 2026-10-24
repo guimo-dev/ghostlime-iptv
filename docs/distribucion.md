@@ -166,6 +166,24 @@ keyAlias=iptv
 keyPassword=…
 ```
 
+### libmpv de Android (error 406 al compilar)
+
+El plugin `media_kit_libs_android_video` descarga sus `.jar` de libmpv de GitHub durante
+la compilación con la cabecera `Accept` por defecto de Java, y GitHub responde **406**: la
+compilación falla con `Server returned HTTP response code: 406`. El script se salta los
+ficheros que ya existen con el MD5 correcto, así que basta con bajarlos antes con curl a
+`build/media_kit_libs_android_video/<versión>/` (las URL, MD5 y rutas están en el
+`android/build.gradle` del plugin). El workflow lo hace en el paso "libmpv for Android".
+En local, lo mismo a mano (y otra vez tras `flutter clean`), p. ej. para la 1.3.8:
+
+```bash
+mkdir -p build/media_kit_libs_android_video/v1.1.7 && cd build/media_kit_libs_android_video/v1.1.7
+for abi in arm64-v8a armeabi-v7a x86_64 x86; do
+  curl -fsSLO "https://github.com/media-kit/libmpv-android-video-build/releases/download/v1.1.7/default-$abi.jar"
+done
+md5sum *.jar   # comparar con los "md5" del build.gradle del plugin
+```
+
 ## 4. Publicar una versión
 
 1. Subir la versión en `pubspec.yaml` (`version: 1.1.0+2`: el `+N` debe crecer siempre
