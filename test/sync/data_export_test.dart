@@ -61,6 +61,46 @@ void main() {
     expect(json['settings'], isA<Map>());
   });
 
+  test('export strips credentials from sources and server urls', () {
+    db.savePlaylist(
+      const Playlist(
+        name: 'Query',
+        type: PlaylistType.m3uUrl,
+        source: 'http://h/get.php?username=u&password=p4ss&token=t0k',
+      ),
+    );
+    db.savePlaylist(
+      const Playlist(
+        name: 'Path',
+        type: PlaylistType.m3uUrl,
+        source: 'http://h/live/user9/pass9/list.m3u',
+      ),
+    );
+    db.savePlaylist(
+      const Playlist(
+        name: 'Userinfo',
+        type: PlaylistType.xtream,
+        serverUrl: 'http://usr:pw@h:8080',
+        username: 'u',
+      ),
+    );
+    db.savePlaylist(
+      const Playlist(
+        name: 'File',
+        type: PlaylistType.m3uFile,
+        source: r'C:\Users\demo\lists\mine.m3u',
+      ),
+    );
+    final text = exportUserDataJson(db, const AppSettings());
+    for (final secret in ['p4ss', 't0k', 'pass9', 'pw', 'usr', 'user9']) {
+      expect(text, isNot(contains(secret)));
+    }
+    expect(text, contains('"http://h"'));
+    expect(text, contains('http://h:8080'));
+    expect(text, contains('mine.m3u'));
+    expect(text, isNot(contains('demo\\\\lists')));
+  });
+
   test('export has no PIN data nor locked categories', () {
     final text = exportUserDataJson(
       db,

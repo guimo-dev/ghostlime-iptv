@@ -837,13 +837,17 @@ class _AccountSectionState extends State<_AccountSection> {
       widget.db,
       SettingsScope.read(context).value,
     );
-    final saved = await FilePicker.saveFile(
-      fileName: 'ghostlime-mis-datos.json',
-      bytes: Uint8List.fromList(utf8.encode(text)),
-      type: FileType.custom,
-      allowedExtensions: const ['json'],
-    );
-    if (saved != null && mounted) _snack('Datos exportados.');
+    try {
+      final saved = await FilePicker.saveFile(
+        fileName: 'ghostlime-mis-datos.json',
+        bytes: Uint8List.fromList(utf8.encode(text)),
+        type: FileType.custom,
+        allowedExtensions: const ['json'],
+      );
+      if (saved != null && mounted) _snack('Datos exportados.');
+    } catch (_) {
+      if (mounted) _snack('No se ha podido guardar el fichero.');
+    }
   }
 
   /// Row that exports the local data; shown with or without an account.
@@ -854,7 +858,7 @@ class _AccountSectionState extends State<_AccountSection> {
         'contraseñas ni PIN.',
     trailing: OutlinedButton(
       onPressed: _exportData,
-      child: const Text('Exportar mis datos'),
+      child: const Text('Exportar'),
     ),
   );
 
