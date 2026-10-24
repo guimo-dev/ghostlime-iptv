@@ -18,6 +18,7 @@ import 'settings/pin_scope.dart';
 import 'settings/pin_store.dart';
 import 'settings/settings_controller.dart';
 import 'settings/settings_scope.dart';
+import 'settings/settings_screen.dart';
 import 'sync/account_scope.dart';
 import 'sync/account_service.dart';
 import 'sync/auth_gateway.dart';
@@ -134,22 +135,23 @@ class _IptvAppState extends State<IptvApp> {
   late final AppLifecycleListener _lifecycle;
 
   /// What to show over the playlists at start. Every account that signed in
-  /// here leaves its id ([CatalogDb.syncUserId]), which tells an installation
-  /// that already used an account.
+  /// here leaves its id ([CatalogDb.syncUserId], kept after signing out), so
+  /// it tells an installation where an account was used.
   late final FirstRunStep _firstRun = firstRunStep(
     welcomeDone: widget.db.welcomeDone(),
     acceptedTerms: widget.db.acceptedTermsVersion(),
     hasPlaylists: widget.db.playlists().isNotEmpty,
-    signedIn: widget.db.syncUserId() != null,
+    usedAccount: widget.db.syncUserId() != null,
   );
 
   @override
   void initState() {
     super.initState();
-    // Refresh stale catalogs once the first frame is up, in the background.
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _playlistsKey.currentState?.refreshStale(),
-    );
+    // Start-up work once the first frame is up, unless the first-run screen
+    // covers the playlists: then it waits until that screen is done.
+    if (_firstRun == FirstRunStep.none) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _startPlaylists());
+    }
     // Resume the previous account session and sync, also in the background.
     unawaited(widget.account?.start());
     _lifecycle = AppLifecycleListener(
@@ -163,12 +165,37 @@ class _IptvAppState extends State<IptvApp> {
     super.dispose();
   }
 
+  /// Start-up work of the playlists screen: refresh stale catalogs in the
+  /// background and open the last playlist if the setting asks for it.
+  void _startPlaylists() {
+    final playlists = _playlistsKey.currentState;
+    unawaited(playlists?.refreshStale());
+    playlists?.openLastPlaylist();
+  }
+
   /// Records the welcome as done and the current terms as accepted, then
-  /// uncovers the playlists.
+  /// uncovers the playlists and runs their start-up work. An account opened
+  /// in the welcome that still needs a decision (data that cannot be opened,
+  /// or another account's data here) goes to Ajustes, whose Cuenta section
+  /// at the top shows the choice, instead of the last playlist.
   void _finishFirstRun() {
     widget.db.saveWelcomeDone();
     widget.db.saveAcceptedTermsVersion(termsVersion);
-    _navigatorKey.currentState?.pop();
+    final navigator = _navigatorKey.currentState!;
+    navigator.pop();
+    final status = widget.account?.status;
+    if (status == AccountStatus.needsReset ||
+        status == AccountStatus.chooseLocalData) {
+      unawaited(_playlistsKey.currentState?.refreshStale());
+      navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              SettingsScreen(db: widget.db, passwords: widget.passwords),
+        ),
+      );
+      return;
+    }
+    _startPlaylists();
   }
 
   /// The first-run screen for [settings], over the playlists; `null` for any

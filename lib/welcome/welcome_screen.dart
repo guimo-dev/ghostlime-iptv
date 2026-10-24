@@ -12,7 +12,8 @@ import '../ui/ghostlime_logo.dart';
 /// Widest the first-run content grows.
 const _maxWidth = 520.0;
 
-/// "Continuar con Google", disabled until Google sign-in exists.
+/// "Continuar con Google", always disabled for now: Google sign-in does not
+/// exist yet.
 const _googleButton = OutlinedButton(
   onPressed: null,
   child: Text('Continuar con Google'),
@@ -37,7 +38,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   bool _accepted = false;
 
   /// Opens the shared account form in a dialog titled [title]; finishes the
-  /// welcome when it leaves the account signed in.
+  /// welcome when it leaves a session open. A session that still needs a
+  /// decision also finishes it: the app then opens Ajustes → Cuenta.
   Future<void> _openAccountForm(AccountService account, String title) async {
     final signedIn = await showDialog<bool>(
       context: context,
@@ -143,12 +145,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             child: const Text('Crear cuenta'),
           ),
           const SizedBox(height: 12),
-          // Gets its action with AccountService.signInWithGoogle, when
-          // supportsGoogle becomes true.
-          if (account.supportsGoogle)
-            _googleButton
-          else
-            const Tooltip(message: 'Disponible pronto', child: _googleButton),
+          // TODO(task 5): enable with AccountService.signInWithGoogle once
+          // the gateway supports it (AccountService.supportsGoogle).
+          const Tooltip(message: 'Disponible pronto', child: _googleButton),
           const SizedBox(height: 12),
           OutlinedButton(
             onPressed: whenAccepted(widget.onDone),

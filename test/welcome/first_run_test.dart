@@ -3,15 +3,26 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:iptv_player/catalog/catalog_db.dart';
 import 'package:iptv_player/legal/legal_info.dart';
 import 'package:iptv_player/main.dart';
+import 'package:iptv_player/playlists/playlist.dart';
 import 'package:iptv_player/playlists/playlists_screen.dart';
+import 'package:iptv_player/settings/app_settings.dart';
 import 'package:iptv_player/settings/settings_controller.dart';
+import 'package:iptv_player/settings/settings_screen.dart';
+import 'package:iptv_player/shell/app_shell.dart';
+import 'package:iptv_player/sync/account_service.dart';
+import 'package:iptv_player/sync/sync_backend.dart';
 import 'package:iptv_player/welcome/first_run.dart';
 import 'package:iptv_player/welcome/welcome_screen.dart';
 
+import '../sync/fake_account.dart';
 import '../sync/fake_passwords.dart';
 
-/// Pumps the whole app on [db] (no account) at a desktop size.
-Future<void> _pumpApp(WidgetTester tester, CatalogDb db) async {
+/// Pumps the whole app on [db] (with [account], if any) at a desktop size.
+Future<void> _pumpApp(
+  WidgetTester tester,
+  CatalogDb db, {
+  AccountService? account,
+}) async {
   tester.view.physicalSize = const Size(1440, 900);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -20,9 +31,27 @@ Future<void> _pumpApp(WidgetTester tester, CatalogDb db) async {
       db: db,
       passwords: FakePasswords(),
       settings: SettingsController(db),
+      account: account,
     ),
   );
   await tester.pumpAndSettle();
+}
+
+/// An account service on [db] over [backend], with the fake [accounts].
+AccountService _service(
+  CatalogDb db,
+  Map<String, String> accounts,
+  SyncBackend backend,
+) {
+  final service = AccountService(
+    db: db,
+    auth: FakeAuthGateway(accounts),
+    backend: backend,
+    keys: FakeKeyStore(),
+    passwords: FakePasswords(),
+  );
+  addTearDown(service.dispose);
+  return service;
 }
 
 void main() {
@@ -32,20 +61,20 @@ void main() {
         welcomeDone: false,
         acceptedTerms: 0,
         hasPlaylists: false,
-        signedIn: false,
+        usedAccount: false,
       ),
       FirstRunStep.welcome,
     );
   });
 
   test('an installation with playlists or an account only accepts terms', () {
-    for (final (hasPlaylists, signedIn) in [(true, false), (false, true)]) {
+    for (final (hasPlaylists, usedAccount) in [(true, false), (false, true)]) {
       expect(
         firstRunStep(
           welcomeDone: false,
           acceptedTerms: 0,
           hasPlaylists: hasPlaylists,
-          signedIn: signedIn,
+          usedAccount: usedAccount,
         ),
         FirstRunStep.acceptTerms,
       );
@@ -58,7 +87,7 @@ void main() {
         welcomeDone: true,
         acceptedTerms: termsVersion - 1,
         hasPlaylists: true,
-        signedIn: false,
+        usedAccount: false,
       ),
       FirstRunStep.acceptTerms,
     );
@@ -70,7 +99,7 @@ void main() {
         welcomeDone: true,
         acceptedTerms: termsVersion,
         hasPlaylists: false,
-        signedIn: false,
+        usedAccount: false,
       ),
       FirstRunStep.none,
     );
@@ -124,5 +153,90 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(AcceptTermsScreen), findsNothing);
     expect(db.acceptedTermsVersion(), termsVersion);
+  });
+
+  testWidgets('the last playlist opens only after the terms are accepted', (
+    tester,
+  ) async {
+    final db = CatalogDb.inMemory();
+    addTearDown(db.close);
+    final unsaved = Playlist(
+      name: 'Lista',
+      type: PlaylistType.m3uFile,
+      source: 'no-existe.m3u',
+      refreshedAt: DateTime.now(),
+    );
+    final id = db.savePlaylist(unsaved);
+    // An error panel instead of the sections, so nothing loads in the shell.
+    db.saveSyncError(id, 'Error de prueba.');
+    db.saveSettings(
+      const AppSettings(openLastPlaylist: true)
+          .copyWith(lastPlaylistId: id)
+          .toJson(),
+    );
+    await _pumpApp(tester, db);
+    expect(find.byType(AcceptTermsScreen), findsOneWidget);
+    expect(find.byType(AppShell), findsNothing);
+
+    await tester.tap(find.text('Acepto y continúo'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AcceptTermsScreen), findsNothing);
+    expect(find.byType(AppShell), findsOneWidget);
+  });
+
+  testWidgets('an account that needs a decision ends the welcome in Ajustes', (
+    tester,
+  ) async {
+    final backend = InMemorySyncBackend();
+    final accounts = <String, String>{};
+    // Another device created the account; then the password was reset
+    // there, so the cloud key no longer opens with the new password.
+    final otherDb = CatalogDb.inMemory();
+    addTearDown(otherDb.close);
+    await tester.runAsync(
+      () => _service(
+        otherDb,
+        accounts,
+        backend,
+      ).signUp('ana@example.com', 'old password'),
+    );
+    accounts['ana@example.com'] = 'new password';
+
+    final db = CatalogDb.inMemory();
+    addTearDown(db.close);
+    final account = _service(db, accounts, backend);
+    await _pumpApp(tester, db, account: account);
+    await tester.tap(find.text('Acepto y continúo'));
+    await tester.pump();
+    await tester.tap(find.text('Entrar con email'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Email'),
+      'ana@example.com',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Contraseña'),
+      'new password',
+    );
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Entrar'));
+      for (
+        var i = 0;
+        i < 100 && account.status != AccountStatus.needsReset;
+        i++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+    });
+    await tester.pumpAndSettle();
+
+    expect(account.status, AccountStatus.needsReset);
+    expect(find.byType(WelcomeScreen), findsNothing);
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(
+      find.text('Los datos de la nube no se pueden abrir'),
+      findsOneWidget,
+    );
+    expect(db.welcomeDone(), isTrue);
   });
 }

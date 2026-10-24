@@ -12,16 +12,17 @@ const accountSyncExplanation =
 
 /// Email and password form to sign in or create an account, with password
 /// recovery and the confirmation code of a new account. Shared by Ajustes →
-/// Cuenta and the welcome screen. Shows the [account]'s last error and a
-/// progress bar while an action runs.
+/// Cuenta and the welcome screen (inside a dialog, so its hints are inline
+/// text, never SnackBars). Shows the [account]'s last error and a progress
+/// bar while an action runs.
 class AccountForm extends StatefulWidget {
   const AccountForm({super.key, required this.account, this.onSignedIn});
 
   final AccountService account;
 
-  /// Called when an action of this form leaves the account signed in (or in
-  /// a state that is settled in Ajustes → Cuenta, such as
-  /// [AccountStatus.needsReset]).
+  /// Called when an action of this form leaves a session open: signed in, or
+  /// in a state still to settle in Ajustes → Cuenta
+  /// ([AccountStatus.needsReset], [AccountStatus.chooseLocalData]).
   final VoidCallback? onSignedIn;
 
   @override
@@ -33,6 +34,9 @@ class _AccountFormState extends State<AccountForm> {
   final _password = TextEditingController();
   bool _busy = false;
 
+  /// What the user has to do before an action can run, e.g. type the email.
+  String? _hint;
+
   AccountService get _account => widget.account;
 
   @override
@@ -42,14 +46,14 @@ class _AccountFormState extends State<AccountForm> {
     super.dispose();
   }
 
-  void _snack(String text) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
-
   /// Runs an account action with the buttons disabled. Failures are already in
   /// the service's `lastError`, which this form shows. Calls
   /// [AccountForm.onSignedIn] when the action left a session open.
   Future<void> _run(Future<void> Function() action) async {
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _hint = null;
+    });
     try {
       await action();
     } on AccountException {
@@ -85,7 +89,9 @@ class _AccountFormState extends State<AccountForm> {
   /// Asks for the code of the confirmation email and finishes the sign-up.
   Future<void> _confirmSignUp(String email, String password) async {
     if (email.isEmpty || password.isEmpty) {
-      _snack('Escribe tu email y tu contraseña en el formulario.');
+      setState(
+        () => _hint = 'Escribe tu email y tu contraseña en el formulario.',
+      );
       return;
     }
     final values = await showDialog<List<String>>(
@@ -113,7 +119,7 @@ class _AccountFormState extends State<AccountForm> {
   Future<void> _forgotPassword() async {
     final email = _email.text.trim();
     if (email.isEmpty) {
-      _snack('Escribe tu email y vuelve a pulsar.');
+      setState(() => _hint = 'Escribe tu email y vuelve a pulsar.');
       return;
     }
     await _run(() => _account.sendPasswordReset(email));
@@ -207,11 +213,11 @@ class _AccountFormState extends State<AccountForm> {
               ],
             ),
           ),
-          if (_account.lastError != null)
+          for (final message in [?_hint, ?_account.lastError])
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Text(
-                _account.lastError!,
+                message,
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ),

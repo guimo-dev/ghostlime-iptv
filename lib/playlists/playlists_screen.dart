@@ -45,7 +45,8 @@ const _countLabels = [
 const _minCardWidth = 360.0;
 const _cardSpacing = 16.0;
 
-/// State is public so `main.dart` can trigger the startup refresh.
+/// State is public so `main.dart` can run the start-up work
+/// ([openLastPlaylist], [refreshStale]) once nothing covers this screen.
 class PlaylistsScreenState extends State<PlaylistsScreen> {
   late List<Playlist> _playlists = widget.db.playlists();
   final Set<int> _syncing = {};
@@ -55,7 +56,6 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _openLastPlaylist());
     _account = AccountScope.read(context);
     _account?.addListener(_onAccountChanged);
     _account?.playlistsToRefresh.addListener(_downloadSyncedPlaylists);
@@ -89,8 +89,8 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
   }
 
   /// Opens the playlist used last when the setting asks for it and it still
-  /// exists.
-  void _openLastPlaylist() {
+  /// exists. Called by `main.dart` at start, after the first-run screen.
+  void openLastPlaylist() {
     if (!mounted) return;
     final settings = SettingsScope.read(context).value;
     final lastId = settings.lastPlaylistId;

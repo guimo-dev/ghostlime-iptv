@@ -14,16 +14,18 @@ enum FirstRunStep {
 }
 
 /// The step to show at start. The welcome appears once per installation and
-/// never where the app was already in use ([hasPlaylists] or [signedIn]);
-/// those only accept the terms. Terms accepted in a version older than
+/// never where the app was already in use ([hasPlaylists], or [usedAccount]:
+/// an account signed in here at some point); those only accept the terms. Terms accepted in a version older than
 /// [termsVersion] ([acceptedTerms], 0 when never) are asked again.
 FirstRunStep firstRunStep({
   required bool welcomeDone,
   required int acceptedTerms,
   required bool hasPlaylists,
-  required bool signedIn,
+  required bool usedAccount,
 }) {
-  if (!welcomeDone && !hasPlaylists && !signedIn) return FirstRunStep.welcome;
+  if (!welcomeDone && !hasPlaylists && !usedAccount) {
+    return FirstRunStep.welcome;
+  }
   if (acceptedTerms < termsVersion) return FirstRunStep.acceptTerms;
   return FirstRunStep.none;
 }

@@ -170,4 +170,30 @@ void main() {
     await tester.pump();
     expect(accepted, 1);
   });
+
+  testWidgets('form hints show inside the dialog, not as a SnackBar', (
+    tester,
+  ) async {
+    final db = CatalogDb.inMemory();
+    addTearDown(db.close);
+    await _pump(
+      tester,
+      WelcomeScreen(account: _service(db, {}), onDone: () {}),
+    );
+    await tester.tap(find.text('Acepto y continúo'));
+    await tester.pump();
+    await tester.tap(find.text('Crear cuenta'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('¿Olvidaste la contraseña?'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SnackBar), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byType(Dialog),
+        matching: find.text('Escribe tu email y vuelve a pulsar.'),
+      ),
+      findsOneWidget,
+    );
+  });
 }
