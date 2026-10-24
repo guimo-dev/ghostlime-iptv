@@ -4,60 +4,56 @@
 
 <h1 align="center">Ghostlime IPTV</h1>
 
-<p align="center">Tu IPTV, a tu manera. Reproductor de listas IPTV (Xtream Codes y M3U)
-para Windows, Android y Linux.</p>
+<p align="center">Your IPTV, your way. A lightweight IPTV player for Xtream Codes and M3U
+playlists, built with Flutter and libmpv.</p>
 
-> **English:** Ghostlime IPTV is a lightweight IPTV player (Xtream Codes and M3U) built
-> with Flutter and libmpv. It plays HEVC/4K channels that browser-based players can't,
-> lets you sort channels your way, and syncs your playlists across devices with
-> end-to-end encryption. It ships no content: you bring your own playlists.
+## Features
 
-## Qué ofrece
+- **Plays what browser-based players can't.** It uses libmpv, so HEVC/4K channels with
+  MP2 or AC3 audio show picture and sound (web players often play only the audio, or
+  fail).
+- **Live TV built for the big screen.** Channel preview, the programme guide inside
+  Live TV (the selected channel's schedule, or a full grid with one toggle), now/next,
+  automatic reconnection.
+- **Sort channels your way**, per category: provider order, A→Z, Z→A, manual
+  (drag and drop) and favourites first.
+- **Movies and series** with posters, details, seasons and "continue watching", with
+  automatic next episode.
+- **Favourites, recents and search** across the whole catalogue, from Home.
+- **Parental control** with a PIN and hidden categories.
+- **Optional account with end-to-end encrypted sync**: playlists, favourites, progress
+  and, if you choose per device, settings. The server only stores data encrypted with a
+  key derived from your password; no URLs, usernames or channel names leave your device
+  in clear text.
 
-- **Reproduce lo que otros no pueden**: usa libmpv, así que canales HEVC/4K con audio
-  MP2 o AC3 se ven y se oyen (en reproductores web solo suena el audio o fallan).
-- **Directo pensado para la tele**: vista previa del canal, guía EPG, ahora y después,
-  reconexión automática.
-- **Ordena los canales como quieras**, por categoría: original, A→Z, Z→A, manual
-  (arrastrando) y favoritos primero.
-- **Películas y series** con portadas, fichas, temporadas y "seguir viendo" donde lo
-  dejaste, con siguiente episodio automático.
-- **Favoritos, recientes y búsqueda** en todo el catálogo.
-- **Control parental** con PIN y categorías ocultas.
-- **Cuenta opcional con sincronización cifrada de extremo a extremo**: listas,
-  favoritos, progreso y ajustes en todos tus dispositivos. El servidor solo guarda
-  datos cifrados con una clave derivada de tu contraseña; ni URLs, ni usuarios, ni
-  nombres de canales viajan en claro.
+## Download
 
-## Descargar
+Releases are published on
+[Releases](https://github.com/guimo-dev/ghostlime-iptv/releases).
 
-Las versiones publicadas están en
-[Releases](https://github.com/guimo-dev/ghostlime-iptv/releases):
-
-| Plataforma | Fichero |
+| Platform | File |
 |---|---|
-| Windows 10/11 (x64), instalador | `Ghostlime-IPTV-X.Y.Z-windows-setup.exe` |
+| Windows 10/11 (x64), installer | `Ghostlime-IPTV-X.Y.Z-windows-setup.exe` |
 | Windows 10/11 (x64), portable | `Ghostlime-IPTV-X.Y.Z-windows-portable.zip` |
-| Android | `Ghostlime-IPTV-X.Y.Z-android.apk` |
-| Linux (x64) | `Ghostlime-IPTV-X.Y.Z-linux-x64.tar.gz` |
+| Android *(in progress)* | `Ghostlime-IPTV-X.Y.Z-android.apk` |
+| Linux x64 *(in progress)* | `Ghostlime-IPTV-X.Y.Z-linux-x64.tar.gz` |
 
-La versión portable no se instala: descomprime y ejecuta `iptv_player.exe`. Necesita el
-[runtime de Visual C++](https://aka.ms/vs/17/release/vc_redist.x64.exe) (casi todos los
-Windows ya lo tienen; el instalador lo añade si falta). Los datos se guardan igualmente
-en `%APPDATA%\dev.guimo\iptv_player`.
+The portable version needs no installation: unzip it and run `iptv_player.exe`. It needs
+the [Visual C++ runtime](https://aka.ms/vs/17/release/vc_redist.x64.exe) (almost every
+Windows PC already has it; the installer adds it when missing). Data is stored in
+`%APPDATA%\dev.guimo\iptv_player` either way.
 
-En Windows, el instalador no está firmado: la primera vez SmartScreen avisa
-(**Más información → Ejecutar de todas formas**). En Linux hacen falta `libmpv2`,
-`libgtk-3-0`, `libsecret-1-0` y un llavero activo (ver
-[docs/distribucion.md](docs/distribucion.md)).
+The Windows installer is not code-signed, so SmartScreen warns the first time
+(**More info → Run anyway**). On Linux you need `libmpv2`, `libgtk-3-0`,
+`libsecret-1-0` and a running keyring (see [docs/distribucion.md](docs/distribucion.md)).
 
-## Guía de uso
+## User guide
 
-Página por página, con capturas: [docs/guia](docs/guia/README.md).
+Page by page, with screenshots (in Spanish for now): [docs/guia](docs/guia/README.md).
 
-## Compilar desde el código
+## Build from source
 
-Requisitos: [Flutter](https://docs.flutter.dev/get-started/install) 3.47 (stable).
+Requirements: [Flutter](https://docs.flutter.dev/get-started/install) 3.47 (stable).
 
 ```bash
 flutter pub get
@@ -65,27 +61,27 @@ flutter test
 flutter run -d windows
 ```
 
-Para activar las cuentas, crea un proyecto de [Supabase](https://supabase.com),
-ejecuta [supabase/schema.sql](supabase/schema.sql) y pasa sus claves al compilar:
+To enable accounts, create a [Supabase](https://supabase.com) project, run
+[supabase/schema.sql](supabase/schema.sql) and pass its keys when building:
 
 ```bash
 flutter run -d windows --dart-define=SUPABASE_URL=https://xxxx.supabase.co --dart-define=SUPABASE_ANON_KEY=...
 ```
 
-O cópialas en `env/dev.json` (plantilla en `env/dev.example.json`, ignorado por git) y
-usa `--dart-define-from-file=env/dev.json`. Sin ellas la app funciona igual, sin
-cuentas.
+Or put them in `env/dev.json` (template in `env/dev.example.json`, ignored by git) and use
+`--dart-define-from-file=env/dev.json`. Without them the app works the same, without
+accounts.
 
-Cómo se publican las versiones (GitHub Actions, firma de Android, Google Play):
-[docs/distribucion.md](docs/distribucion.md).
+How releases are built (GitHub Actions, Android signing, Google Play):
+[docs/distribucion.md](docs/distribucion.md) (Spanish).
 
-## Aviso
+## Disclaimer
 
-Ghostlime IPTV no incluye, vende ni enlaza canales, listas ni ningún otro contenido.
-Solo reproduce las listas que añade cada usuario, que es responsable de tener derecho
-a verlas.
+Ghostlime IPTV does not include, sell or link to any channels, playlists or other
+content. It only plays the playlists each user adds, and each user is responsible for
+having the right to watch them.
 
-## Licencia
+## License
 
-[Apache-2.0](LICENSE). El nombre "Ghostlime" y su logo no están cubiertos por la
-licencia (ver [NOTICE](NOTICE)): un fork debe usar nombre y logo propios.
+[Apache-2.0](LICENSE). The "Ghostlime" name and logo are not covered by the license (see
+[NOTICE](NOTICE)): forks must use their own name and logo.
