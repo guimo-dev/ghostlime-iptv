@@ -3,7 +3,6 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 import '../browse/catalog_images.dart';
 import '../catalog/catalog_models.dart';
-import '../epg/guide_grid.dart';
 import '../epg/programme.dart';
 import '../ui/app_theme.dart';
 import '../ui/backdrop.dart';
@@ -210,12 +209,12 @@ class LivePhoneView extends StatelessWidget {
           // Icons only: labels would not fit beside the group on a phone.
           guideGrid
               ? IconButton.filled(
-                  tooltip: 'Volver a la lista de canales',
+                  tooltip: 'Guía',
                   onPressed: onToggleGuideGrid,
                   icon: const Icon(Icons.calendar_month),
                 )
               : IconButton.outlined(
-                  tooltip: 'Ver la guía de los canales',
+                  tooltip: 'Guía',
                   onPressed: onToggleGuideGrid,
                   icon: const Icon(Icons.calendar_month_outlined),
                 ),
@@ -308,7 +307,6 @@ class PhoneSchedule extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     final mutedText = text.bodySmall?.copyWith(color: AppColors.textMuted);
     final now = this.now;
-    final time = clock().toUtc();
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
       child: Column(
@@ -350,33 +348,14 @@ class PhoneSchedule extends StatelessWidget {
           const SizedBox(height: 6),
           if (now == null && upcoming.isEmpty)
             Text('Sin guía', style: mutedText)
-          else ...[
-            Text(
-              now?.title ?? 'Sin información',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: text.titleLarge,
+          else
+            OnAirDetails(
+              now: now,
+              upcoming: upcoming,
+              titleStyle: text.titleLarge,
+              titleMaxLines: 2,
+              clock: clock,
             ),
-            if (now != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                '${formatClock(now.start)}–${formatClock(now.stop)}'
-                ' · quedan ${now.stop.difference(time).inMinutes} min',
-                style: mutedText,
-              ),
-              const SizedBox(height: 6),
-              GradientProgress(value: elapsedShare(now, time), height: 3),
-            ],
-            if (upcoming.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Text(
-                'A continuación',
-                style: text.labelSmall?.copyWith(color: AppColors.accent),
-              ),
-              for (final programme in upcoming)
-                UpcomingRow(programme: programme, timeStyle: mutedText),
-            ],
-          ],
         ],
       ),
     );

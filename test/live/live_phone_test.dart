@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart'
+    show debugDefaultTargetPlatformOverride;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iptv_player/catalog/catalog_db.dart';
@@ -216,12 +218,12 @@ void main() {
     await tapPhoneChannel(tester, 'Uno');
     expect(find.byTooltip('Orden'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Ver la guía de los canales'));
+    await tester.tap(find.byTooltip('Guía'));
     await tester.pump();
 
     expect(find.byType(PhoneChannelRow), findsNothing);
     expect(find.byType(LivePreviewBox), findsOneWidget);
-    expect(find.byTooltip('Volver a la lista de canales'), findsOneWidget);
+    expect(find.byTooltip('Guía'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -250,7 +252,8 @@ void main() {
     await rotate(tester, _landscape);
     final calls = List.of(player.calls);
 
-    tester.state<NavigatorState>(find.byType(Navigator)).pop();
+    // The Android Back button.
+    await tester.binding.handlePopRoute();
     await settleRoutes(tester);
 
     expect(find.byType(PlayerScreen), findsNothing);
@@ -293,6 +296,66 @@ void main() {
     expect(player.opened, ['http://h/a.ts']);
     expect(player.current, 'http://h/a.ts');
     expect(previewKey(tester), 'a');
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('on a desktop a wide window neither goes full screen nor '
+      'skips the preview', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    try {
+      await pumpLive(tester, _portrait);
+      await tapPhoneChannel(tester, 'Uno');
+
+      await rotate(tester, _landscape);
+      expect(find.byType(PlayerScreen), findsNothing);
+
+      await tapPhoneChannel(tester, 'Dos');
+      await settleRoutes(tester);
+      expect(find.byType(PlayerScreen), findsNothing);
+      expect(previewKey(tester), 'b');
+      expect(player.opened, ['http://h/a.ts', 'http://h/b.ts']);
+      await tester.pumpWidget(const SizedBox.shrink());
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  testWidgets('turning to landscape with the group sheet open keeps the '
+      'sheet and does not go full screen', (tester) async {
+    await pumpLive(tester, _portrait);
+    await tapPhoneChannel(tester, 'Uno');
+    await tester.tap(find.byTooltip('Elegir grupo'));
+    await tester.pumpAndSettle();
+
+    await rotate(tester, _landscape);
+
+    expect(find.byType(BottomSheet), findsOneWidget);
+    expect(find.byType(PlayerScreen, skipOffstage: false), findsNothing);
+    expect(player.opened, ['http://h/a.ts']);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('a player that arrives after turning upright never covers the '
+      'group sheet', (tester) async {
+    final xtream = playlist.copyWith(type: PlaylistType.xtream);
+    db.savePlaylist(xtream);
+    playlist = xtream;
+    final passwords = _GatedPasswords();
+    await pumpLive(tester, _portrait, passwords: passwords);
+    await tapPhoneChannel(tester, 'Uno');
+
+    tester.view.physicalSize = _landscape;
+    await tester.pump();
+    tester.view.physicalSize = _portrait;
+    await tester.pump();
+    await tester.tap(find.byTooltip('Elegir grupo'));
+    await tester.pumpAndSettle();
+    passwords.gate.complete();
+    await settleRoutes(tester);
+
+    expect(find.byType(BottomSheet), findsOneWidget);
+    expect(find.byType(PlayerScreen, skipOffstage: false), findsNothing);
+    expect(player.opened, ['http://h/a.ts']);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

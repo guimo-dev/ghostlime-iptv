@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' show max;
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart' show Player;
 import 'package:media_kit_video/media_kit_video.dart';
@@ -24,6 +25,7 @@ import '../settings/content_filters.dart';
 import '../settings/parental_session.dart';
 import '../settings/settings_scope.dart';
 import '../sync/account_scope.dart';
+import '../sync/account_service.dart';
 import '../ui/app_theme.dart';
 import '../ui/backdrop.dart';
 import '../ui/brand_state.dart';
@@ -125,9 +127,18 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
   /// Whether a phone is held in landscape, where Directo plays full screen.
   bool _phoneLandscape = false;
 
-  /// The phone turned upright while the full player was open (or opening):
-  /// it is closed as soon as it covers this screen.
+  /// The phone turned upright while the full player was opening: its route
+  /// is not pushed when it arrives.
   bool _leaveFullScreen = false;
+
+  /// The full player's route while it is shown.
+  Route<void>? _playerRoute;
+
+  /// Whether this screen's route is on top (no sheet or player over it).
+  bool _routeIsCurrent = true;
+
+  /// The account whose changes re-read the guide toggle.
+  AccountService? _account;
 
   CatalogDb get _db => widget.db;
 
@@ -163,10 +174,13 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Depending on the account brings us here after every sync, which may
-    // have applied the (synced) guide toggle.
-    AccountScope.of(context);
-    _guideGrid = _db.liveGuideGrid(_playlistId);
+    // Every sync may have applied the (synced) guide toggle.
+    final account = AccountScope.read(context);
+    if (account != _account) {
+      _account?.removeListener(_reloadGuideToggle);
+      _account = account?..addListener(_reloadGuideToggle);
+    }
+    _routeIsCurrent = ModalRoute.isCurrentOf(context) ?? true;
     _followOrientation();
     // Hidden by the shell (another section shown): free the connection.
     // Covered by the full player instead, the stream plays on there.
@@ -175,6 +189,7 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
     _visible = visible;
     if (visible) {
       // Favorites, recents or guide may have changed in other sections.
+      _guideGrid = _db.liveGuideGrid(_playlistId);
       setState(_loadChannels);
       _startPreview();
     } else if (!_fullScreenOpen) {
@@ -182,37 +197,55 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
     }
   }
 
+  /// Reads the guide toggle again after an account change (a sync).
+  void _reloadGuideToggle() {
+    if (mounted) setState(() => _guideGrid = _db.liveGuideGrid(_playlistId));
+  }
+
+  /// On a phone or tablet app (Android, iOS) held as a phone in landscape,
+  /// Directo plays full screen. A desktop window keeps the phone layout when
+  /// it is small but never follows its shape.
+  bool _isPhoneLandscape(Size size) =>
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS) &&
+      formFactorOf(size) == FormFactor.phone &&
+      size.width > size.height;
+
   /// On a phone, turning to landscape opens the full player on the channel
-  /// in the preview, and turning upright again closes it (the stream plays
-  /// on: both share [_playback]). Only rotations act, so Back from the full
-  /// player in landscape stays on the list.
+  /// in the preview (unless a sheet is open over Directo), and turning
+  /// upright again closes it (the stream plays on: both share [_playback]).
+  /// Only rotations act, so Back from the full player in landscape stays on
+  /// the list.
   void _followOrientation() {
-    final size = MediaQuery.sizeOf(context);
-    // Depending on it brings us back here when the full player covers us.
-    final covered = ModalRoute.isCurrentOf(context) == false;
-    final landscape =
-        formFactorOf(size) == FormFactor.phone && size.width > size.height;
-    if (landscape != _phoneLandscape) {
-      _phoneLandscape = landscape;
-      _leaveFullScreen = !landscape && _fullScreenOpen;
-      if (landscape) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _phoneLandscape && _visible) _fullScreen();
-        });
+    final landscape = _isPhoneLandscape(MediaQuery.sizeOf(context));
+    if (landscape == _phoneLandscape) return;
+    _phoneLandscape = landscape;
+    _leaveFullScreen = !landscape && _fullScreenOpen;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_phoneLandscape) {
+        if (_visible && _routeIsCurrent) _fullScreen();
+      } else {
+        _closeFullScreen();
       }
-    }
-    if (_leaveFullScreen && covered) {
-      _leaveFullScreen = false;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _phoneLandscape || !_fullScreenOpen) return;
-        final route = ModalRoute.of(context);
-        Navigator.of(context).popUntil((r) => r == route);
-      });
+    });
+  }
+
+  /// Closes the full player's route, if shown, and nothing else.
+  void _closeFullScreen() {
+    final route = _playerRoute;
+    final navigator = route?.navigator;
+    if (route == null || navigator == null || !route.isActive) return;
+    if (route.isCurrent) {
+      navigator.pop();
+    } else {
+      navigator.removeRoute(route);
     }
   }
 
   @override
   void dispose() {
+    _account?.removeListener(_reloadGuideToggle);
     _clock?.cancel();
     _playback
       ..removeListener(_onPlaybackChanged)
@@ -367,9 +400,16 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
       target: target,
       subtitle: _guide[channel.epgId]?.$1?.title,
       shared: _playback,
+      // Turned upright while it was opening: stay on the list.
+      onRoute: (route) {
+        if (!mounted || _leaveFullScreen) return false;
+        _playerRoute = route;
+        return true;
+      },
     );
     _fullScreenOpen = false;
     _leaveFullScreen = false;
+    _playerRoute = null;
     if (!mounted) return;
     _playback.setVolume(_muted ? 0 : 100);
     setState(_loadChannels);
@@ -739,9 +779,7 @@ class NowPanel extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     final current = channel;
     final now = this.now;
-    final time = clock().toUtc();
     final controller = this.controller;
-    final mutedText = text.bodySmall?.copyWith(color: AppColors.textMuted);
     return LayoutBuilder(
       builder: (context, constraints) {
         final previewWidth = previewWidthFor(constraints.maxWidth);
@@ -817,46 +855,13 @@ class NowPanel extends StatelessWidget {
                                   ],
                                 ),
                                 const SizedBox(height: 8),
-                                Text(
-                                  now?.title ?? 'Sin información',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: text.headlineMedium,
+                                OnAirDetails(
+                                  now: now,
+                                  upcoming: upcoming,
+                                  titleStyle: text.headlineMedium,
+                                  titleMaxLines: 1,
+                                  clock: clock,
                                 ),
-                                if (now != null) ...[
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '${formatClock(now.start)}–${formatClock(now.stop)}'
-                                    ' · quedan ${now.stop.difference(time).inMinutes} min',
-                                    style: mutedText,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  GradientProgress(
-                                    value: elapsedShare(now, time),
-                                    height: 3,
-                                  ),
-                                ],
-                                const SizedBox(height: 10),
-                                if ((upcoming.isEmpty ? now?.description : null)
-                                    case final description?)
-                                  Text(
-                                    description,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: text.bodySmall,
-                                  ),
-                                if (upcoming.isNotEmpty)
-                                  Text(
-                                    'A continuación',
-                                    style: text.labelSmall?.copyWith(
-                                      color: AppColors.accent,
-                                    ),
-                                  ),
-                                for (final programme in upcoming)
-                                  UpcomingRow(
-                                    programme: programme,
-                                    timeStyle: mutedText,
-                                  ),
                               ],
                             ),
                           ),
@@ -917,6 +922,78 @@ double elapsedShare(Programme programme, DateTime time) {
   final total = programme.stop.difference(programme.start).inSeconds;
   final done = time.toUtc().difference(programme.start).inSeconds;
   return total > 0 ? (done / total).clamp(0.0, 1.0) : 0;
+}
+
+/// The programme on air (title, times, minutes left and progress) and the
+/// rest of today under "A continuación", or its description when nothing
+/// follows; shared by the desktop now panel and the phone schedule.
+class OnAirDetails extends StatelessWidget {
+  const OnAirDetails({
+    super.key,
+    required this.now,
+    required this.upcoming,
+    required this.titleStyle,
+    required this.titleMaxLines,
+    this.clock = DateTime.now,
+  });
+
+  /// Programme on air, if the guide has it.
+  final Programme? now;
+
+  /// Programmes after [now], in order.
+  final List<Programme> upcoming;
+  final TextStyle? titleStyle;
+  final int titleMaxLines;
+
+  /// The current time, for the minutes left and the progress.
+  final DateTime Function() clock;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final mutedText = text.bodySmall?.copyWith(color: AppColors.textMuted);
+    final now = this.now;
+    final time = clock().toUtc();
+    // Stretch so the progress track spans the whole width.
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          now?.title ?? 'Sin información',
+          maxLines: titleMaxLines,
+          overflow: TextOverflow.ellipsis,
+          style: titleStyle,
+        ),
+        if (now != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            '${formatClock(now.start)}–${formatClock(now.stop)}'
+            ' · quedan ${now.stop.difference(time).inMinutes} min',
+            style: mutedText,
+          ),
+          const SizedBox(height: 6),
+          GradientProgress(value: elapsedShare(now, time), height: 3),
+        ],
+        const SizedBox(height: 10),
+        if ((upcoming.isEmpty ? now?.description : null)
+            case final description?)
+          Text(
+            description,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: text.bodySmall,
+          ),
+        if (upcoming.isNotEmpty)
+          Text(
+            'A continuación',
+            style: text.labelSmall?.copyWith(color: AppColors.accent),
+          ),
+        for (final programme in upcoming)
+          UpcomingRow(programme: programme, timeStyle: mutedText),
+      ],
+    );
+  }
 }
 
 /// The live preview's video box: black until there is a picture, with the

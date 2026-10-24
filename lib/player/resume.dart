@@ -29,6 +29,9 @@ String formatDuration(Duration d) {
 ///
 /// With [shared] (Directo), the full-screen player shows that playback, which
 /// is already playing [target], instead of opening the stream again.
+///
+/// [onRoute] gets the player route just before it is pushed; returning
+/// `false` cancels it (Directo skips it when the phone turned upright).
 Future<void> playWithResume(
   BuildContext context, {
   required CatalogDb db,
@@ -39,6 +42,7 @@ Future<void> playWithResume(
   PlayTarget? next,
   PlayTarget? Function(PlayTarget current)? nextOf,
   LivePlayback? shared,
+  bool Function(Route<void> route)? onRoute,
 }) async {
   final navigator = Navigator.of(context);
   final route = await _playerRoute(
@@ -53,7 +57,8 @@ Future<void> playWithResume(
     nextOf: nextOf,
     shared: shared,
   );
-  if (route != null) await navigator.push(route);
+  if (route == null || !(onRoute?.call(route) ?? true)) return;
+  await navigator.push(route);
 }
 
 /// Builds the player route for [target], or `null` when it cannot be played
