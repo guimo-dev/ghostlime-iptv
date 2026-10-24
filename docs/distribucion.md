@@ -31,9 +31,10 @@ git clone https://github.com/guimo-dev/ghostlime-iptv.git
    también lo exige).
 4. Authentication → Email Templates: la app de escritorio no tiene enlaces profundos, así
    que confirma la cuenta y restablece la contraseña con un **código** que se escribe en la app.
-   Las plantillas **"Confirm signup"** y **"Reset password"** tienen que incluir
-   `{{ .Token }}` (por ejemplo: `Tu código es: {{ .Token }}`). Sin él, el correo solo trae
-   un enlace que la app no puede usar.
+   Las plantillas **"Confirm signup"**, **"Reset password"** y **"Magic Link"** tienen que
+   incluir `{{ .Token }}` (por ejemplo: `Tu código es: {{ .Token }}`). Sin él, el correo
+   solo trae un enlace que la app no puede usar. "Magic Link" es el correo de
+   "¿Olvidaste el PIN?" del control parental (la app no inicia sesión con enlaces).
 5. Settings → API: copiar **Project URL** y la clave **anon public**.
 6. GitHub → Settings → Secrets and variables → Actions → New repository secret:
    `SUPABASE_URL` y `SUPABASE_ANON_KEY`.

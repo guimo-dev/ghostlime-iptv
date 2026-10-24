@@ -18,6 +18,5 @@ Para encontrar canales, películas y series de toda la lista sin navegar por cat
 - Si buscas solo dentro de una sección, usa su campo **Filtrar**.
 - Los resultados respetan el control parental: las categorías bloqueadas no salen hasta
   desbloquear con el PIN.
-- Los canales se llaman igual que en Directo: sin prefijo si está activado **Limpiar
-  prefijos en los nombres** en Ajustes, y con " · 2", " · 3"… cuando se repite el nombre en un grupo.
-  Si ocultas los separadores del proveedor en Ajustes, tampoco salen aquí.
+- Los canales se llaman igual que en Directo: con el nombre del proveedor, y con " · 2",
+  " · 3"… cuando se repite el nombre en un grupo.

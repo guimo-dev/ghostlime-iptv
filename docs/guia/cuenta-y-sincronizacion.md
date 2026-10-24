@@ -27,7 +27,11 @@ canales viajan en claro.
 - Las cuentas solo funcionan en versiones compiladas con los datos de un servicio de
   sincronización. Si ves "Sincronización no configurada", esta versión no lo incluye
   y la app funciona igual, sin cuentas (la captura de arriba es de ese caso).
-- **Cerrar sesión** deja tus datos en el dispositivo, pero dejan de sincronizarse.
+- **Cerrar sesión** deja tus datos en el dispositivo, pero dejan de sincronizarse. Con
+  el [control parental](control-parental.md) activo, antes pide el PIN, y al cerrar la
+  sesión lo desactiva y borra el PIN.
+- El control parental necesita una cuenta iniciada; si olvidas el PIN, se recupera con
+  un código que llega al email de la cuenta.
 - **Empezar de cero en la nube** aparece si los datos de la nube ya no se pueden abrir
   (por ejemplo, tras restablecer la contraseña). Tras confirmar con la contraseña,
   borra lo que hay en la nube y lo sustituye por los datos de este dispositivo; lo que

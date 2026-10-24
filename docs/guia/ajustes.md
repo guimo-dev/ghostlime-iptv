@@ -10,16 +10,16 @@ momento, sin botón de guardar.
 - **Cuenta**: sincronización opcional (ver
   [Cuenta y sincronización](cuenta-y-sincronizacion.md)).
 - **Reproducción**: decodificación por hardware, búfer de red, reconexión del directo,
-  idioma preferido de audio y subtítulos, qué hacer al abrir algo empezado, siguiente
-  episodio automático y formato de imagen (Ajustar, Rellenar, Estirar).
-- **Directo**: "Sonido en la vista previa", "Ocultar separadores del proveedor" (las
-  filas tipo "##### ES - … #####"), "Limpiar prefijos en los nombres" ("ES - La 1 FHD"
-  pasa a "La 1 FHD") y "Formato de las listas nuevas" (TS o HLS).
+  qué hacer al abrir algo empezado y siguiente episodio automático. El audio y los
+  subtítulos son los que el canal o el vídeo traen por defecto, y la imagen se ajusta
+  siempre a la pantalla sin recortarla ni deformarla.
+- **Directo**: "Sonido en la vista previa" y "Formato de las listas nuevas" (TS o HLS).
+  Los canales se llaman como los nombra el proveedor.
 - **Interfaz**: "Al abrir una lista, ir a", "Abrir la última lista al arrancar",
   "Tamaño de los pósteres" y "Carruseles de Inicio" (cuáles se muestran).
 - **Guía**: cada cuánto se actualiza (6, 12 o 24 h) y corrección horaria en minutos.
-- **Contenido**: ocultar contenido adulto y control parental (ver
-  [Control parental](control-parental.md)).
+- **Contenido**: ocultar contenido adulto y control parental, que necesita una cuenta
+  iniciada (ver [Control parental](control-parental.md)).
 - **Datos**: borrar recientes, progreso y caché de imágenes, y la copia de seguridad
   (ver [Exportar e importar](exportar-importar.md)).
 - **Acerca de**: versión y licencias.

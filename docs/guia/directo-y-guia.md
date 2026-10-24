@@ -33,5 +33,5 @@ El botón **Guía**, junto a **Orden**, cambia entre dos formas de ver la progra
 - Si los horarios salen desplazados, usa la corrección horaria de **Ajustes**.
 - Los canales sin guía muestran solo su nombre.
 - Las filas separadoras del proveedor (del tipo "##### ES - … #####") se ven como
-  canales normales; puedes ocultarlas en **Ajustes**.
+  canales normales.
 - Los títulos de los programas dependen de la guía del proveedor.
