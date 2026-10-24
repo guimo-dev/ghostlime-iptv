@@ -286,6 +286,11 @@ class _PlaylistFormScreenState extends State<PlaylistFormScreen> {
                       helperText: 'Si se deja vacía se usa la del proveedor',
                     ),
                   ),
+                  Text(
+                    'Ghostlime no proporciona contenido. Añade solo listas que '
+                    'tengas derecho a usar.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 ],
               ),
             ),

@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import '../catalog/catalog_db.dart';
 import '../catalog/catalog_models.dart';
 import '../epg/epg_refresh.dart';
+import '../legal/legal_info.dart';
+import '../legal/legal_screen.dart';
 import '../playlists/password_store.dart';
 import '../playlists/playlist.dart';
 import '../sync/account_scope.dart';
@@ -555,6 +557,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: const Text('Ver'),
                     ),
                   ),
+                  for (final doc in LegalDoc.values)
+                    _Row(
+                      title: doc.title,
+                      trailing: TextButton(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => LegalScreen(doc: doc),
+                          ),
+                        ),
+                        child: const Text('Ver'),
+                      ),
+                    ),
                 ],
               ),
             ],
