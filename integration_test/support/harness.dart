@@ -11,8 +11,7 @@ import 'package:iptv_player/sync/account_service.dart';
 import 'package:iptv_player/sync/sync_backend.dart';
 import 'package:media_kit/media_kit.dart' show MediaKit;
 
-import '../../test/sync/account_service_test.dart'
-    show FakeAuthGateway, FakeKeyStore;
+import '../../test/sync/fake_account.dart';
 import '../../tool/demo_server/demo_server.dart';
 
 /// Key of the [RepaintBoundary] around the app that `expectScreen` captures.

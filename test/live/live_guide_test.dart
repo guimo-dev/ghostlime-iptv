@@ -14,7 +14,7 @@ import 'package:iptv_player/sync/account_service.dart';
 import 'package:iptv_player/sync/sync_backend.dart';
 import 'package:iptv_player/ui/app_theme.dart';
 
-import '../sync/account_service_test.dart' show FakeAuthGateway, FakeKeyStore;
+import '../sync/fake_account.dart';
 import '../sync/fake_passwords.dart';
 
 // Channels without a URL, so selecting one never opens a real player.
