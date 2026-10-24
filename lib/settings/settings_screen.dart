@@ -15,6 +15,7 @@ import '../sync/account_form.dart';
 import '../sync/account_scope.dart';
 import '../sync/account_service.dart';
 import '../sync/auth_gateway.dart' show AccountException;
+import '../sync/data_export.dart';
 import '../ui/app_theme.dart';
 import '../ui/backdrop.dart';
 import '../ui/content_width.dart';
@@ -277,7 +278,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const EdgeInsets.fromLTRB(48, 8, 48, 48),
             ),
             children: [
-              const _AccountSection(),
+              _AccountSection(db: widget.db),
               _Section(
                 icon: Icons.play_circle_outline,
                 title: 'Reproducción',
@@ -816,7 +817,9 @@ class _SliderRowState extends State<_SliderRow> {
 /// password management. Everything is driven by the [AccountService] in
 /// [AccountScope]; without one it only explains that sync is not configured.
 class _AccountSection extends StatefulWidget {
-  const _AccountSection();
+  const _AccountSection({required this.db});
+
+  final CatalogDb db;
 
   @override
   State<_AccountSection> createState() => _AccountSectionState();
@@ -827,6 +830,33 @@ class _AccountSectionState extends State<_AccountSection> {
 
   void _snack(String text) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+
+  /// Saves a JSON file with the local data of the user (see [exportUserData]).
+  Future<void> _exportData() async {
+    final text = exportUserDataJson(
+      widget.db,
+      SettingsScope.read(context).value,
+    );
+    final saved = await FilePicker.saveFile(
+      fileName: 'ghostlime-mis-datos.json',
+      bytes: Uint8List.fromList(utf8.encode(text)),
+      type: FileType.custom,
+      allowedExtensions: const ['json'],
+    );
+    if (saved != null && mounted) _snack('Datos exportados.');
+  }
+
+  /// Row that exports the local data; shown with or without an account.
+  Widget get _exportRow => _Row(
+    title: 'Exportar mis datos',
+    subtitle:
+        'Listas, favoritos, progreso y ajustes en un fichero JSON. Sin '
+        'contraseñas ni PIN.',
+    trailing: OutlinedButton(
+      onPressed: _exportData,
+      child: const Text('Exportar mis datos'),
+    ),
+  );
 
   /// Runs an account action with the buttons disabled. Failures are already in
   /// the service's `lastError`, which this section shows.
@@ -988,16 +1018,17 @@ class _AccountSectionState extends State<_AccountSection> {
   Widget build(BuildContext context) {
     final account = AccountScope.of(context);
     if (account == null) {
-      return const _Section(
+      return _Section(
         icon: Icons.account_circle_outlined,
         title: 'Cuenta',
         children: [
-          _Row(
+          const _Row(
             title: 'Sincronización no configurada',
             subtitle:
                 'Esta versión no incluye los datos del servicio de '
                 'sincronización. Mira docs/distribucion.md para activarla.',
           ),
+          _exportRow,
         ],
       );
     }
@@ -1113,6 +1144,7 @@ class _AccountSectionState extends State<_AccountSection> {
             value: account.syncSettings,
             onChanged: account.setSyncSettings,
           ),
+        _exportRow,
         if (showsForm) AccountForm(account: account),
         if (!showsForm && account.lastError != null)
           Padding(
