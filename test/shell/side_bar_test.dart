@@ -50,7 +50,7 @@ void main() {
     expect(find.text('Guía'), findsNothing);
   });
 
-  for (final size in const [Size(1024, 700), Size(1024, 450)]) {
+  for (final size in const [Size(1024, 700), Size(1280, 600)]) {
     testWidgets('side bar reaches "Listas" without overflow ($size)', (
       tester,
     ) async {

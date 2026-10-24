@@ -19,6 +19,7 @@ import '../ui/app_theme.dart';
 import '../ui/backdrop.dart';
 import '../ui/brand_state.dart';
 import '../ui/focus_card.dart';
+import '../ui/form_factor.dart';
 import '../ui/ghostlime_logo.dart';
 import '../xtream/xtream_client.dart';
 
@@ -161,43 +162,127 @@ class _AppShellState extends State<AppShell> {
     };
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: AppBackground(
-        child: Row(
+  /// Leaves the playlist for the playlists screen.
+  void _exit() => Navigator.of(context).maybePop();
+
+  /// Opens the settings of this playlist.
+  void _openSettings() => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => SettingsScreen(
+        db: widget.db,
+        passwords: widget.passwords,
+        playlist: widget.playlist,
+      ),
+    ),
+  );
+
+  /// Bottom sheet of the bottom bar "Más": playlists and settings.
+  void _openMore() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _SideBar(
-              selected: _index,
-              onSelected: _go,
-              onExit: () => Navigator.of(context).maybePop(),
-              onSettings: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => SettingsScreen(
-                    db: widget.db,
-                    passwords: widget.passwords,
-                    playlist: widget.playlist,
-                  ),
-                ),
-              ),
+            ListTile(
+              leading: const Icon(Icons.swap_horiz),
+              title: const Text('Listas'),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _exit();
+              },
             ),
-            Expanded(
-              child: _syncError == null
-                  ? SectionStack(
-                      index: _index,
-                      count: _sections.length,
-                      builder: _section,
-                    )
-                  : _SyncErrorPanel(
-                      message: _syncError!,
-                      retrying: _retrying,
-                      onRetry: _retrySync,
-                    ),
+            ListTile(
+              leading: const Icon(Icons.settings_outlined),
+              title: const Text('Ajustes'),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _openSettings();
+              },
             ),
           ],
         ),
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomBar = !usesDesktopLayout(MediaQuery.sizeOf(context));
+    final content = Expanded(
+      child: _syncError == null
+          ? SectionStack(
+              index: _index,
+              count: _sections.length,
+              builder: _section,
+            )
+          : _SyncErrorPanel(
+              message: _syncError!,
+              retrying: _retrying,
+              onRetry: _retrySync,
+            ),
+    );
+    return PopScope(
+      // With the bottom bar, Back from a section goes to Inicio first.
+      canPop: !bottomBar || _index == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _go(0);
+      },
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        bottomNavigationBar: bottomBar
+            ? _BottomBar(selected: _index, onSelected: _go, onMore: _openMore)
+            : null,
+        body: AppBackground(
+          child: bottomBar
+              ? Column(children: [content])
+              : Row(
+                  children: [
+                    _SideBar(
+                      selected: _index,
+                      onSelected: _go,
+                      onExit: _exit,
+                      onSettings: _openSettings,
+                    ),
+                    content,
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom navigation of phones and portrait tablets: the four sections and
+/// "Más" (playlists and settings).
+class _BottomBar extends StatelessWidget {
+  const _BottomBar({
+    required this.selected,
+    required this.onSelected,
+    required this.onMore,
+  });
+
+  final int selected;
+  final ValueChanged<int> onSelected;
+  final VoidCallback onMore;
+
+  @override
+  Widget build(BuildContext context) {
+    return NavigationBar(
+      backgroundColor: AppColors.surface,
+      selectedIndex: selected,
+      onDestinationSelected: (i) =>
+          i < _sections.length ? onSelected(i) : onMore(),
+      destinations: [
+        for (final section in _sections)
+          NavigationDestination(
+            icon: Icon(section.icon),
+            selectedIcon: Icon(section.icon, color: AppColors.accent),
+            label: section.label,
+          ),
+        const NavigationDestination(icon: Icon(Icons.more_horiz), label: 'Más'),
+      ],
     );
   }
 }
@@ -218,29 +303,31 @@ class _SyncErrorPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560),
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            spacing: 16,
-            children: [
-              BrandMessage(
-                title: 'No se ha podido cargar la lista',
-                message: message,
-                logoSize: 96,
-                dimmed: true,
-                child: retrying
-                    ? const BrandLoader(size: 48)
-                    : FilledButton.icon(
-                        autofocus: true,
-                        onPressed: onRetry,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Reintentar'),
-                      ),
-              ),
-            ],
+      child: SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 16,
+              children: [
+                BrandMessage(
+                  title: 'No se ha podido cargar la lista',
+                  message: message,
+                  logoSize: 96,
+                  dimmed: true,
+                  child: retrying
+                      ? const BrandLoader(size: 48)
+                      : FilledButton.icon(
+                          autofocus: true,
+                          onPressed: onRetry,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Reintentar'),
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
