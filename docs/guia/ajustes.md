@@ -7,8 +7,8 @@ momento, sin botón de guardar.
 
 ## Secciones
 
-- **Cuenta**: sincronización opcional (ver
-  [Cuenta y sincronización](cuenta-y-sincronizacion.md)).
+- **Cuenta**: sincronización opcional, **Exportar mis datos** y **Borrar mi cuenta**
+  (ver [Cuenta y sincronización](cuenta-y-sincronizacion.md)).
 - **Reproducción**: decodificación por hardware, búfer de red, reconexión del directo,
   qué hacer al abrir algo empezado y siguiente episodio automático. El audio y los
   subtítulos son los que el canal o el vídeo traen por defecto, y la imagen se ajusta

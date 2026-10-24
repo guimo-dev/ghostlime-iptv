@@ -75,6 +75,11 @@ accounts.
 How releases are built (GitHub Actions, Android signing, Google Play):
 [docs/distribucion.md](docs/distribucion.md) (Spanish).
 
+## Privacy
+
+Accounts are optional and sync data end-to-end encrypted. See the
+[privacy policy](docs/legal/privacidad.md) (Spanish).
+
 ## Disclaimer
 
 Ghostlime IPTV does not include, sell or link to any channels, playlists or other

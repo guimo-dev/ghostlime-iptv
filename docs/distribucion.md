@@ -30,27 +30,49 @@ git clone https://github.com/guimo-dev/ghostlime-iptv.git
 
 1. Crear un proyecto en <https://supabase.com> (plan gratuito).
 2. SQL Editor → pegar `supabase/schema.sql` → Run.
-3. Authentication → Providers → Email: activado. Recomendado: "Confirm email" activado.
+3. Authentication → Providers → Email: activado, con **"Confirm email" activado**
+   (obligatorio: sin él, cualquiera podría crear cuentas con emails ajenos).
    Authentication → Sign In / Providers → "Minimum password length" a 10 (la app
    también lo exige).
-4. Authentication → Email Templates: la app de escritorio no tiene enlaces profundos, así
-   que confirma la cuenta y restablece la contraseña con un **código** que se escribe en la app.
-   Las plantillas **"Confirm signup"**, **"Reset password"** y **"Magic Link"** tienen que
-   incluir `{{ .Token }}` (por ejemplo: `Tu código es: {{ .Token }}`). Sin él, el correo
-   solo trae un enlace que la app no puede usar. "Magic Link" es el correo de
-   "¿Olvidaste el PIN?" del control parental (la app no inicia sesión con enlaces).
-5. Settings → API: copiar **Project URL** y la clave **anon public**.
-6. GitHub → Settings → Secrets and variables → Actions → New repository secret:
+4. Authentication → Emails → **SMTP Settings** → activar **Custom SMTP** con un
+   proveedor propio (Resend, Brevo, Postmark…) y un remitente de tu dominio
+   (por ejemplo `Ghostlime IPTV <no-reply@[DOMINIO]>`). El SMTP de Supabase por defecto
+   solo envía a miembros del equipo y con un límite muy bajo: sin el propio, los
+   usuarios no recibirían los códigos.
+5. Authentication → Email Templates: la app de escritorio no tiene enlaces profundos, así
+   que todo se confirma con un **código** que se escribe en la app. Pega en cada
+   plantilla (campo "Message body", y un asunto corto en "Subject") el HTML de
+   `supabase/templates/`:
+
+   | Plantilla de Supabase | Fichero | Para qué sirve |
+   | --- | --- | --- |
+   | Confirm signup | `confirmar-alta.html` | Código al crear la cuenta |
+   | Reset password | `recuperar-contrasena.html` | Código para restablecer la contraseña |
+   | Magic Link | `codigo-acceso.html` | Recuperar el PIN del control parental y confirmar el borrado de la cuenta (la app no inicia sesión con enlaces) |
+   | Change Email Address | `cambio-email.html` | Código al cambiar el email |
+   | Reauthentication | `reautenticacion.html` | Código para confirmar operaciones sensibles |
+
+   Todas llevan `{{ .Token }}` (el código); sin él, el correo solo traería un enlace
+   que la app no puede usar. Solo usan la imagen del logo de GitHub (cámbiala por la de
+   tu dominio cuando lo tengas) y ningún seguimiento.
+6. Project Settings → General → **Región**: elige una de la UE (por ejemplo Frankfurt) si
+   los usuarios están en Europa; no se puede cambiar después sin migrar el proyecto, y
+   debe coincidir con lo que diga `docs/legal/privacidad.md`.
+7. Settings → API: copiar **Project URL** y la clave **anon public**.
+8. GitHub → Settings → Secrets and variables → Actions → New repository secret:
    `SUPABASE_URL` y `SUPABASE_ANON_KEY`.
-7. Para desarrollo local, añadirlas a `env/dev.json` (`SUPABASE_URL`, `SUPABASE_ANON_KEY`).
+9. Para desarrollo local, añadirlas a `env/dev.json` (`SUPABASE_URL`, `SUPABASE_ANON_KEY`).
 
 La clave `anon` es pública por diseño: la seguridad la ponen las políticas RLS del
 esquema y el cifrado de extremo a extremo de la app.
 
 ### Edge Functions
 
-`delete-account` (borrar la cuenta) y `key-escrow` (clave de las cuentas de Google) se
-despliegan como explica `supabase/functions/README.md`. `key-escrow` necesita el secreto
+`delete-account` (borrar la cuenta; sin ella "Borrar mi cuenta" falla) y `key-escrow`
+(clave de las cuentas de Google) se despliegan como explica
+`supabase/functions/README.md` (`supabase functions deploy delete-account` y
+`supabase functions deploy key-escrow`). `delete-account` no necesita secretos propios
+(Supabase inyecta los suyos). `key-escrow` necesita el secreto
 `KEY_ESCROW_SECRET`: 32 bytes aleatorios en base64, generados una sola vez, por ejemplo con
 
 ```bash

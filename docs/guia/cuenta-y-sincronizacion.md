@@ -9,8 +9,11 @@ canales viajan en claro.
 
 ## Pasos
 
-1. Abre **Ajustes** > **Cuenta**.
-2. Escribe email y contraseña, y pulsa **Crear cuenta** (o **Entrar** si ya tienes).
+1. Puedes crearla en la pantalla de bienvenida (**Entrar con email**, **Crear cuenta** o
+   **Continuar con Google**) o después en **Ajustes** > **Cuenta**.
+2. Con email: escribe email y contraseña, y pulsa **Crear cuenta** (o **Entrar** si ya
+   tienes). Con Google: pulsa **Continuar con Google** y termina en el navegador; no hay
+   contraseña de sincronización que escribir.
 3. Si se pide confirmar el email, escribe el código recibido en **Introducir código**.
 4. Al entrar, la app te pregunta qué hacer con lo que ya hay en la nube y en el
    dispositivo (por ejemplo **Unir con esta cuenta** o **Descartar datos locales**).
@@ -19,6 +22,18 @@ canales viajan en claro.
    sincronizan los ajustes de la app, el orden de canales y grupos, los grupos ocultos
    y el conmutador **Guía** de Directo. Las listas, favoritos y progreso se
    sincronizan siempre.
+
+## Borrar mi cuenta
+
+En **Ajustes** > **Cuenta**, **Borrar mi cuenta**. La app envía un código a tu email;
+escríbelo, marca si quieres **Borrar también de este dispositivo** y pulsa **Borrar
+cuenta**. Se eliminan la cuenta y todos sus datos en la nube, y **no se puede deshacer**.
+
+## Exportar mis datos
+
+En **Ajustes** > **Cuenta** (o en la sección de cuenta aunque no hayas entrado),
+**Exportar mis datos** > **Exportar** guarda un fichero JSON con tus listas, favoritos,
+progreso y ajustes, sin contraseñas ni PIN.
 
 ## Consejos y límites
 

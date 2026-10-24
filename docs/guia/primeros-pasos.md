@@ -11,9 +11,25 @@ A la izquierda está la barra de secciones: **Inicio**, **Directo**, **Película
 
 ![Inicio sin contenido todavía](img/inicio-vacio.png)
 
+## Pantalla de bienvenida
+
+La primera vez que abres la app aparece la bienvenida. Antes de nada hay que pulsar
+**Acepto y continúo**, que acepta los **Términos de uso** y la **Política de privacidad**
+(puedes leerlos desde ahí mismo). Hasta entonces los botones están desactivados. Después
+eliges cómo seguir:
+
+- **Entrar con email** o **Crear cuenta**, para sincronizar entre dispositivos.
+- **Continuar con Google**, si esta versión lo incluye (si no, aparece desactivado con
+  "Disponible pronto").
+- **Continuar sin cuenta**: la app funciona igual, solo en este dispositivo. Puedes
+  crear una cuenta más tarde en **Ajustes** > **Cuenta**. Si cambian los términos, la app
+  pedirá aceptarlos de nuevo.
+
+Sin servicio de sincronización en la versión, solo aparece **Continuar sin cuenta**.
+
 ## Pasos
 
-1. Abre la app. La primera vez no hay listas: ve a **Listas** y pulsa **Añadir lista**
+1. Tras la bienvenida no hay listas: ve a **Listas** y pulsa **Añadir lista**
    (detalle en [Listas](listas.md)).
 2. Espera a que se descargue el catálogo. Cuando termine, la lista muestra cuántos
    canales, películas y series tiene.
