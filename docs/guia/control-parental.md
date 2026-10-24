@@ -19,14 +19,17 @@ la que permite recuperar el PIN si lo olvidas.
    introduce el PIN.
 
 Para apagarlo, desactiva el interruptor e introduce el PIN: el control parental se
-desactiva y el PIN se borra. La próxima vez que lo actives crearás uno nuevo.
+desactiva y el PIN se borra. La próxima vez que lo actives crearás uno nuevo. Sin
+sesión iniciada no se puede cambiar el PIN (no aparece **Cambiar PIN**), y si apagas el
+control parental necesitarás iniciar sesión para volver a activarlo.
 
 ## Si olvidas el PIN
 
 En la ventana que pide el PIN, pulsa **¿Olvidaste el PIN?**. Te llega un correo al email
 de tu cuenta con un código; escríbelo y crea un PIN nuevo. El control parental sigue
 activo. Si el código está mal o ha pasado demasiado tiempo, se avisa con "El código no
-es correcto o ha caducado." y puedes pedir otro.
+es correcto o ha caducado." en la misma ventana: puedes corregirlo o pulsar **Reenviar
+código** para que llegue otro.
 
 ![Control parental activado](img/ajustes-control-parental.png)
 
