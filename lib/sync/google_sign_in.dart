@@ -62,7 +62,9 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
       if (waiting) navigator.pop();
       if (mounted) setState(() => _busy = false);
     }
-    if (mounted && account.status != AccountStatus.signedOut) {
+    if (mounted &&
+        account.status != AccountStatus.signedOut &&
+        account.status != AccountStatus.awaitingConfirmation) {
       widget.onSignedIn?.call();
     }
   }
