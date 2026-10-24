@@ -639,7 +639,14 @@ final Map<String, _Capture> _screens = {
     await tester.tap(find.byTooltip('Ajustes'));
     await settle(tester);
     await _scrollSettingsTo(tester, find.text('Licencias'));
-    await tester.tap(find.text('Ver'));
+    await tester.tap(
+      find.descendant(
+        of: find
+            .ancestor(of: find.text('Licencias'), matching: find.byType(Row))
+            .first,
+        matching: find.text('Ver'),
+      ),
+    );
     await _pumpUntil(
       tester,
       () => find.text('demo_player').evaluate().isNotEmpty,
