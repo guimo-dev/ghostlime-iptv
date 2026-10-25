@@ -1,5 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- User playlists and streams are often plain http on arbitrary servers,
+         hence usesCleartextTraffic. -->
     <application
         android:label="Ghostlime IPTV"
         android:name="${applicationName}"
