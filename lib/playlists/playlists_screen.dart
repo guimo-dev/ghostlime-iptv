@@ -18,6 +18,7 @@ import '../ui/brand_state.dart';
 import '../ui/backdrop.dart';
 import '../ui/content_width.dart';
 import '../ui/focus_card.dart';
+import '../ui/form_factor.dart';
 import '../ui/ghostlime_logo.dart';
 import 'password_store.dart';
 import 'playlist.dart';
@@ -304,60 +305,26 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
+    final phone = usesPhoneLayout(context);
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: AppBackground(
         child: LayoutBuilder(
           builder: (context, constraints) => ListView(
-            padding: ContentWidth.paddingFor(
-              constraints.maxWidth,
-              const EdgeInsets.fromLTRB(48, 48, 48, 96),
-              maxWidth: ContentWidths.grid,
-            ),
+            padding: phone
+                ? EdgeInsets.fromLTRB(
+                    phonePageMargin,
+                    MediaQuery.paddingOf(context).top + 24,
+                    phonePageMargin,
+                    48,
+                  )
+                : ContentWidth.paddingFor(
+                    constraints.maxWidth,
+                    const EdgeInsets.fromLTRB(48, 48, 48, 96),
+                    maxWidth: ContentWidths.grid,
+                  ),
             children: [
-              Row(
-                children: [
-                  const GhostlimeLogo(size: 56),
-                  const SizedBox(width: 16),
-                  Text.rich(
-                    TextSpan(
-                      text: 'Ghostlime ',
-                      children: [
-                        TextSpan(
-                          text: 'IPTV',
-                          style: TextStyle(color: AppColors.accent),
-                        ),
-                      ],
-                    ),
-                    style: text.displaySmall,
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    tooltip: 'Ajustes',
-                    icon: const Icon(Icons.settings_outlined),
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => SettingsScreen(
-                          db: widget.db,
-                          passwords: widget.passwords,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  FilledButton.icon(
-                    onPressed: _edit,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Añadir lista'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Tus listas',
-                style: text.bodyLarge?.copyWith(color: AppColors.textMuted),
-              ),
+              ...phone ? _phoneHeader() : _header(),
               const SizedBox(height: 24),
               if (_playlists.isEmpty)
                 Padding(
@@ -396,6 +363,91 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
       ),
     );
   }
+
+  /// The app name.
+  Widget _appName(TextStyle? style) => Text.rich(
+    TextSpan(
+      text: 'Ghostlime ',
+      children: [
+        TextSpan(
+          text: 'IPTV',
+          style: TextStyle(color: AppColors.accent),
+        ),
+      ],
+    ),
+    style: style,
+  );
+
+  /// Opens the general settings.
+  void _openSettings() => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) =>
+          SettingsScreen(db: widget.db, passwords: widget.passwords),
+    ),
+  );
+
+  Widget _settingsButton() => IconButton(
+    tooltip: 'Ajustes',
+    icon: const Icon(Icons.settings_outlined),
+    onPressed: _openSettings,
+  );
+
+  Widget _addButton() => FilledButton.icon(
+    onPressed: _edit,
+    icon: const Icon(Icons.add),
+    label: const Text('Añadir lista'),
+  );
+
+  Widget _subtitleText() => Text(
+    'Tus listas',
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+    style: Theme.of(context).textTheme.bodyLarge
+        ?.copyWith(color: AppColors.textMuted),
+  );
+
+  /// Logo, name, settings and "Añadir lista" in one row, "Tus listas" below.
+  List<Widget> _header() => [
+    Row(
+      children: [
+        const GhostlimeLogo(size: 56),
+        const SizedBox(width: 16),
+        _appName(Theme.of(context).textTheme.displaySmall),
+        const Spacer(),
+        _settingsButton(),
+        const SizedBox(width: 12),
+        _addButton(),
+      ],
+    ),
+    const SizedBox(height: 8),
+    _subtitleText(),
+  ];
+
+  /// Phones: logo, name and settings; then "Tus listas" beside the button.
+  List<Widget> _phoneHeader() => [
+    Row(
+      children: [
+        const GhostlimeLogo(size: 40),
+        const SizedBox(width: 12),
+        Expanded(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: _appName(Theme.of(context).textTheme.headlineMedium),
+          ),
+        ),
+        _settingsButton(),
+      ],
+    ),
+    const SizedBox(height: 16),
+    Row(
+      children: [
+        Expanded(child: _subtitleText()),
+        const SizedBox(width: 12),
+        _addButton(),
+      ],
+    ),
+  ];
 
   /// One playlist as a card: open on tap, actions along the bottom.
   Widget _card(Playlist playlist, double width) {
