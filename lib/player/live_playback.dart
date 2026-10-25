@@ -205,7 +205,7 @@ class LivePlayback extends ChangeNotifier {
   /// The `hwdec` the current "hardware decoding" setting asks for.
   String? _hwdecSetting() => hwdecFor(
     hardwareDecoding: _settings().hardwareDecoding,
-    isAndroid: Platform.isAndroid,
+    isMobile: Platform.isAndroid || Platform.isIOS,
   );
 
   /// Whether the player exists, i.e. something was ever opened.

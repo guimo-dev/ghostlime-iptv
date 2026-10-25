@@ -293,7 +293,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 icon: Icons.play_circle_outline,
                 title: 'Reproducción',
                 children: [
-                  // Android ignores it (see hwdecFor) and iOS has no such option.
+                  // Desktop only: Android and iOS ignore the synced value (hwdecFor).
                   if (!isTouchPlatform)
                     _SwitchRow(
                       title: 'Decodificación por hardware',

@@ -129,7 +129,10 @@ void main() {
       await playback.play(PlayTarget.fromChannel(_dos));
 
       expect(created.map((c) => c.$2), [
-        hwdecFor(hardwareDecoding: true, isAndroid: Platform.isAndroid),
+        hwdecFor(
+          hardwareDecoding: true,
+          isMobile: Platform.isAndroid || Platform.isIOS,
+        ),
         'no',
       ]);
       expect(created.first.$1.calls.last, 'dispose');

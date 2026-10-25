@@ -22,10 +22,13 @@ Future<void> useSafeDemuxerOptions(Player player) async {
 }
 
 /// The mpv `hwdec` to force for the "hardware decoding" setting, or `null` to
-/// keep media_kit's own choice. On Android media_kit already picks
-/// `auto-safe`, or `no` on an emulator (whose decoder never outputs frames),
-/// so only switching it off is forced there.
-String? hwdecFor({required bool hardwareDecoding, required bool isAndroid}) {
-  if (!hardwareDecoding) return 'no';
-  return isAndroid ? null : 'auto-safe';
+/// keep media_kit's own choice.
+///
+/// The setting only applies on desktop: on Android and iOS ([isMobile]) its
+/// switch is hidden, yet the value syncs from a desktop, so it is ignored
+/// there. media_kit already picks `auto-safe` on Android, or `no` on an
+/// emulator (whose decoder never outputs frames).
+String? hwdecFor({required bool hardwareDecoding, required bool isMobile}) {
+  if (isMobile) return null;
+  return hardwareDecoding ? 'auto-safe' : 'no';
 }
