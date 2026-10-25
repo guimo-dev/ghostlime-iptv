@@ -217,17 +217,21 @@ class _AppShellState extends State<AppShell> {
     final bottomBar = !usesDesktopLayout(MediaQuery.sizeOf(context));
     final content = Expanded(
       key: _contentKey,
-      child: _syncError == null
-          ? SectionStack(
-              index: _index,
-              count: _sections.length,
-              builder: _section,
-            )
-          : _SyncErrorPanel(
-              message: _syncError!,
-              retrying: _retrying,
-              onRetry: _retrySync,
-            ),
+      // Keeps the sections clear of a phone's status bar and notch.
+      child: SafeArea(
+        bottom: false,
+        child: _syncError == null
+            ? SectionStack(
+                index: _index,
+                count: _sections.length,
+                builder: _section,
+              )
+            : _SyncErrorPanel(
+                message: _syncError!,
+                retrying: _retrying,
+                onRetry: _retrySync,
+              ),
+      ),
     );
     return PopScope(
       // With the bottom bar, Back from a section goes to Inicio first.
