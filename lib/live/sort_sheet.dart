@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../catalog/sorting.dart';
+import '../ui/choice_selector.dart';
 import '../ui/form_factor.dart';
 
 /// What the user chose in the channel sort sheet.
@@ -21,36 +22,13 @@ const _modeLabels = {
   SortMode.manual: 'Manual',
 };
 
-/// The sort options. Four segments do not fit a phone's width, so the phone
-/// layout shows them as chips that flow onto a second row when needed.
-Widget _modeSelector(
-  BuildContext context,
-  SortMode mode,
-  ValueChanged<SortMode> onChanged,
-) {
-  if (usesPhoneLayout(context)) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final entry in _modeLabels.entries)
-          ChoiceChip(
-            label: Text(entry.value),
-            selected: entry.key == mode,
-            onSelected: (_) => onChanged(entry.key),
-          ),
-      ],
+/// The sort options: chips on phones, segments on the desktop.
+Widget _modeSelector(SortMode mode, ValueChanged<SortMode> onChanged) =>
+    ChoiceSelector<SortMode>(
+      options: _modeLabels,
+      value: mode,
+      onChanged: onChanged,
     );
-  }
-  return SegmentedButton<SortMode>(
-    segments: [
-      for (final entry in _modeLabels.entries)
-        ButtonSegment(value: entry.key, label: Text(entry.value)),
-    ],
-    selected: {mode},
-    onSelectionChanged: (s) => onChanged(s.first),
-  );
-}
 
 /// The sheet's buttons: [secondary] ones and the [apply] one. On phones
 /// [apply] goes alone on the last row, on the right, within the thumb's reach.
@@ -121,7 +99,6 @@ Future<SortSheetResult?> showSortSheet(
             ),
             const SizedBox(height: 12),
             _modeSelector(
-              context,
               sort.mode,
               (mode) => setState(() => sort = sort.copyWith(mode: mode)),
             ),
@@ -185,7 +162,7 @@ Future<CategorySheetResult?> showCategorySortSheet(
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 12),
-          _modeSelector(context, mode, (value) => setState(() => mode = value)),
+          _modeSelector(mode, (value) => setState(() => mode = value)),
           const SizedBox(height: 12),
           _sheetActions(
             context,

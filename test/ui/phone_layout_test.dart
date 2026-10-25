@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iptv_player/browse/catalog_images.dart';
 import 'package:iptv_player/catalog/catalog_db.dart';
@@ -485,5 +486,80 @@ void main() {
     );
     expect(section.left, closeTo(phonePageMargin, 0.5));
     expect(section.right, closeTo(phone.width - phonePageMargin, 0.5));
+  });
+
+  /// Scrolls [label] into view and expects it drawn whole, on one line,
+  /// inside the screen's side margins.
+  Future<void> expectChoiceFits(WidgetTester tester, String label) async {
+    final vertical = find.byWidgetPredicate(
+      (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+    );
+    await tester.scrollUntilVisible(
+      find.text(label),
+      100,
+      scrollable: vertical.first,
+    );
+    await tester.pump();
+    final paragraph = tester.renderObject<RenderParagraph>(find.text(label));
+    expect(
+      paragraph.size.width,
+      greaterThanOrEqualTo(paragraph.getMaxIntrinsicWidth(double.infinity)),
+      reason: '"$label" wraps or is cut',
+    );
+    // A row that scrolls sideways would hide options past the edge.
+    expect(
+      find.ancestor(
+        of: find.text(label),
+        matching: find.byWidgetPredicate(
+          (w) => w is Scrollable && w.axisDirection == AxisDirection.right,
+        ),
+      ),
+      findsNothing,
+      reason: '"$label" scrolls sideways',
+    );
+    final rect = tester.getRect(find.text(label));
+    expect(rect.left, greaterThanOrEqualTo(phonePageMargin), reason: label);
+    expect(
+      rect.right,
+      lessThanOrEqualTo(phone.width - phonePageMargin),
+      reason: label,
+    );
+  }
+
+  testWidgets('playlist type choices fit at 360', (tester) async {
+    _setSize(tester, phone);
+    await _pumpApp(tester, demo.db, const PlaylistFormScreen());
+    for (final label in ['Xtream', 'M3U (URL)', 'M3U (fichero)', 'TS', 'HLS']) {
+      await expectChoiceFits(tester, label);
+    }
+  });
+
+  testWidgets('settings choices fit at 360', (tester) async {
+    _setSize(tester, phone);
+    await _pumpApp(
+      tester,
+      demo.db,
+      SettingsScreen(
+        db: demo.db,
+        passwords: FakePasswords(),
+        playlist: demo.playlist,
+      ),
+    );
+    for (final label in [
+      'Preguntar',
+      'Reanudar',
+      'Desde el principio',
+      'Inicio',
+      'Directo',
+      'La última',
+      'Pequeño',
+      'Medio',
+      'Grande',
+      '6 h',
+      '12 h',
+      '24 h',
+    ]) {
+      await expectChoiceFits(tester, label);
+    }
   });
 }

@@ -18,6 +18,7 @@ import '../sync/auth_gateway.dart' show AccountException;
 import '../sync/data_export.dart';
 import '../ui/app_theme.dart';
 import '../ui/backdrop.dart';
+import '../ui/choice_selector.dart';
 import '../ui/content_width.dart';
 import '../ui/form_factor.dart';
 import '../ui/ghostlime_logo.dart';
@@ -758,36 +759,26 @@ class _ChoiceRow<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final segments = SegmentedButton<T>(
-      showSelectedIcon: false,
-      style: ButtonStyle(
-        backgroundColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected)
-              ? AppColors.accent
-              : Colors.white.withValues(alpha: 0.04),
-        ),
-        foregroundColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected)
-              ? AppColors.onAccent
-              : AppColors.text,
-        ),
-      ),
-      segments: [
-        for (final MapEntry(:key, :value) in options.entries)
-          ButtonSegment(value: key, label: Text(value)),
-      ],
-      selected: {value},
-      onSelectionChanged: (selection) => onChanged(selection.first),
-    );
     return _Row(
       title: title,
-      // Phones: the segments scroll sideways when they do not fit.
-      trailing: usesPhoneLayout(context)
-          ? SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: segments,
-            )
-          : segments,
+      trailing: ChoiceSelector<T>(
+        options: options,
+        value: value,
+        onChanged: onChanged,
+        showSelectedIcon: false,
+        segmentedStyle: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.selected)
+                ? AppColors.accent
+                : Colors.white.withValues(alpha: 0.04),
+          ),
+          foregroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.selected)
+                ? AppColors.onAccent
+                : AppColors.text,
+          ),
+        ),
+      ),
     );
   }
 }

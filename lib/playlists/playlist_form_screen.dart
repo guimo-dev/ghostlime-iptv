@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../settings/settings_scope.dart';
 import '../ui/bottom_action_bar.dart';
+import '../ui/choice_selector.dart';
 import '../xtream/xtream_urls.dart';
 import 'playlist.dart';
 import 'xtream_link.dart';
@@ -163,23 +164,14 @@ class _PlaylistFormScreenState extends State<PlaylistFormScreen> {
               spacing: 20,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                SegmentedButton<PlaylistType>(
-                  segments: const [
-                    ButtonSegment(
-                      value: PlaylistType.xtream,
-                      label: Text('Xtream'),
-                    ),
-                    ButtonSegment(
-                      value: PlaylistType.m3uUrl,
-                      label: Text('M3U (URL)'),
-                    ),
-                    ButtonSegment(
-                      value: PlaylistType.m3uFile,
-                      label: Text('M3U (fichero)'),
-                    ),
-                  ],
-                  selected: {_type},
-                  onSelectionChanged: (s) => setState(() => _type = s.first),
+                ChoiceSelector<PlaylistType>(
+                  options: const {
+                    PlaylistType.xtream: 'Xtream',
+                    PlaylistType.m3uUrl: 'M3U (URL)',
+                    PlaylistType.m3uFile: 'M3U (fichero)',
+                  },
+                  value: _type,
+                  onChanged: (type) => setState(() => _type = type),
                 ),
                 if (_sourceError case final error?) _SourceError(error),
                 TextFormField(
@@ -224,20 +216,14 @@ class _PlaylistFormScreenState extends State<PlaylistFormScreen> {
                         'Directo en',
                         style: Theme.of(context).textTheme.labelLarge,
                       ),
-                      SegmentedButton<LiveFormat>(
-                        segments: const [
-                          ButtonSegment(
-                            value: LiveFormat.ts,
-                            label: Text('TS'),
-                          ),
-                          ButtonSegment(
-                            value: LiveFormat.m3u8,
-                            label: Text('HLS'),
-                          ),
-                        ],
-                        selected: {_liveFormat},
-                        onSelectionChanged: (s) =>
-                            setState(() => _liveFormat = s.first),
+                      ChoiceSelector<LiveFormat>(
+                        options: const {
+                          LiveFormat.ts: 'TS',
+                          LiveFormat.m3u8: 'HLS',
+                        },
+                        value: _liveFormat,
+                        onChanged: (format) =>
+                            setState(() => _liveFormat = format),
                       ),
                     ],
                   ),
