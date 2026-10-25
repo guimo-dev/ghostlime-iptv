@@ -81,6 +81,29 @@ void main() {
     });
   }
 
+  testWidgets('the selected bottom-bar icon stands out on its indicator', (
+    tester,
+  ) async {
+    await _pumpShell(tester, const Size(390, 844));
+    final indicator = tester.widget<NavigationIndicator>(
+      find.byType(NavigationIndicator).first,
+    );
+    final selectedIcon = tester.widget<Icon>(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.byIcon(Icons.home_outlined),
+      ),
+    );
+    expect(selectedIcon.color, isNotNull);
+    expect(selectedIcon.color, isNot(indicator.color));
+    expect(
+      selectedIcon.color,
+      Theme.of(tester.element(find.byType(NavigationBar)))
+          .colorScheme
+          .onPrimary,
+    );
+  });
+
   testWidgets('"Listas" in the sheet returns to the playlists page', (
     tester,
   ) async {

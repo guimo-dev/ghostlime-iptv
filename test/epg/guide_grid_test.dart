@@ -47,8 +47,12 @@ void main() {
   });
   tearDown(() => db.close());
 
-  Future<void> pumpGrid(WidgetTester tester, {int revision = 0}) async {
-    tester.view.physicalSize = const Size(1200, 800);
+  Future<void> pumpGrid(
+    WidgetTester tester, {
+    int revision = 0,
+    Size size = const Size(1200, 800),
+  }) async {
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
@@ -69,6 +73,19 @@ void main() {
     );
     await tester.pump();
   }
+
+  testWidgets('narrow grid keeps channel names on one line', (tester) async {
+    await pumpGrid(tester, size: const Size(390, 844));
+    final name = tester.widget<Text>(find.text('Uno · 1'));
+    expect(name.maxLines, 1);
+    expect(name.softWrap, isFalse);
+    expect(name.overflow, TextOverflow.ellipsis);
+  });
+
+  testWidgets('wide grid lets channel names take two lines', (tester) async {
+    await pumpGrid(tester);
+    expect(tester.widget<Text>(find.text('Uno · 1')).maxLines, 2);
+  });
 
   testWidgets('shows the given channels with their display names', (
     tester,

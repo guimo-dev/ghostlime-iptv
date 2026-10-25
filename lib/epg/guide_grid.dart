@@ -227,6 +227,7 @@ class _GuideGridState extends State<GuideGrid> {
                       windowStart: _windowStart,
                       window: window,
                       channelColumnWidth: columnWidth,
+                      compact: compact,
                       now: widget.clock().toUtc(),
                       selected: channel.key == widget.selectedKey,
                       onTap: () => widget.onChannel(channel),
@@ -285,6 +286,7 @@ class _GuideRow extends StatelessWidget {
     required this.windowStart,
     required this.window,
     required this.channelColumnWidth,
+    required this.compact,
     required this.now,
     required this.selected,
     required this.onTap,
@@ -296,6 +298,10 @@ class _GuideRow extends StatelessWidget {
   final DateTime windowStart;
   final Duration window;
   final double channelColumnWidth;
+
+  /// Narrow grid: the channel name stays on one line in a smaller font, since
+  /// the column is too narrow to wrap names between words.
+  final bool compact;
 
   /// The current time (UTC), where the "now" marker goes.
   final DateTime now;
@@ -323,11 +329,19 @@ class _GuideRow extends StatelessWidget {
                   ChannelLogo(url: channel.iconUrl),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    child: compact
+                        ? Text(
+                            name,
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          )
+                        : Text(
+                            name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                   ),
                 ],
               ),

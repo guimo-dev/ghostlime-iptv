@@ -278,6 +278,9 @@ class _BottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // On the accent-coloured indicator, the colour the theme uses for text on
+    // accent buttons, so it follows a change of accent.
+    final onAccent = Theme.of(context).colorScheme.onPrimary;
     return NavigationBar(
       backgroundColor: AppColors.surface,
       selectedIndex: selected,
@@ -287,7 +290,7 @@ class _BottomBar extends StatelessWidget {
         for (final section in _sections)
           NavigationDestination(
             icon: Icon(section.icon),
-            selectedIcon: Icon(section.icon, color: AppColors.accent),
+            selectedIcon: Icon(section.icon, color: onAccent),
             label: section.label,
           ),
         const NavigationDestination(icon: Icon(Icons.more_horiz), label: 'Más'),
