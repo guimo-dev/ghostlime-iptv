@@ -14,6 +14,12 @@ const _step = Duration(hours: 1);
 const _channelColumnWidth = 220.0;
 const _rowHeight = 56.0;
 
+/// Below this width (a phone) the grid shows a shorter window, a narrower
+/// channel column and wraps its toolbar, so programmes stay readable.
+const _compactWidth = 600.0;
+const _compactWindow = Duration(minutes: 90);
+const _compactChannelColumnWidth = 120.0;
+
 /// Formats [time] as local `HH:mm`.
 String formatClock(DateTime time) {
   final local = time.toLocal();
@@ -114,9 +120,21 @@ class _GuideGridState extends State<GuideGrid> {
     _byChannel = byChannel;
   }
 
-  /// Channels listed in the grid, honoring "Solo con guía".
-  List<Channel> _shownChannels() => _onlyWithGuide
-      ? widget.channels.where((c) => _byChannel.containsKey(c.epgId)).toList()
+  /// Programmes of [channel] that overlap the [window] from the start.
+  List<Programme> _programmesOf(Channel channel, Duration window) {
+    final start = _windowStart.toUtc();
+    final end = start.add(window);
+    return [
+      for (final p in _byChannel[channel.epgId] ?? const <Programme>[])
+        if (p.stop.isAfter(start) && p.start.isBefore(end)) p,
+    ];
+  }
+
+  /// Channels listed in the grid, honoring "Solo con guía" over [window].
+  List<Channel> _shownChannels(Duration window) => _onlyWithGuide
+      ? widget.channels
+            .where((c) => _programmesOf(c, window).isNotEmpty)
+            .toList()
       : widget.channels;
 
   /// Moves the window to [start] and loads its programmes.
@@ -129,41 +147,64 @@ class _GuideGridState extends State<GuideGrid> {
 
   @override
   Widget build(BuildContext context) {
-    final end = _windowStart.add(_window);
-    final shown = _shownChannels();
+    return LayoutBuilder(
+      builder: (context, constraints) =>
+          _buildGrid(compact: constraints.maxWidth < _compactWidth),
+    );
+  }
+
+  /// The toolbar, time header and rows; [compact] on narrow screens.
+  Widget _buildGrid({required bool compact}) {
+    final window = compact ? _compactWindow : _window;
+    final columnWidth = compact
+        ? _compactChannelColumnWidth
+        : _channelColumnWidth;
+    final end = _windowStart.add(window);
+    final shown = _shownChannels(window);
+    final filter = Tooltip(
+      message: 'Ocultar canales sin programación',
+      child: FilterChip(
+        label: const Text('Solo con guía'),
+        selected: _onlyWithGuide,
+        onSelected: (value) => setState(() => _onlyWithGuide = value),
+      ),
+    );
+    final timeControls = [
+      IconButton(
+        tooltip: 'Antes',
+        icon: const Icon(Icons.chevron_left),
+        onPressed: () => _moveTo(_windowStart.subtract(_step)),
+      ),
+      TextButton(
+        onPressed: () => _moveTo(_initialStart()),
+        child: Text('${formatClock(_windowStart)}–${formatClock(end)}'),
+      ),
+      IconButton(
+        tooltip: 'Después',
+        icon: const Icon(Icons.chevron_right),
+        onPressed: () => _moveTo(_windowStart.add(_step)),
+      ),
+    ];
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 8, 4),
-          child: Row(
-            children: [
-              Tooltip(
-                message: 'Ocultar canales sin programación',
-                child: FilterChip(
-                  label: const Text('Solo con guía'),
-                  selected: _onlyWithGuide,
-                  onSelected: (value) => setState(() => _onlyWithGuide = value),
-                ),
-              ),
-              const Spacer(),
-              IconButton(
-                tooltip: 'Antes',
-                icon: const Icon(Icons.chevron_left),
-                onPressed: () => _moveTo(_windowStart.subtract(_step)),
-              ),
-              TextButton(
-                onPressed: () => _moveTo(_initialStart()),
-                child: Text('${formatClock(_windowStart)}–${formatClock(end)}'),
-              ),
-              IconButton(
-                tooltip: 'Después',
-                icon: const Icon(Icons.chevron_right),
-                onPressed: () => _moveTo(_windowStart.add(_step)),
-              ),
-            ],
-          ),
+          child: compact
+              ? Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    filter,
+                    Row(mainAxisSize: MainAxisSize.min, children: timeControls),
+                  ],
+                )
+              : Row(children: [filter, const Spacer(), ...timeControls]),
         ),
-        _TimeHeader(start: _windowStart),
+        _TimeHeader(
+          start: _windowStart,
+          window: window,
+          channelColumnWidth: columnWidth,
+        ),
         const Divider(height: 1),
         Expanded(
           child: shown.isEmpty
@@ -181,8 +222,10 @@ class _GuideGridState extends State<GuideGrid> {
                     return _GuideRow(
                       channel: channel,
                       name: widget.names[channel.key] ?? channel.name,
-                      programmes: _byChannel[channel.epgId] ?? const [],
+                      programmes: _programmesOf(channel, window),
                       windowStart: _windowStart,
+                      window: window,
+                      channelColumnWidth: columnWidth,
                       now: widget.clock().toUtc(),
                       selected: channel.key == widget.selectedKey,
                       onTap: () => widget.onChannel(channel),
@@ -197,18 +240,24 @@ class _GuideGridState extends State<GuideGrid> {
 
 /// Half-hour labels over the time window.
 class _TimeHeader extends StatelessWidget {
-  const _TimeHeader({required this.start});
+  const _TimeHeader({
+    required this.start,
+    required this.window,
+    required this.channelColumnWidth,
+  });
 
   final DateTime start;
+  final Duration window;
+  final double channelColumnWidth;
 
   @override
   Widget build(BuildContext context) {
-    final slots = _window.inMinutes ~/ 30;
+    final slots = window.inMinutes ~/ 30;
     return SizedBox(
       height: 28,
       child: Row(
         children: [
-          const SizedBox(width: _channelColumnWidth),
+          SizedBox(width: channelColumnWidth),
           for (var i = 0; i < slots; i++)
             Expanded(
               child: Padding(
@@ -233,6 +282,8 @@ class _GuideRow extends StatelessWidget {
     required this.name,
     required this.programmes,
     required this.windowStart,
+    required this.window,
+    required this.channelColumnWidth,
     required this.now,
     required this.selected,
     required this.onTap,
@@ -242,6 +293,8 @@ class _GuideRow extends StatelessWidget {
   final String name;
   final List<Programme> programmes;
   final DateTime windowStart;
+  final Duration window;
+  final double channelColumnWidth;
 
   /// The current time (UTC), where the "now" marker goes.
   final DateTime now;
@@ -252,11 +305,11 @@ class _GuideRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final start = windowStart.toUtc();
-    final end = start.add(_window);
+    final end = start.add(window);
     return Row(
       children: [
         SizedBox(
-          width: _channelColumnWidth,
+          width: channelColumnWidth,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(8, 2, 4, 2),
             child: FocusCard(
@@ -283,7 +336,7 @@ class _GuideRow extends StatelessWidget {
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final perMinute = constraints.maxWidth / _window.inMinutes;
+              final perMinute = constraints.maxWidth / window.inMinutes;
               double x(DateTime t) {
                 final clamped = t.isBefore(start)
                     ? start

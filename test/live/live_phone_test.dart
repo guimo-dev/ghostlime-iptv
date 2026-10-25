@@ -212,9 +212,8 @@ void main() {
     });
   }
 
-  // The grid itself fits a phone in Task 6 (it overflows at 390 wide today).
   testWidgets('the top bar has the guide and sort toggles', (tester) async {
-    await pumpLive(tester, _tabletPortrait);
+    await pumpLive(tester, _portrait);
     await tapPhoneChannel(tester, 'Uno');
     expect(find.byTooltip('Orden'), findsOneWidget);
 
