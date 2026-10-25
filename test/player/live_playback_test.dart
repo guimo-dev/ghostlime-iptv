@@ -191,6 +191,58 @@ void main() {
       expect(player.opened, ['http://h/a.ts', 'http://h/a.ts']);
       playback.dispose();
     });
+
+    testWidgets('a channel that ended without auto-reconnect plays again '
+        'when chosen again', (tester) async {
+      final player = FakePlayer();
+      final playback = playbackOf(
+        player: player,
+        settings: () => const AppSettings(autoReconnect: false),
+      );
+      await playback.play(PlayTarget.fromChannel(_uno));
+      player.emitPosition(const Duration(seconds: 1));
+      player.emitCompleted();
+      await tester.pump(const Duration(seconds: 10));
+      expect(player.opened, ['http://h/a.ts']);
+
+      await playback.play(PlayTarget.fromChannel(_uno));
+      expect(player.opened, ['http://h/a.ts', 'http://h/a.ts']);
+      playback.dispose();
+    });
+
+    testWidgets('a channel whose reconnections ran out plays again when '
+        'chosen again', (tester) async {
+      final player = FakePlayer();
+      final playback = playbackOf(player: player);
+      await playback.play(PlayTarget.fromChannel(_uno));
+      player.emitPosition(const Duration(seconds: 1));
+      for (final delay in reconnectDelays) {
+        player.emitError('connection lost');
+        await tester.pump(delay);
+        player.emitPosition(const Duration(seconds: 1));
+      }
+      player.emitError('connection lost');
+      await tester.pump(const Duration(seconds: 20));
+      expect(player.opened, hasLength(1 + reconnectDelays.length));
+
+      await playback.play(PlayTarget.fromChannel(_uno));
+      expect(player.opened, hasLength(2 + reconnectDelays.length));
+      playback.dispose();
+    });
+
+    testWidgets('a channel still reconnecting is not reopened when chosen '
+        'again', (tester) async {
+      final player = FakePlayer();
+      final playback = playbackOf(player: player);
+      await playback.play(PlayTarget.fromChannel(_uno));
+      player.emitPosition(const Duration(seconds: 1));
+      player.emitError('connection lost');
+      await tester.pump();
+
+      await playback.play(PlayTarget.fromChannel(_uno));
+      expect(player.opened, ['http://h/a.ts']);
+      playback.dispose();
+    });
   });
 
   group('Directo with one shared player', () {

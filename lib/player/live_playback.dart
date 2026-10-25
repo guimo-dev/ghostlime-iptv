@@ -148,6 +148,10 @@ class LivePlayback extends ChangeNotifier {
   Media? _media;
   bool _isLive = true;
   bool _startFailed = false;
+
+  /// The stream failed or ended and will not be reopened by itself (the
+  /// reconnections ran out or are switched off).
+  bool _gaveUp = false;
   String? _error;
 
   /// Whether playback reached a position since the last play; later drops
@@ -221,9 +225,10 @@ class LivePlayback extends ChangeNotifier {
 
   /// Plays [target] from [playlist]. Does nothing when it is already
   /// playing (or starting), so moving between screens never reopens it; a
-  /// stream that failed to start is opened again.
+  /// stream that failed to start, or failed later and is not being
+  /// reconnected, is opened again.
   Future<void> play(PlayTarget target) async {
-    if (_key == target.key && !_startFailed) return;
+    if (_key == target.key && !_startFailed && !_gaveUp) return;
     final generation = _begin(target.key);
     final playlist = this.playlist!;
     final url = playTargetUrl(playlist, target, await password);
@@ -273,6 +278,7 @@ class LivePlayback extends ChangeNotifier {
     _key = null;
     _media = null;
     _startFailed = false;
+    _gaveUp = false;
     _error = null;
     _openedGeneration = null;
     notifyListeners();
@@ -319,6 +325,7 @@ class LivePlayback extends ChangeNotifier {
     _cancelTimers();
     _key = key;
     _startFailed = false;
+    _gaveUp = false;
     _error = null;
     _everStarted = false;
     _openedGeneration = null;
@@ -444,7 +451,8 @@ class LivePlayback extends ChangeNotifier {
   }
 
   /// Reopens a live stream after it ended or failed, as [ReconnectPolicy]
-  /// decides.
+  /// decides; when it will not, a later [play] of the same target opens it
+  /// again.
   void _reconnect() {
     final media = _media;
     if (media == null || _startFailed) return;
@@ -453,7 +461,10 @@ class LivePlayback extends ChangeNotifier {
     final delay = policy.next(
       stable: DateTime.now().difference(_openedAt) > _stableAfter,
     );
-    if (delay == null) return;
+    if (delay == null) {
+      _gaveUp = true;
+      return;
+    }
     _log?.record(
       PlaybackEvent.reconnectScheduled,
       detail: 'attempt ${policy.attempts} in ${delay.inSeconds}s',
