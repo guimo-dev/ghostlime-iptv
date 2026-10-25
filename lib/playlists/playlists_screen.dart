@@ -308,6 +308,8 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
     final phone = usesPhoneLayout(context);
     return Scaffold(
       backgroundColor: Colors.transparent,
+      // Phones: "Añadir lista" at the bottom right, within the thumb's reach.
+      floatingActionButton: phone ? _addFab() : null,
       body: AppBackground(
         child: LayoutBuilder(
           builder: (context, constraints) => ListView(
@@ -316,7 +318,8 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
                     phonePageMargin,
                     MediaQuery.paddingOf(context).top + 24,
                     phonePageMargin,
-                    48,
+                    // Room for the floating button below the last card.
+                    104,
                   )
                 : ContentWidth.paddingFor(
                     constraints.maxWidth,
@@ -398,6 +401,18 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
     label: const Text('Añadir lista'),
   );
 
+  /// "Añadir lista" as the phone layout's floating button, in the accent.
+  Widget _addFab() {
+    final scheme = Theme.of(context).colorScheme;
+    return FloatingActionButton.extended(
+      onPressed: _edit,
+      backgroundColor: scheme.primary,
+      foregroundColor: scheme.onPrimary,
+      icon: const Icon(Icons.add),
+      label: const Text('Añadir lista'),
+    );
+  }
+
   Widget _subtitleText() => Text(
     'Tus listas',
     maxLines: 1,
@@ -423,7 +438,8 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
     _subtitleText(),
   ];
 
-  /// Phones: logo, name and settings; then "Tus listas" beside the button.
+  /// Phones: logo, name and settings; then "Tus listas" ("Añadir lista" is
+  /// the floating button).
   List<Widget> _phoneHeader() => [
     Row(
       children: [
@@ -440,13 +456,7 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
       ],
     ),
     const SizedBox(height: 16),
-    Row(
-      children: [
-        Expanded(child: _subtitleText()),
-        const SizedBox(width: 12),
-        _addButton(),
-      ],
-    ),
+    _subtitleText(),
   ];
 
   /// One playlist as a card: open on tap, actions along the bottom.

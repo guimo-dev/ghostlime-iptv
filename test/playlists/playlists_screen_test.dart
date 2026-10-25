@@ -95,4 +95,24 @@ void main() {
       expect(card.width, greaterThanOrEqualTo(360));
     });
   }
+
+  testWidgets('phones get "Añadir lista" as a button at the bottom right', (
+    tester,
+  ) async {
+    await _pump(tester, const Size(390, 844));
+    final button = find.ancestor(
+      of: find.text('Añadir lista'),
+      matching: find.byType(FloatingActionButton),
+    );
+    expect(button, findsOneWidget);
+    final rect = tester.getRect(button);
+    expect(rect.top, greaterThan(844 * 2 / 3));
+    expect(rect.right, greaterThan(390 - 32));
+  });
+
+  testWidgets('the desktop keeps "Añadir lista" in the header', (tester) async {
+    await _pump(tester, const Size(1280, 800));
+    expect(find.byType(FloatingActionButton), findsNothing);
+    expect(tester.getRect(find.text('Añadir lista')).top, lessThan(200));
+  });
 }

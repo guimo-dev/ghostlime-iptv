@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../ui/backdrop.dart';
+import '../ui/bottom_action_bar.dart';
 import '../ui/content_width.dart';
 
 /// One row of [ReorderScreen].
@@ -65,23 +66,27 @@ class _ReorderScreenState extends State<ReorderScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Phones: Cancelar and Guardar at the bottom, within the thumb's reach.
+    final bottomActions = usesBottomActions(context);
     return AppBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           title: Text(widget.title),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, _items),
-              child: const Text('Guardar'),
-            ),
-            const SizedBox(width: 12),
-          ],
+          actions: bottomActions
+              ? null
+              : [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancelar'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(context, _items),
+                    child: const Text('Guardar'),
+                  ),
+                  const SizedBox(width: 12),
+                ],
         ),
         body: Column(
           children: [
@@ -164,6 +169,11 @@ class _ReorderScreenState extends State<ReorderScreen> {
                 ),
               ),
             ),
+            if (bottomActions)
+              BottomActionBar(
+                onCancel: () => Navigator.pop(context),
+                onSave: () => Navigator.pop(context, _items),
+              ),
           ],
         ),
       ),

@@ -362,11 +362,15 @@ void main() {
       await _pumpApp(tester, demo.db, const PlaylistFormScreen());
       await tester.tap(find.text('Xtream'));
       await tester.pumpAndSettle();
-      // The lowest field fully on screen: the keyboard will cover it.
+      // The lowest field fully shown (above the bottom action bar): the
+      // keyboard will cover it.
+      final viewport = find.byType(SingleChildScrollView);
       final fields = find.byType(TextFormField);
       final onScreen = [
         for (var i = 0; i < fields.evaluate().length; i++)
-          if (tester.getRect(fields.at(i)).bottom <= size.height) i,
+          if (tester.getRect(fields.at(i)).bottom <=
+              tester.getRect(viewport).bottom)
+            i,
       ];
       final target = fields.at(onScreen.last);
       final keyboardTop = size.height - keyboard;
@@ -382,6 +386,8 @@ void main() {
       // The app bar stays on top: the field must show below it.
       expect(field.top, greaterThanOrEqualTo(kToolbarHeight));
       expect(field.bottom, lessThanOrEqualTo(keyboardTop));
+      // Nor hidden behind the action bar, which rides above the keyboard.
+      expect(field.bottom, lessThanOrEqualTo(tester.getRect(viewport).bottom));
     });
   }
 

@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../settings/settings_scope.dart';
+import '../ui/bottom_action_bar.dart';
 import '../xtream/xtream_urls.dart';
 import 'playlist.dart';
 import 'xtream_link.dart';
@@ -147,158 +148,173 @@ class _PlaylistFormScreenState extends State<PlaylistFormScreen> {
   @override
   Widget build(BuildContext context) {
     final isXtream = _type == PlaylistType.xtream;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_editing ? 'Editar lista' : 'Añadir lista'),
-        actions: [
-          FilledButton(
-            onPressed: _checking ? null : _save,
-            child: Text(_checking ? 'Comprobando…' : 'Guardar'),
-          ),
-          const SizedBox(width: 12),
-        ],
-      ),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: _maxFormWidth),
-              child: Column(
-                spacing: 20,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SegmentedButton<PlaylistType>(
-                    segments: const [
-                      ButtonSegment(
-                        value: PlaylistType.xtream,
-                        label: Text('Xtream'),
-                      ),
-                      ButtonSegment(
-                        value: PlaylistType.m3uUrl,
-                        label: Text('M3U (URL)'),
-                      ),
-                      ButtonSegment(
-                        value: PlaylistType.m3uFile,
-                        label: Text('M3U (fichero)'),
-                      ),
-                    ],
-                    selected: {_type},
-                    onSelectionChanged: (s) => setState(() => _type = s.first),
-                  ),
-                  if (_sourceError case final error?) _SourceError(error),
+    // Phones: Cancelar and Guardar at the bottom, within the thumb's reach.
+    final bottomActions = usesBottomActions(context);
+    final saveLabel = _checking ? 'Comprobando…' : 'Guardar';
+    final onSave = _checking ? null : _save;
+    final form = Form(
+      key: _formKey,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: _maxFormWidth),
+            child: Column(
+              spacing: 20,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SegmentedButton<PlaylistType>(
+                  segments: const [
+                    ButtonSegment(
+                      value: PlaylistType.xtream,
+                      label: Text('Xtream'),
+                    ),
+                    ButtonSegment(
+                      value: PlaylistType.m3uUrl,
+                      label: Text('M3U (URL)'),
+                    ),
+                    ButtonSegment(
+                      value: PlaylistType.m3uFile,
+                      label: Text('M3U (fichero)'),
+                    ),
+                  ],
+                  selected: {_type},
+                  onSelectionChanged: (s) => setState(() => _type = s.first),
+                ),
+                if (_sourceError case final error?) _SourceError(error),
+                TextFormField(
+                  controller: _name,
+                  decoration: const InputDecoration(labelText: 'Nombre'),
+                  validator: _required,
+                ),
+                if (isXtream) ...[
                   TextFormField(
-                    controller: _name,
-                    decoration: const InputDecoration(labelText: 'Nombre'),
+                    decoration: const InputDecoration(
+                      labelText: 'Pegar enlace del proveedor (opcional)',
+                      helperText: 'Rellena servidor, usuario y contraseña',
+                    ),
+                    onChanged: _applyLink,
+                  ),
+                  TextFormField(
+                    controller: _server,
+                    decoration: const InputDecoration(labelText: 'Servidor'),
                     validator: _required,
                   ),
-                  if (isXtream) ...[
-                    TextFormField(
-                      decoration: const InputDecoration(
-                        labelText: 'Pegar enlace del proveedor (opcional)',
-                        helperText: 'Rellena servidor, usuario y contraseña',
+                  TextFormField(
+                    controller: _username,
+                    decoration: const InputDecoration(labelText: 'Usuario'),
+                    validator: _required,
+                  ),
+                  TextFormField(
+                    controller: _password,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: 'Contraseña',
+                      helperText: _editing
+                          ? 'Vacía para mantener la actual'
+                          : null,
+                    ),
+                    validator: _editing ? null : _required,
+                  ),
+                  Column(
+                    spacing: 8,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Directo en',
+                        style: Theme.of(context).textTheme.labelLarge,
                       ),
-                      onChanged: _applyLink,
-                    ),
-                    TextFormField(
-                      controller: _server,
-                      decoration: const InputDecoration(labelText: 'Servidor'),
-                      validator: _required,
-                    ),
-                    TextFormField(
-                      controller: _username,
-                      decoration: const InputDecoration(labelText: 'Usuario'),
-                      validator: _required,
-                    ),
-                    TextFormField(
-                      controller: _password,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        labelText: 'Contraseña',
-                        helperText: _editing
-                            ? 'Vacía para mantener la actual'
-                            : null,
-                      ),
-                      validator: _editing ? null : _required,
-                    ),
-                    Column(
-                      spacing: 8,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Directo en',
-                          style: Theme.of(context).textTheme.labelLarge,
-                        ),
-                        SegmentedButton<LiveFormat>(
-                          segments: const [
-                            ButtonSegment(
-                              value: LiveFormat.ts,
-                              label: Text('TS'),
-                            ),
-                            ButtonSegment(
-                              value: LiveFormat.m3u8,
-                              label: Text('HLS'),
-                            ),
-                          ],
-                          selected: {_liveFormat},
-                          onSelectionChanged: (s) =>
-                              setState(() => _liveFormat = s.first),
-                        ),
-                      ],
-                    ),
-                  ] else if (_type == PlaylistType.m3uUrl)
-                    TextFormField(
-                      controller: _source,
-                      decoration: const InputDecoration(
-                        labelText: 'URL de la lista',
-                      ),
-                      validator: _required,
-                    )
-                  else
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: _source,
-                            readOnly: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Fichero',
-                            ),
-                            validator: _required,
+                      SegmentedButton<LiveFormat>(
+                        segments: const [
+                          ButtonSegment(
+                            value: LiveFormat.ts,
+                            label: Text('TS'),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        OutlinedButton(
-                          onPressed: _pickFile,
-                          child: const Text('Elegir…'),
-                        ),
-                      ],
-                    ),
+                          ButtonSegment(
+                            value: LiveFormat.m3u8,
+                            label: Text('HLS'),
+                          ),
+                        ],
+                        selected: {_liveFormat},
+                        onSelectionChanged: (s) =>
+                            setState(() => _liveFormat = s.first),
+                      ),
+                    ],
+                  ),
+                ] else if (_type == PlaylistType.m3uUrl)
                   TextFormField(
-                    controller: _userAgent,
+                    controller: _source,
                     decoration: const InputDecoration(
-                      labelText: 'User-Agent (opcional)',
+                      labelText: 'URL de la lista',
                     ),
+                    validator: _required,
+                  )
+                else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _source,
+                          readOnly: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Fichero',
+                          ),
+                          validator: _required,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton(
+                        onPressed: _pickFile,
+                        child: const Text('Elegir…'),
+                      ),
+                    ],
                   ),
-                  TextFormField(
-                    controller: _epgUrl,
-                    decoration: const InputDecoration(
-                      labelText: 'URL de la guía (opcional)',
-                      helperText: 'Si se deja vacía se usa la del proveedor',
-                    ),
+                TextFormField(
+                  controller: _userAgent,
+                  decoration: const InputDecoration(
+                    labelText: 'User-Agent (opcional)',
                   ),
-                  Text(
-                    'Ghostlime no proporciona contenido. Añade solo listas que '
-                    'tengas derecho a usar.',
-                    style: Theme.of(context).textTheme.bodySmall,
+                ),
+                TextFormField(
+                  controller: _epgUrl,
+                  decoration: const InputDecoration(
+                    labelText: 'URL de la guía (opcional)',
+                    helperText: 'Si se deja vacía se usa la del proveedor',
                   ),
-                ],
-              ),
+                ),
+                Text(
+                  'Ghostlime no proporciona contenido. Añade solo listas que '
+                  'tengas derecho a usar.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
             ),
           ),
         ),
       ),
+    );
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_editing ? 'Editar lista' : 'Añadir lista'),
+        actions: bottomActions
+            ? null
+            : [
+                FilledButton(onPressed: onSave, child: Text(saveLabel)),
+                const SizedBox(width: 12),
+              ],
+      ),
+      body: bottomActions
+          ? Column(
+              children: [
+                Expanded(child: form),
+                BottomActionBar(
+                  onCancel: () => Navigator.of(context).maybePop(),
+                  onSave: onSave,
+                  saveLabel: saveLabel,
+                ),
+              ],
+            )
+          : form,
     );
   }
 }
