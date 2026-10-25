@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'form_factor.dart';
+
 /// One chip of [CategoryChips].
 typedef ChipItem = ({String id, String label, IconData? icon});
 
@@ -27,7 +29,9 @@ class CategoryChips extends StatelessWidget {
         children: [
           Expanded(
             child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
+              padding: EdgeInsets.symmetric(
+                horizontal: usesPhoneLayout(context) ? phonePageMargin : 32,
+              ),
               scrollDirection: Axis.horizontal,
               itemCount: items.length,
               separatorBuilder: (_, _) => const SizedBox(width: 8),

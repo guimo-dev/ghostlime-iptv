@@ -18,6 +18,7 @@ import '../ui/backdrop.dart';
 import '../ui/category_chips.dart';
 import '../ui/display_title.dart';
 import '../ui/focus_card.dart';
+import '../ui/form_factor.dart';
 import '../vod/movie_detail_screen.dart';
 import '../vod/series_detail_screen.dart';
 import 'catalog_actions.dart';
@@ -337,28 +338,36 @@ class _BrowseScreenState extends State<BrowseScreen> {
       );
     }
     final items = _visibleItems(settings);
+    final phone = usesPhoneLayout(context);
+    final side = phone ? phonePageMargin : 32.0;
+    final filter = TextField(
+      decoration: const InputDecoration(
+        prefixIcon: Icon(Icons.search, size: 20),
+        hintText: 'Filtrar',
+      ),
+      onChanged: (value) => setState(() => _filter = value),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(32, 28, 32, 12),
+          padding: EdgeInsets.fromLTRB(side, phone ? 12 : 28, side, 12),
           child: Row(
             children: [
               Text(
                 _titles[_kind]!,
-                style: Theme.of(context).textTheme.displaySmall,
+                style: phone
+                    ? Theme.of(context).textTheme.headlineSmall
+                    : Theme.of(context).textTheme.displaySmall,
               ),
-              const Spacer(),
-              SizedBox(
-                width: 280,
-                child: TextField(
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.search, size: 20),
-                    hintText: 'Filtrar',
-                  ),
-                  onChanged: (value) => setState(() => _filter = value),
-                ),
-              ),
+              // On phones the filter takes the rest of the row.
+              if (phone) ...[
+                const SizedBox(width: 12),
+                Expanded(child: filter),
+              ] else ...[
+                const Spacer(),
+                SizedBox(width: 280, child: filter),
+              ],
             ],
           ),
         ),
@@ -401,7 +410,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
                   ),
                 )
               : GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(32, 12, 32, 32),
+                  padding: EdgeInsets.fromLTRB(side, 12, side, 32),
                   gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                     maxCrossAxisExtent: _posterExtent(settings.posterSize),
                     childAspectRatio: 0.54,
