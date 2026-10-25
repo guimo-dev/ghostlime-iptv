@@ -56,6 +56,14 @@ void main() {
     expect(m3u.liveFormat, LiveFormat.ts);
   });
 
+  test('a new playlist gets its own id after other changes to sync', () {
+    // A settings change leaves a sync_state row first, as when the accent
+    // colour is changed before adding the first playlist.
+    db.saveSettings(const {'posterSize': 'large'});
+    final id = db.savePlaylist(_xtream);
+    expect(db.playlists().single.id, id);
+  });
+
   test('saving with an id updates instead of duplicating', () {
     final id = db.savePlaylist(_xtream);
     db.savePlaylist(_xtream.copyWith(id: id, name: 'Renamed'));

@@ -214,8 +214,10 @@ class CatalogDb {
         'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [...values, playlist.refreshedAt?.millisecondsSinceEpoch, syncId],
       );
+      // Read before markDirty, whose own insert would replace it.
+      final newId = _db.lastInsertRowId;
       markDirty(playlistKind, syncId);
-      return _db.lastInsertRowId;
+      return newId;
     }
     _db.execute(
       'UPDATE playlists SET name = ?, type = ?, server_url = ?, username = ?, '
