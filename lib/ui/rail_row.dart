@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'form_factor.dart';
+
 /// A titled horizontal carousel, as used on the home screen.
 class RailRow extends StatelessWidget {
   const RailRow({
@@ -17,17 +19,18 @@ class RailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final side = usesPhoneLayout(context) ? phonePageMargin : 40.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(40, 24, 40, 12),
+          padding: EdgeInsets.fromLTRB(side, 24, side, 12),
           child: Text(title, style: Theme.of(context).textTheme.titleLarge),
         ),
         SizedBox(
           height: height,
           child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 8),
+            padding: EdgeInsets.symmetric(horizontal: side, vertical: 8),
             scrollDirection: Axis.horizontal,
             itemCount: children.length,
             separatorBuilder: (_, _) => const SizedBox(width: 18),

@@ -21,6 +21,7 @@ import '../ui/backdrop.dart';
 import '../ui/content_width.dart';
 import '../ui/display_title.dart';
 import '../ui/focus_card.dart';
+import '../ui/form_factor.dart';
 import '../ui/ghostlime_logo.dart';
 import '../ui/rail_row.dart';
 import '../vod/movie_detail_screen.dart';
@@ -251,7 +252,14 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(32, 20, 32, 12),
+            padding: usesPhoneLayout(context)
+                ? const EdgeInsets.fromLTRB(
+                    phonePageMargin,
+                    12,
+                    phonePageMargin,
+                    8,
+                  )
+                : const EdgeInsets.fromLTRB(32, 20, 32, 12),
             child: ContentWidth(
               child: TextField(
                 controller: _searchController,
@@ -432,12 +440,15 @@ class _Hero extends StatelessWidget {
     final progress = this.progress;
     final height = heroHeightFor(MediaQuery.sizeOf(context).height);
     final compact = height < 380;
+    // Phones have no room for the poster beside the text.
+    final phone = usesPhoneLayout(context);
+    final side = phone ? phonePageMargin : 40.0;
     return SizedBox(
       height: height,
       child: Backdrop(
         imageUrl: imageUrl,
         child: Padding(
-          padding: EdgeInsets.fromLTRB(40, compact ? 24 : 40, 40, 32),
+          padding: EdgeInsets.fromLTRB(side, compact ? 24 : 40, side, 32),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -497,17 +508,19 @@ class _Hero extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 40),
-              SizedBox(
-                width: 190,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: AppStyle.cardShadow,
+              if (!phone) ...[
+                const SizedBox(width: 40),
+                SizedBox(
+                  width: 190,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: AppStyle.cardShadow,
+                    ),
+                    child: Poster(url: imageUrl, cacheWidth: 380, radius: 12),
                   ),
-                  child: Poster(url: imageUrl, cacheWidth: 380, radius: 12),
                 ),
-              ),
+              ],
             ],
           ),
         ),

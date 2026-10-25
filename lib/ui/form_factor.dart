@@ -1,8 +1,8 @@
 import 'dart:math' as math;
-import 'dart:ui';
 
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
+import 'package:flutter/widgets.dart';
 
 /// Device class by the shortest side, in any orientation.
 enum FormFactor { phone, tablet }
@@ -29,3 +29,11 @@ bool usesDesktopLayout(Size size) =>
 bool get isTouchPlatform =>
     defaultTargetPlatform == TargetPlatform.android ||
     defaultTargetPlatform == TargetPlatform.iOS;
+
+/// Side margin of pages in the phone layout.
+const phonePageMargin = 16.0;
+
+/// Whether the screen around [context] uses the phone layout (bottom bar):
+/// phones in any orientation and portrait tablets.
+bool usesPhoneLayout(BuildContext context) =>
+    !usesDesktopLayout(MediaQuery.sizeOf(context));
