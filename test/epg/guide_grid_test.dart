@@ -6,6 +6,7 @@ import 'package:iptv_player/epg/guide_grid.dart';
 import 'package:iptv_player/epg/programme.dart';
 import 'package:iptv_player/playlists/playlist.dart';
 import 'package:iptv_player/ui/app_theme.dart';
+import 'package:iptv_player/ui/marquee_text.dart';
 
 const _withGuide = Channel(
   key: 'a',
@@ -80,11 +81,19 @@ void main() {
     expect(name.maxLines, 1);
     expect(name.softWrap, isFalse);
     expect(name.overflow, TextOverflow.ellipsis);
+    expect(
+      find.ancestor(
+        of: find.text('Uno · 1'),
+        matching: find.byType(MarqueeText),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('wide grid lets channel names take two lines', (tester) async {
     await pumpGrid(tester);
     expect(tester.widget<Text>(find.text('Uno · 1')).maxLines, 2);
+    expect(find.byType(MarqueeText), findsNothing);
   });
 
   testWidgets('shows the given channels with their display names', (

@@ -6,6 +6,7 @@ import '../catalog/catalog_db.dart';
 import '../catalog/catalog_models.dart';
 import '../ui/brand_state.dart';
 import '../ui/focus_card.dart';
+import '../ui/marquee_text.dart';
 import 'programme.dart';
 
 /// Width of the visible time window and how far the arrows move it.
@@ -300,7 +301,8 @@ class _GuideRow extends StatelessWidget {
   final double channelColumnWidth;
 
   /// Narrow grid: the channel name stays on one line in a smaller font, since
-  /// the column is too narrow to wrap names between words.
+  /// the column is too narrow to wrap names between words; a name that does
+  /// not fit scrolls sideways now and then ([MarqueeText]).
   final bool compact;
 
   /// The current time (UTC), where the "now" marker goes.
@@ -330,11 +332,8 @@ class _GuideRow extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: compact
-                        ? Text(
+                        ? MarqueeText(
                             name,
-                            maxLines: 1,
-                            softWrap: false,
-                            overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.bodySmall,
                           )
                         : Text(

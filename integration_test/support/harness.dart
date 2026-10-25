@@ -10,6 +10,7 @@ import 'package:iptv_player/settings/memory_pin_store.dart';
 import 'package:iptv_player/settings/settings_controller.dart';
 import 'package:iptv_player/sync/account_service.dart';
 import 'package:iptv_player/sync/sync_backend.dart';
+import 'package:iptv_player/ui/marquee_text.dart';
 import 'package:media_kit/media_kit.dart' show MediaKit;
 
 import '../../test/sync/fake_account.dart';
@@ -94,6 +95,9 @@ class AppHarness {
     tester.view.viewPadding = FakeViewPadding.zero;
     tester.view.viewInsets = FakeViewPadding.zero;
     EditableText.debugDeterministicCursor = true;
+    // Channel names in the phone guide would scroll forever: settle and
+    // pumpAndSettle would never end and captures would catch them mid-way.
+    MarqueeText.enabled = false;
     final dir = await Directory.systemTemp.createTemp('ghostlime_visual_');
     CatalogDb? db;
     DemoServer? server;
@@ -149,7 +153,7 @@ class AppHarness {
   }
 
   /// Unmounts the app (disposing its players), stops the server, closes the
-  /// catalog, deletes the data directory and restores the window and caret.
+  /// catalog, deletes the data directory and restores the window, caret and marquee.
   Future<void> close() async {
     await _tester.pumpWidget(const SizedBox.shrink());
     account?.dispose();
@@ -173,6 +177,7 @@ class AppHarness {
     tester.view.resetViewPadding();
     tester.view.resetViewInsets();
     EditableText.debugDeterministicCursor = false;
+    MarqueeText.enabled = true;
   }
 }
 
