@@ -17,6 +17,7 @@ import '../player/mpv_options.dart';
 import '../player/play_target.dart';
 import '../player/playback_log.dart';
 import '../player/resume.dart';
+import '../player/tv_live_controls.dart';
 import '../playlists/password_store.dart';
 import '../playlists/playlist.dart';
 import '../settings/app_settings.dart';
@@ -89,7 +90,7 @@ class LiveTvScreen extends StatefulWidget {
   State<LiveTvScreen> createState() => _LiveTvScreenState();
 }
 
-class _LiveTvScreenState extends State<LiveTvScreen> {
+class _LiveTvScreenState extends State<LiveTvScreen> implements TvLiveSource {
   late final int _playlistId = widget.playlist.id!;
   late final Future<String?> _password =
       widget.playlist.type == PlaylistType.xtream
@@ -299,18 +300,21 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
   void _loadChannels() {
     final id = _groupId;
     _favorites = _db.favoriteKeys(_playlistId, _kind);
-    _channels = switch (id) {
-      null => const [],
-      _favoritesId => _db.favoriteChannels(_playlistId, _kind),
-      _recentsId => _db.recentChannels(_playlistId, _kind),
-      _ => sortChannels(
-        _db.channels(_playlistId, id),
-        _db.channelSort(_playlistId, _kind, id),
-        _favorites,
-      ),
-    };
+    _channels = id == null ? const [] : _groupChannels(id);
     _loadGuide();
   }
+
+  /// The channels of group [id] in their order (favorites and recents
+  /// included), before any filter.
+  List<Channel> _groupChannels(String id) => switch (id) {
+    _favoritesId => _db.favoriteChannels(_playlistId, _kind),
+    _recentsId => _db.recentChannels(_playlistId, _kind),
+    _ => sortChannels(
+      _db.channels(_playlistId, id),
+      _db.channelSort(_playlistId, _kind, id),
+      _favorites,
+    ),
+  };
 
   void _loadGuide() {
     final now = widget.clock().toUtc();
@@ -432,6 +436,7 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
       subtitle: _guide[channel.epgId]?.$1?.title,
       shared: _playback,
       onChannelStep: _stepChannel,
+      tvLive: this,
       // Turned upright while it was opening: stay on the list.
       onRoute: (route) {
         if (!mounted || _leaveFullScreen) return false;
@@ -460,12 +465,9 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
   /// swipes end with only the last channel open; [_fullScreen] records it
   /// in recents when the player closes.
   ({String title, String? subtitle})? _stepChannel(int step) {
-    if (!mounted) return null;
-    final settings = SettingsScope.read(context).value;
-    final channels = _visibleChannels(
-      settings,
-      filtered: usesDesktopLayout(MediaQuery.sizeOf(context)),
-    );
+    final groupId = _groupId;
+    if (!mounted || groupId == null) return null;
+    final channels = channelsOf(groupId);
     if (channels.isEmpty) return null;
     final current = channels.indexWhere((c) => c.key == _selected?.key);
     // A channel no longer in the list steps from just outside its ends.
@@ -479,6 +481,65 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
     final target = PlayTarget.fromChannel(channel);
     _playback.play(target);
     return (title: target.title, subtitle: _guide[channel.epgId]?.$1?.title);
+  }
+
+  @override
+  Channel? get currentChannel => _selected;
+
+  @override
+  String? get currentGroupId => _groupId;
+
+  @override
+  List<(String, String)> get groupChoices =>
+      _groupChoices(SettingsScope.read(context).value);
+
+  /// The group shown is as the full player zaps through it (filter box
+  /// included where there is one); another group only drops what the
+  /// settings hide.
+  @override
+  List<Channel> channelsOf(String groupId) {
+    final settings = SettingsScope.read(context).value;
+    if (groupId == _groupId) {
+      return _visibleChannels(
+        settings,
+        filtered: usesDesktopLayout(MediaQuery.sizeOf(context)),
+      );
+    }
+    final hidden = _hiddenCategoryIds(settings);
+    return [
+      for (final c in _groupChannels(groupId))
+        if (!hidden.contains(c.categoryId)) c,
+    ];
+  }
+
+  @override
+  String channelName(Channel channel) =>
+      _namesByKey()[channel.key] ?? channel.name;
+
+  @override
+  Map<String, (Programme?, Programme?)> guideOf(List<Channel> channels) =>
+      _db.nowNext(_playlistId, {
+        for (final c in channels)
+          if (c.epgId != null) c.epgId!,
+      }, widget.clock().toUtc());
+
+  @override
+  DateTime now() => widget.clock();
+
+  /// Zaps the full player to [channel], showing group [groupId] in Directo
+  /// from now on; [LivePlayback.play] keeps a single stream.
+  @override
+  void playChannel(Channel channel, String groupId) {
+    if (!mounted) return;
+    setState(() {
+      if (groupId != _groupId) {
+        _groupId = groupId;
+        _loadChannels();
+      }
+      _selected = channel;
+      _loadGuide();
+    });
+    _playback.play(PlayTarget.fromChannel(channel));
   }
 
   void _toggleFavorite(Channel channel) {

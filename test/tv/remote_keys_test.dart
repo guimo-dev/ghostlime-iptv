@@ -4,9 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:iptv_player/catalog/catalog_db.dart';
 import 'package:iptv_player/home/home_screen.dart';
 import 'package:iptv_player/legal/legal_info.dart';
-import 'package:iptv_player/live/live_tv_screen.dart';
 import 'package:iptv_player/main.dart';
-import 'package:iptv_player/player/player_screen.dart';
 import 'package:iptv_player/playlists/memory_password_store.dart';
 import 'package:iptv_player/playlists/playlists_screen.dart';
 import 'package:iptv_player/settings/memory_pin_store.dart';
@@ -16,7 +14,6 @@ import 'package:iptv_player/tv/exit_dialog.dart';
 import 'package:iptv_player/tv/remote_keys.dart';
 import 'package:iptv_player/ui/tv_device.dart';
 
-import '../player/fake_player.dart';
 import 'tv_harness.dart';
 
 const _exitTitle = '¿Salir de Ghostlime?';
@@ -166,25 +163,18 @@ void main() {
     }
   });
 
-  testWidgets('remote keys reach the live full screen as intents', (
+  // The live player's own handling of them is in tv_live_controls_test.
+  testWidgets('remote keys reach the focused screen as intents', (
     tester,
   ) async {
     useTvView(tester);
     final steps = <int>[];
     final digits = <int>[];
     final other = <Intent>[];
-    final player = FakePlayer();
     await pumpTvApp(
       tester,
       demo.db,
-      Scaffold(
-        body: LiveTvScreen(
-          db: demo.db,
-          playlist: demo.playlist,
-          passwords: MemoryPasswordStore(),
-          createPlayer: (_) => (player, FakeVideoController(player)),
-        ),
-      ),
+      const Scaffold(body: Focus(autofocus: true, child: SizedBox.expand())),
       actions: {
         ChannelStepIntent: CallbackAction<ChannelStepIntent>(
           onInvoke: (intent) => steps.add(intent.step),
@@ -199,15 +189,6 @@ void main() {
         ),
       },
     );
-    final row = find.byType(ChannelRow).first;
-    await tester.tap(row);
-    await tester.pump();
-    await tester.tap(row);
-    for (var i = 0; i < 5; i++) {
-      await tester.pump(const Duration(milliseconds: 200));
-    }
-    expect(find.byType(PlayerScreen), findsOneWidget);
-
     await tester.sendKeyEvent(LogicalKeyboardKey.channelUp);
     await tester.sendKeyEvent(LogicalKeyboardKey.channelDown);
     await tester.sendKeyEvent(LogicalKeyboardKey.digit4);

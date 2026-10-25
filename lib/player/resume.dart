@@ -10,6 +10,7 @@ import 'live_playback.dart';
 import 'play_target.dart';
 import 'player_screen.dart';
 import 'stream_url.dart';
+import 'tv_live_controls.dart';
 
 /// Formats [d] as `h:mm:ss` or `m:ss`.
 String formatDuration(Duration d) {
@@ -31,7 +32,8 @@ String formatDuration(Duration d) {
 /// is already playing [target], instead of opening the stream again.
 ///
 /// [onChannelStep] lets the full-screen player zap a [shared] live
-/// playback to the neighbouring channels.
+/// playback to the neighbouring channels, and [tvLive] gives the TV
+/// remote controls Directo's channels.
 ///
 /// [onRoute] gets the player route just before it is pushed; returning
 /// `false` cancels it (Directo skips it when the phone turned upright).
@@ -46,6 +48,7 @@ Future<void> playWithResume(
   PlayTarget? Function(PlayTarget current)? nextOf,
   LivePlayback? shared,
   ChannelStep? onChannelStep,
+  TvLiveSource? tvLive,
   bool Function(Route<void> route)? onRoute,
 }) async {
   final navigator = Navigator.of(context);
@@ -61,6 +64,7 @@ Future<void> playWithResume(
     nextOf: nextOf,
     shared: shared,
     onChannelStep: onChannelStep,
+    tvLive: tvLive,
   );
   if (route == null || !(onRoute?.call(route) ?? true)) return;
   await navigator.push(route);
@@ -80,6 +84,7 @@ Future<MaterialPageRoute<void>?> _playerRoute(
   PlayTarget? Function(PlayTarget current)? nextOf,
   LivePlayback? shared,
   ChannelStep? onChannelStep,
+  TvLiveSource? tvLive,
 }) async {
   final playlistId = playlist.id!;
   final password = playlist.type == PlaylistType.xtream
@@ -118,6 +123,7 @@ Future<MaterialPageRoute<void>?> _playerRoute(
     builder: (_) => PlayerScreen(
       shared: shared,
       onChannelStep: onChannelStep,
+      tvLive: tvLive,
       url: url,
       title: target.title,
       subtitle: subtitle,

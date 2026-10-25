@@ -8,11 +8,13 @@ import '../settings/app_settings.dart';
 import '../settings/settings_scope.dart';
 import '../ui/app_theme.dart';
 import '../ui/brand_state.dart';
+import '../ui/tv_device.dart';
 import 'live_playback.dart';
 import 'mobile_gestures.dart';
 import 'mpv_options.dart';
 import 'playback_log.dart';
 import 'stream_info.dart';
+import 'tv_live_controls.dart';
 
 /// How often playback progress is reported while playing.
 const progressInterval = Duration(seconds: 10);
@@ -53,6 +55,7 @@ class PlayerScreen extends StatefulWidget {
     this.onNext,
     this.nextTitle,
     this.onChannelStep,
+    this.tvLive,
     this.startTimeout = streamStartTimeout,
     this.createPlayer,
   });
@@ -92,6 +95,10 @@ class PlayerScreen extends StatefulWidget {
   /// Zaps the [shared] live playback to a neighbouring channel; on phones
   /// and tablets a vertical swipe calls it.
   final ChannelStep? onChannelStep;
+
+  /// Directo's channels for the remote controls of a live stream on a TV
+  /// (the list, the groups and the channel numbers).
+  final TvLiveSource? tvLive;
 
   /// How long the stream may take to start before an error replaces the
   /// loading spinner (shorter in tests).
@@ -298,6 +305,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   void _toggleInfo() => setState(() => _showInfo = !_showInfo);
 
+  /// A live stream on a TV: no media_kit controls nor app bar, the remote
+  /// drives [TvLiveControls] instead.
+  bool get _tvLive => isTvDevice && widget.isLive;
+
   /// Handles `I` (toggle info) and `Esc` (go back).
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
@@ -331,33 +342,36 @@ class _PlayerScreenState extends State<PlayerScreen> {
         }
       },
       child: Focus(
-        autofocus: true,
+        // On a TV the live controls take the focus.
+        autofocus: !_tvLive,
         onKeyEvent: _onKey,
         child: Scaffold(
           backgroundColor: Colors.black,
           extendBodyBehindAppBar: true,
-          appBar: AppBar(
-            backgroundColor: Colors.black.withValues(alpha: 0.55),
-            title: _subtitle == null
-                ? Text(_title)
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(_title),
-                      Text(
-                        _subtitle!,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-            actions: [
-              IconButton(
-                tooltip: 'Info del stream (I)',
-                icon: Icon(_showInfo ? Icons.info : Icons.info_outline),
-                onPressed: _toggleInfo,
-              ),
-            ],
-          ),
+          appBar: _tvLive
+              ? null
+              : AppBar(
+                  backgroundColor: Colors.black.withValues(alpha: 0.55),
+                  title: _subtitle == null
+                      ? Text(_title)
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(_title),
+                            Text(
+                              _subtitle!,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                  actions: [
+                    IconButton(
+                      tooltip: 'Info del stream (I)',
+                      icon: Icon(_showInfo ? Icons.info : Icons.info_outline),
+                      onPressed: _toggleInfo,
+                    ),
+                  ],
+                ),
           body: Stack(
             children: [
               MaterialDesktopVideoControlsTheme(
@@ -380,6 +394,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       key: ObjectKey(_playback.controller),
                       controller: _playback.controller,
                       fit: BoxFit.contain,
+                      controls: _tvLive
+                          ? NoVideoControls
+                          : AdaptiveVideoControls,
                     ),
                   ),
                 ),
@@ -421,6 +438,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     seconds: _secondsToNext!,
                     onWatchNow: _goNext,
                     onCancel: _cancelCountdown,
+                  ),
+                ),
+              // Last, so the list and options cover the messages above.
+              if (_tvLive)
+                Positioned.fill(
+                  child: TvLiveControls(
+                    playback: _playback,
+                    title: _title,
+                    subtitle: _subtitle,
+                    source: widget.tvLive,
+                    onChannelStep: widget.onChannelStep,
                   ),
                 ),
             ],
