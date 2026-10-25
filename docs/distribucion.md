@@ -8,7 +8,10 @@ puede hacer por él: crear cuentas, pagar, firmar con sus claves).
 - El código vive en GitHub. Cada etiqueta `vX.Y.Z` lanza `.github/workflows/release.yml`,
   que pasa los tests y genera:
   - **Windows**: instalador `Ghostlime-IPTV-X.Y.Z-windows-setup.exe` (Inno Setup).
-  - **Android**: `.apk` (instalar directamente) y `.aab` (para Google Play).
+  - **Android**: tres `.apk` (instalar directamente: `-android-arm64.apk`,
+    `-android-armv7.apk` y el universal `-android.apk`) y `.aab` (para Google Play).
+  - **iOS**: solo se comprueba que compila (`flutter build ios --no-codesign` en un runner
+    macOS); no se firma ni se publica nada. Un fallo de ese job bloquea la publicación.
   - **Linux**: `.tar.gz` con el ejecutable y sus librerías.
 - Todo se adjunta a una **Release de GitHub**: la página de descargas.
 - La sincronización usa **Supabase** (gratuito); sin sus claves la app funciona igual,
@@ -165,6 +168,19 @@ storePassword=…
 keyAlias=iptv
 keyPassword=…
 ```
+
+### Qué APK elegir
+
+Los tres son la misma app y la misma firma, así que se pueden actualizar entre sí:
+
+- `-android-arm64.apk`: móviles, tablets y TV recientes (la gran mayoría, 64 bits).
+- `-android-armv7.apk`: aparatos antiguos de 32 bits.
+- `-android.apk` (universal): si no se sabe cuál, es el que funciona siempre (pesa algo más).
+
+Instalar en una Android TV o Fire TV con **Downloader**: abrir la app, escribir la dirección
+de la página de descargas, <https://github.com/guimo-dev/ghostlime-iptv/releases>, elegir
+el APK de la última versión y aceptar la instalación de orígenes desconocidos cuando la
+pida el sistema.
 
 ### libmpv de Android (error 406 al compilar)
 

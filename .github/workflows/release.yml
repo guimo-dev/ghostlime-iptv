@@ -130,14 +130,18 @@ jobs:
             curl -fsSL --retry 3 -o "$dest" "$url"
             echo "$md5  $dest" | md5sum -c -
           done <<< "$jars"
-      - name: Build APK and App Bundle
+      - name: Build APKs and App Bundle
         if: env.HAS_KEYSTORE == 'true'
         run: |
           flutter build apk --release "--dart-define=SUPABASE_URL=$SUPABASE_URL" "--dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
+          flutter build apk --release --split-per-abi "--dart-define=SUPABASE_URL=$SUPABASE_URL" "--dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
           flutter build appbundle --release "--dart-define=SUPABASE_URL=$SUPABASE_URL" "--dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then VERSION="${GITHUB_REF_NAME#v}"; else VERSION="0.0.0-dev"; fi
           mkdir -p dist
           cp build/app/outputs/flutter-apk/app-release.apk "dist/Ghostlime-IPTV-$VERSION-android.apk"
+          # arm64 for modern phones and TVs, armv7 for old ones; x86_64 is not published.
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "dist/Ghostlime-IPTV-$VERSION-android-arm64.apk"
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk "dist/Ghostlime-IPTV-$VERSION-android-armv7.apk"
           cp build/app/outputs/bundle/release/app-release.aab "dist/Ghostlime-IPTV-$VERSION-android.aab"
       - uses: actions/upload-artifact@v4
         if: env.HAS_KEYSTORE == 'true'
@@ -173,8 +177,27 @@ jobs:
           name: linux
           path: dist/*
 
+  # Only checks that the iOS app compiles (Swift in ios/Runner never ran before CI).
+  # Nothing is signed or published; a broken build blocks the release.
+  ios:
+    needs: test
+    runs-on: macos-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build (unsigned)
+        run: flutter build ios --release --no-codesign "--dart-define=SUPABASE_URL=$SUPABASE_URL" "--dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
+
   publish:
-    needs: [windows, android, linux]
+    needs: [windows, android, linux, ios]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:

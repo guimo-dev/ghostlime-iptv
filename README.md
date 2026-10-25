@@ -35,8 +35,13 @@ Releases are published on
 |---|---|
 | Windows 10/11 (x64), installer | `Ghostlime-IPTV-X.Y.Z-windows-setup.exe` |
 | Windows 10/11 (x64), portable | `Ghostlime-IPTV-X.Y.Z-windows-portable.zip` |
-| Android *(in progress)* | `Ghostlime-IPTV-X.Y.Z-android.apk` |
+| Android (64-bit phones, tablets and TVs) | `Ghostlime-IPTV-X.Y.Z-android-arm64.apk` |
+| Android (old 32-bit devices) | `Ghostlime-IPTV-X.Y.Z-android-armv7.apk` |
+| Android (universal, if unsure) | `Ghostlime-IPTV-X.Y.Z-android.apk` |
 | Linux x64 *(in progress)* | `Ghostlime-IPTV-X.Y.Z-linux-x64.tar.gz` |
+
+On an Android TV you can install an APK with the Downloader app by entering the
+[Releases](https://github.com/guimo-dev/ghostlime-iptv/releases) page address.
 
 The portable version needs no installation: unzip it and run `iptv_player.exe`. It needs
 the [Visual C++ runtime](https://aka.ms/vs/17/release/vc_redist.x64.exe) (almost every
