@@ -274,10 +274,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         body: LayoutBuilder(
           builder: (context, constraints) => ListView(
-            padding: ContentWidth.paddingFor(
-              constraints.maxWidth,
-              const EdgeInsets.fromLTRB(48, 8, 48, 48),
-            ),
+            // Phones: full width with narrow margins.
+            padding: usesPhoneLayout(context)
+                ? const EdgeInsets.fromLTRB(
+                    phonePageMargin,
+                    8,
+                    phonePageMargin,
+                    32,
+                  )
+                : ContentWidth.paddingFor(
+                    constraints.maxWidth,
+                    const EdgeInsets.fromLTRB(48, 8, 48, 48),
+                  ),
             children: [
               _AccountSection(db: widget.db),
               _Section(
@@ -614,7 +622,12 @@ class _Section extends StatelessWidget {
             children: [
               Icon(icon, color: AppColors.accent, size: 20),
               const SizedBox(width: 10),
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
+              Flexible(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -641,38 +654,57 @@ class _Section extends StatelessWidget {
 }
 
 /// A setting row: title, optional explanation and a control on the right.
+/// On phones a control that is not [narrowTrailing] goes below the text.
 class _Row extends StatelessWidget {
-  const _Row({required this.title, this.subtitle, this.trailing});
+  const _Row({
+    required this.title,
+    this.subtitle,
+    this.trailing,
+    this.narrowTrailing = false,
+  });
 
   final String title;
   final String? subtitle;
   final Widget? trailing;
 
+  /// Whether [trailing] is small enough (a switch) to stay beside the text.
+  final bool narrowTrailing;
+
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
+    final label = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: text.titleSmall),
+        if (subtitle != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              subtitle!,
+              style: text.bodySmall?.copyWith(color: AppColors.textMuted),
+            ),
+          ),
+      ],
+    );
+    if (trailing != null && !narrowTrailing && usesPhoneLayout(context)) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            label,
+            const SizedBox(height: 8),
+            Align(alignment: Alignment.centerLeft, child: trailing),
+          ],
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       child: Row(
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: text.titleSmall),
-                if (subtitle != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      subtitle!,
-                      style: text.bodySmall?.copyWith(
-                        color: AppColors.textMuted,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+          Expanded(child: label),
           if (trailing != null) ...[
             const SizedBox(width: 24),
             Flexible(
@@ -705,6 +737,7 @@ class _SwitchRow extends StatelessWidget {
     title: title,
     subtitle: subtitle,
     trailing: Switch(value: value, onChanged: onChanged),
+    narrowTrailing: true,
   );
 }
 
@@ -722,9 +755,8 @@ class _ChoiceRow<T> extends StatelessWidget {
   final ValueChanged<T> onChanged;
 
   @override
-  Widget build(BuildContext context) => _Row(
-    title: title,
-    trailing: SegmentedButton<T>(
+  Widget build(BuildContext context) {
+    final segments = SegmentedButton<T>(
       showSelectedIcon: false,
       style: ButtonStyle(
         backgroundColor: WidgetStateProperty.resolveWith(
@@ -744,8 +776,18 @@ class _ChoiceRow<T> extends StatelessWidget {
       ],
       selected: {value},
       onSelectionChanged: (selection) => onChanged(selection.first),
-    ),
-  );
+    );
+    return _Row(
+      title: title,
+      // Phones: the segments scroll sideways when they do not fit.
+      trailing: usesPhoneLayout(context)
+          ? SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: segments,
+            )
+          : segments,
+    );
+  }
 }
 
 /// Integer slider. While dragging it shows the value locally and reports it
@@ -784,40 +826,48 @@ class _SliderRowState extends State<_SliderRow> {
   @override
   Widget build(BuildContext context) {
     final shown = _dragValue ?? widget.value;
+    final phone = usesPhoneLayout(context);
+    final slider = Slider(
+      value: shown.toDouble().clamp(
+        widget.min.toDouble(),
+        widget.max.toDouble(),
+      ),
+      min: widget.min.toDouble(),
+      max: widget.max.toDouble(),
+      divisions: widget.divisions ?? (widget.max - widget.min),
+      onChangeStart: (v) => _dragValue = v.round(),
+      onChanged: (v) {
+        if (_dragValue == null) return widget.onChanged(v.round());
+        setState(() => _dragValue = v.round());
+      },
+      onChangeEnd: (v) {
+        setState(() => _dragValue = null);
+        widget.onChanged(v.round());
+        widget.onChangeEnd?.call(v.round());
+      },
+    );
+    final label = SizedBox(
+      width: 72,
+      child: Text('$shown${widget.unit}', textAlign: TextAlign.right),
+    );
     return _Row(
       title: widget.title,
       subtitle: widget.subtitle,
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: 260,
-            child: Slider(
-              value: shown.toDouble().clamp(
-                widget.min.toDouble(),
-                widget.max.toDouble(),
-              ),
-              min: widget.min.toDouble(),
-              max: widget.max.toDouble(),
-              divisions: widget.divisions ?? (widget.max - widget.min),
-              onChangeStart: (v) => _dragValue = v.round(),
-              onChanged: (v) {
-                if (_dragValue == null) return widget.onChanged(v.round());
-                setState(() => _dragValue = v.round());
-              },
-              onChangeEnd: (v) {
-                setState(() => _dragValue = null);
-                widget.onChanged(v.round());
-                widget.onChangeEnd?.call(v.round());
-              },
+      // Phones: the slider takes the row's width below the text.
+      trailing: phone
+          ? Row(
+              children: [
+                Expanded(child: slider),
+                label,
+              ],
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(width: 260, child: slider),
+                label,
+              ],
             ),
-          ),
-          SizedBox(
-            width: 72,
-            child: Text('$shown${widget.unit}', textAlign: TextAlign.right),
-          ),
-        ],
-      ),
     );
   }
 }
