@@ -54,6 +54,7 @@ class PlayerScreen extends StatefulWidget {
     this.nextTitle,
     this.onChannelStep,
     this.startTimeout = streamStartTimeout,
+    this.createPlayer,
   });
 
   /// Playback owned by someone else (Directo); this screen neither opens
@@ -96,6 +97,10 @@ class PlayerScreen extends StatefulWidget {
   /// loading spinner (shorter in tests).
   final Duration startTimeout;
 
+  /// Creates the player of this screen's own playback; `null` uses
+  /// media_kit (tests pass a fake). Not used with [shared].
+  final PlayerFactory? createPlayer;
+
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
 }
@@ -109,6 +114,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         settings: () => _settings,
         log: _log,
         startTimeout: widget.startTimeout,
+        createPlayer: widget.createPlayer,
       );
 
   /// Whether this screen created [_playback] and must close it.
@@ -129,6 +135,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
   /// Seconds left before the next episode, or `null` when not counting down.
   int? _secondsToNext;
 
+  /// Handles the app going to the background and back.
+  late final AppLifecycleListener _lifecycle;
+
+  /// The app went to the background while this screen played its own
+  /// stream.
+  bool _wentToBackground = false;
+
   /// Title and subtitle shown; zapping changes them.
   late String _title = widget.title;
   late String? _subtitle = widget.subtitle;
@@ -145,6 +158,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
       );
     }
     _playback.addListener(_onPlaybackChanged);
+    _lifecycle = AppLifecycleListener(
+      onPause: _onAppPaused,
+      onResume: _onAppResumed,
+    );
     if (widget.onNext != null) {
       _completedSubscription = _playback.player.stream.completed.listen((
         completed,
@@ -161,6 +178,30 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _infoTimer = Timer.periodic(
       const Duration(seconds: 2),
       (_) => _refreshInfo(),
+    );
+  }
+
+  /// In the background media_kit pauses the video. A live stream of this
+  /// screen's own would stay frozen with its connection open: close it. A
+  /// shared one is Directo's to handle, and a video just stays paused.
+  void _onAppPaused() {
+    if (!_ownsPlayback || _stopped) return;
+    _wentToBackground = true;
+    if (widget.isLive) _playback.stop();
+  }
+
+  /// Back from the background: a live stream stopped there opens again, and
+  /// so does a video whose start timed out while away (paused, it could
+  /// never start). A paused video waits for the user.
+  void _onAppResumed() {
+    if (!_wentToBackground || _stopped) return;
+    _wentToBackground = false;
+    if (!widget.isLive && !_playback.startFailed) return;
+    _playback.openUrl(
+      widget.url,
+      isLive: widget.isLive,
+      userAgent: widget.userAgent,
+      start: widget.startPosition,
     );
   }
 
@@ -222,6 +263,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void dispose() {
     _stopForLeaving();
     _completedSubscription?.cancel();
+    _lifecycle.dispose();
     _playback.removeListener(_onPlaybackChanged);
     if (_ownsPlayback) _playback.dispose();
     super.dispose();

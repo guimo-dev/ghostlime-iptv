@@ -364,5 +364,166 @@ void main() {
       expect(player.calls.last, 'stop');
       await tester.pumpWidget(const SizedBox.shrink());
     });
+
+    testWidgets('the preview stops in the background and plays again on '
+        'return', (tester) async {
+      await pumpLive(tester);
+      await tapChannel(tester, 'Uno');
+
+      await toBackground(tester);
+      expect(player.current, isNull);
+
+      await toForeground(tester);
+      expect(player.opened, ['http://h/a.ts', 'http://h/a.ts']);
+      expect(player.current, 'http://h/a.ts');
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('a brief interruption without going to the background keeps '
+        'the preview', (tester) async {
+      await pumpLive(tester);
+      await tapChannel(tester, 'Uno');
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+
+      expect(player.opened, ['http://h/a.ts']);
+      expect(player.current, 'http://h/a.ts');
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('the full-screen channel stops in the background and plays '
+        'again on return, once', (tester) async {
+      await pumpLive(tester);
+      await tapChannel(tester, 'Uno');
+      await tapChannel(tester, 'Uno');
+      await settleRoutes(tester);
+
+      await toBackground(tester);
+      expect(player.current, isNull);
+
+      await toForeground(tester);
+      await settleRoutes(tester);
+      expect(find.byType(PlayerScreen), findsOneWidget);
+      expect(player.opened, ['http://h/a.ts', 'http://h/a.ts']);
+      expect(player.current, 'http://h/a.ts');
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('Directo hidden by another section stays stopped on return', (
+      tester,
+    ) async {
+      final visible = ValueNotifier(true);
+      await pumpLive(tester, visible: visible);
+      await tapChannel(tester, 'Uno');
+      visible.value = false;
+      await tester.pump();
+
+      await toBackground(tester);
+      await toForeground(tester);
+
+      expect(player.opened, ['http://h/a.ts']);
+      expect(player.current, isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
   });
+
+  group('PlayerScreen with its own playback', () {
+    testWidgets('a live stream stops in the background and reopens on '
+        'return', (tester) async {
+      final player = FakePlayer();
+      await pumpPlayer(tester, player, isLive: true);
+      expect(player.opened, ['http://h/live.ts']);
+
+      await toBackground(tester);
+      expect(player.current, isNull);
+
+      await toForeground(tester);
+      expect(player.opened, ['http://h/live.ts', 'http://h/live.ts']);
+      expect(player.current, 'http://h/live.ts');
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('a video keeps its stream through the background', (
+      tester,
+    ) async {
+      final player = FakePlayer();
+      await pumpPlayer(tester, player, isLive: false);
+      player.emitPosition(const Duration(seconds: 5));
+
+      await toBackground(tester);
+      await toForeground(tester);
+
+      expect(player.opened, ['http://h/vod.mp4']);
+      expect(player.current, 'http://h/vod.mp4');
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('a video that timed out while in the background opens again '
+        'on return', (tester) async {
+      final player = FakePlayer();
+      await pumpPlayer(tester, player, isLive: false);
+
+      await toBackground(tester);
+      await tester.pump(const Duration(seconds: 6));
+      expect(player.current, isNull, reason: 'the start timed out');
+
+      await toForeground(tester);
+      expect(player.opened, ['http://h/vod.mp4', 'http://h/vod.mp4']);
+      expect(player.current, 'http://h/vod.mp4');
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  });
+}
+
+/// Sends the app to the background as a phone does.
+Future<void> toBackground(WidgetTester tester) async {
+  for (final state in [
+    AppLifecycleState.inactive,
+    AppLifecycleState.hidden,
+    AppLifecycleState.paused,
+  ]) {
+    tester.binding.handleAppLifecycleStateChanged(state);
+    await tester.pump();
+  }
+}
+
+/// Brings the app back from the background.
+Future<void> toForeground(WidgetTester tester) async {
+  for (final state in [
+    AppLifecycleState.hidden,
+    AppLifecycleState.inactive,
+    AppLifecycleState.resumed,
+  ]) {
+    tester.binding.handleAppLifecycleStateChanged(state);
+    await tester.pump();
+  }
+}
+
+/// Shows a [PlayerScreen] that plays a live stream or a video on [player].
+Future<void> pumpPlayer(
+  WidgetTester tester,
+  FakePlayer player, {
+  required bool isLive,
+}) async {
+  final db = CatalogDb.inMemory();
+  addTearDown(db.close);
+  await tester.pumpWidget(
+    SettingsScope(
+      controller: SettingsController(db),
+      child: MaterialApp(
+        theme: buildAppTheme(),
+        home: PlayerScreen(
+          url: isLive ? 'http://h/live.ts' : 'http://h/vod.mp4',
+          title: 'Prueba',
+          isLive: isLive,
+          startTimeout: const Duration(seconds: 5),
+          createPlayer: (_) => (player, FakeVideoController(player)),
+        ),
+      ),
+    ),
+  );
+  await tester.pump();
 }

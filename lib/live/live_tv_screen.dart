@@ -139,6 +139,12 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
   /// The account whose changes re-read the guide toggle.
   AccountService? _account;
 
+  /// Stops the stream in the background and plays it again on return.
+  late final AppLifecycleListener _lifecycle;
+
+  /// The stream was stopped because the app went to the background.
+  bool _stoppedInBackground = false;
+
   CatalogDb get _db => widget.db;
 
   bool get _isRealGroup =>
@@ -158,6 +164,10 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
       createPlayer: widget.createPlayer,
     )..addListener(_onPlaybackChanged);
     _playback.setVolume(_muted ? 0 : 100);
+    _lifecycle = AppLifecycleListener(
+      onPause: _onAppPaused,
+      onResume: _onAppResumed,
+    );
     _clock = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted && _visible) setState(_loadGuide);
     });
@@ -193,6 +203,27 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
       _startPreview();
     } else if (!_fullScreenOpen) {
       _playback.stop();
+    }
+  }
+
+  /// In the background (a phone or tablet app sent away; a minimised desktop
+  /// window never gets here) the video would freeze with its connection
+  /// open: close it.
+  void _onAppPaused() {
+    _stoppedInBackground = true;
+    _playback.stop();
+  }
+
+  /// Back from the background: the full player plays its channel again,
+  /// otherwise the preview does (when Directo is shown).
+  void _onAppResumed() {
+    if (!_stoppedInBackground) return;
+    _stoppedInBackground = false;
+    final channel = _selected;
+    if (_fullScreenOpen) {
+      if (channel != null) _playback.play(PlayTarget.fromChannel(channel));
+    } else {
+      _startPreview();
     }
   }
 
@@ -245,6 +276,7 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
   void dispose() {
     _account?.removeListener(_reloadGuideToggle);
     _clock?.cancel();
+    _lifecycle.dispose();
     _playback
       ..removeListener(_onPlaybackChanged)
       ..dispose();
