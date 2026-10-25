@@ -50,6 +50,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
   /// Opens the legal notice and keeps the answer.
   Future<void> _reviewTerms() async {
+    if (!mounted) return;
     final accepted = await showLegalNotice(context);
     if (!mounted) return;
     setState(() {
@@ -230,6 +231,7 @@ class _AcceptTermsScreenState extends State<AcceptTermsScreen> {
 
   /// Opens the legal notice; goes on when accepted.
   Future<void> _reviewTerms() async {
+    if (!mounted) return;
     final accepted = await showLegalNotice(context);
     if (!mounted) return;
     if (accepted) {

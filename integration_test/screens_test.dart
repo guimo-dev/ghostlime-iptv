@@ -514,11 +514,27 @@ Future<void> _startParentalLock(WidgetTester tester) async {
 const _signedInScreens = {'ajustes-control-parental', 'pin'};
 
 /// Screens that start as a new installation, with the welcome.
-const _firstRunScreens = {'bienvenida'};
+const _firstRunScreens = {'bienvenida', 'aviso-legal'};
 
 /// The account's "Última sincronización: dd/mm hh:mm" line, which shows the
 /// time of the run.
 Finder _lastSyncMask() => find.textContaining('Última sincronización');
+
+/// Captures the first-run screen as [name] without focus or hover
+/// highlights: a button may keep the focus and a mouse left by an earlier
+/// test may hover it, so the pointer is parked away, the focus dropped and
+/// the highlights left to fade.
+Future<void> _expectFirstRunScreen(WidgetTester tester, String name) async {
+  final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+  try {
+    await mouse.addPointer(location: const Offset(-10, -10));
+    FocusManager.instance.primaryFocus?.unfocus();
+    await _pumpRealTime(tester, const Duration(seconds: 1));
+    await expectScreen(tester, name);
+  } finally {
+    await mouse.removePointer();
+  }
+}
 
 /// Every screen, by the name of its reference image.
 final Map<String, _Capture> _screens = {
@@ -527,17 +543,14 @@ final Map<String, _Capture> _screens = {
     // The legal notice opens first: accept it to show the welcome options.
     await tester.tap(find.text('Aceptar'));
     await settle(tester);
-    // A button may keep the focus and a mouse left by an earlier test may
-    // hover it: park the pointer away, unfocus and let the highlights fade.
-    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    try {
-      await mouse.addPointer(location: const Offset(-10, -10));
-      FocusManager.instance.primaryFocus?.unfocus();
-      await _pumpRealTime(tester, const Duration(seconds: 1));
-      await expectScreen(tester, name);
-    } finally {
-      await mouse.removePointer();
-    }
+    await _expectFirstRunScreen(tester, name);
+  },
+  // The legal notice as it opens over the welcome: a dialog in the desktop
+  // layout, a sheet from the bottom in the phone layout.
+  'aviso-legal': (tester, harness, name) async {
+    await settle(tester);
+    expect(find.text('Aceptar'), findsOneWidget);
+    await _expectFirstRunScreen(tester, name);
   },
   'inicio-vacio': (tester, harness, name) async {
     await _enter(tester, harness);

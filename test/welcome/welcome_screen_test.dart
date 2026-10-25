@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iptv_player/catalog/catalog_db.dart';
 import 'package:iptv_player/legal/legal_info.dart';
@@ -244,6 +245,13 @@ void main() {
     );
     expect(find.byType(Dialog), findsOneWidget);
     expect(find.byType(BottomSheet), findsNothing);
+    // The three options in one row, "Aceptar" last.
+    final rejectWide = tester.getRect(find.text('Rechazar'));
+    final moreWide = tester.getRect(find.text('Leer más'));
+    final acceptWide = tester.getRect(find.text('Aceptar'));
+    expect(moreWide.left, greaterThan(rejectWide.right));
+    expect(acceptWide.left, greaterThan(moreWide.right));
+    expect(acceptWide.center.dy, closeTo(rejectWide.center.dy, 1));
 
     await _pump(
       tester,
@@ -253,16 +261,26 @@ void main() {
     expect(find.byType(Dialog), findsNothing);
     expect(find.byType(BottomSheet), findsOneWidget);
     // Right-handed thumb: "Aceptar" bottom right, below the text.
-    final accept = tester.getRect(find.text('Aceptar'));
-    final reject = tester.getRect(find.text('Rechazar'));
-    final more = tester.getRect(find.text('Leer más'));
+    Rect buttonRect(String label) => tester.getRect(
+      find
+          .ancestor(
+            of: find.text(label),
+            matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+          )
+          .first,
+    );
+    final accept = buttonRect('Aceptar');
+    final reject = buttonRect('Rechazar');
+    final more = buttonRect('Leer más');
     final notice = tester.getRect(
       find.textContaining('es solo un reproductor'),
     );
-    expect(more.top, greaterThan(notice.bottom));
-    expect(accept.top, greaterThan(more.bottom));
-    expect(accept.left, greaterThan(reject.right));
-    expect(accept.center.dy, closeTo(reject.center.dy, 1));
+    // In one row or stacked (the test font is wide), "Aceptar" is the last
+    // and lowest, on the right.
+    expect(reject.top, greaterThan(notice.bottom));
+    expect(accept.bottom, greaterThanOrEqualTo(more.bottom - 1));
+    expect(accept.bottom, greaterThanOrEqualTo(reject.bottom - 1));
+    expect(accept.right, greaterThanOrEqualTo(more.right - 1));
     expect(accept.right, greaterThan(390 - 60));
   });
 
@@ -314,15 +332,98 @@ void main() {
     });
   }
 
-  testWidgets('going back from the notice is the same as "Rechazar"', (
+  testWidgets('Escape on the desktop dialog is the same as "Rechazar"', (
     tester,
   ) async {
     await _pump(tester, WelcomeScreen(onDone: () {}));
+    expect(find.byType(Dialog), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('es solo un reproductor'), findsNothing);
+    expect(find.text('Revisar términos'), findsOneWidget);
+    expect(find.byType(WelcomeScreen), findsOneWidget);
+  });
+
+  testWidgets('back on the phone sheet is the same as "Rechazar"', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      WelcomeScreen(onDone: () {}),
+      size: const Size(390, 844),
+    );
+    expect(find.byType(BottomSheet), findsOneWidget);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     expect(find.textContaining('es solo un reproductor'), findsNothing);
     expect(find.text('Revisar términos'), findsOneWidget);
     expect(find.byType(WelcomeScreen), findsOneWidget);
+  });
+
+  testWidgets('a double "Aceptar" closes only the notice', (tester) async {
+    // The welcome over another route, as in the app: a second pop would
+    // take the welcome away too.
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final navigator = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigator,
+        theme: buildAppTheme(),
+        home: const SizedBox.shrink(),
+      ),
+    );
+    navigator.currentState!.push(
+      MaterialPageRoute<void>(builder: (_) => WelcomeScreen(onDone: () {})),
+    );
+    await tester.pumpAndSettle();
+
+    final accept = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Aceptar'),
+    );
+    accept.onPressed!();
+    accept.onPressed!();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(WelcomeScreen), findsOneWidget);
+    expect(find.text('Aceptar'), findsNothing);
+    expect(_button(tester, 'Continuar sin cuenta').enabled, isTrue);
+  });
+
+  for (final size in [const Size(1280, 800), const Size(390, 844)]) {
+    testWidgets('the notice names its route at ${size.width.toInt()}', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      await _pump(tester, WelcomeScreen(onDone: () {}), size: size);
+      expect(
+        find.semantics.byPredicate(
+          (node) =>
+              node.label == 'Términos de uso y privacidad' &&
+              node.flagsCollection.namesRoute &&
+              node.flagsCollection.scopesRoute,
+        ),
+        findsOne,
+      );
+      semantics.dispose();
+    });
+  }
+
+  testWidgets('"Leer más" moves the focus to the first document', (
+    tester,
+  ) async {
+    await _pump(tester, WelcomeScreen(onDone: () {}));
+    await tester.tap(find.text('Leer más'));
+    await tester.pumpAndSettle();
+    final focused = FocusManager.instance.primaryFocus!.context!;
+    expect(
+      find.ancestor(
+        of: find.text(LegalDoc.terms.title),
+        matching: find.byWidget(focused.widget),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('the welcome buttons in order, "Crear cuenta" apart', (

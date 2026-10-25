@@ -60,9 +60,12 @@ class _NoticeDialog extends StatelessWidget {
   }
 }
 
-/// Title, text, "Leer más" (which shows the links to both documents) and the
-/// answers, which close the notice with `true` ("Aceptar", on the right) or
-/// `false` ("Rechazar", on the left); the same in the dialog and the sheet.
+/// Title, text and the three options, "Rechazar", "Leer más" and "Aceptar"
+/// (the last, on the right; stacked at the bottom when the row does not
+/// fit). "Leer más" shows the links to both documents and moves the focus
+/// to the first. The notice closes once, with `true` ("Aceptar") or `false`
+/// ("Rechazar", also Escape); the same in the dialog and the sheet, which
+/// screen readers announce by the title.
 class _NoticeBody extends StatefulWidget {
   const _NoticeBody();
 
@@ -73,63 +76,105 @@ class _NoticeBody extends StatefulWidget {
 class _NoticeBodyState extends State<_NoticeBody> {
   bool _showsDocs = false;
 
+  /// Whether an answer already closed the notice (a double tap pops once).
+  bool _answered = false;
+
+  /// Focus of the first document link, given when "Leer más" shows them.
+  final _firstDocFocus = FocusNode(debugLabel: 'First legal document');
+
+  @override
+  void dispose() {
+    _firstDocFocus.dispose();
+    super.dispose();
+  }
+
+  /// Closes the notice with [accepted], only the first time.
+  void _answer(bool accepted) {
+    if (_answered) return;
+    _answered = true;
+    Navigator.pop(context, accepted);
+  }
+
+  /// Shows the document links and focuses the first one.
+  void _showDocs() {
+    setState(() => _showsDocs = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _firstDocFocus.requestFocus();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: Text(
-            _noticeTitle,
-            style: Theme.of(context).textTheme.headlineSmall,
+    return Semantics(
+      scopesRoute: true,
+      namesRoute: true,
+      explicitChildNodes: true,
+      label: _noticeTitle,
+      child: Actions(
+        // The route ignores Escape (it cannot be dismissed): answer instead.
+        actions: {
+          DismissIntent: CallbackAction<DismissIntent>(
+            onInvoke: (_) => _answer(false),
           ),
-        ),
-        const SizedBox(height: 16),
-        const Padding(
-          padding: EdgeInsets.only(right: 8),
-          child: Text(legalNoticeText),
-        ),
-        const SizedBox(height: 8),
-        // "Leer más" sits under the text, so the two answers fit in one row
-        // even on narrow phones; it gives way to the two documents.
-        Wrap(
-          spacing: 8,
+        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (_showsDocs)
-              for (final doc in LegalDoc.values)
-                TextButton(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => LegalScreen(doc: doc),
-                    ),
-                  ),
-                  child: Text(doc.title),
-                )
-            else
-              TextButton(
-                onPressed: () => setState(() => _showsDocs = true),
-                child: const Text('Leer más'),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Text(
+                _noticeTitle,
+                style: Theme.of(context).textTheme.headlineSmall,
               ),
+            ),
+            const SizedBox(height: 16),
+            const Padding(
+              padding: EdgeInsets.only(right: 8),
+              child: Text(legalNoticeText),
+            ),
+            if (_showsDocs) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final doc in LegalDoc.values)
+                    TextButton(
+                      focusNode: doc == LegalDoc.values.first
+                          ? _firstDocFocus
+                          : null,
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => LegalScreen(doc: doc),
+                        ),
+                      ),
+                      child: Text(doc.title),
+                    ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 16),
+            OverflowBar(
+              alignment: MainAxisAlignment.end,
+              overflowAlignment: OverflowBarAlignment.end,
+              spacing: 8,
+              overflowSpacing: 4,
+              children: [
+                TextButton(
+                  onPressed: () => _answer(false),
+                  child: const Text('Rechazar'),
+                ),
+                TextButton(onPressed: _showDocs, child: const Text('Leer más')),
+                FilledButton(
+                  autofocus: true,
+                  onPressed: () => _answer(true),
+                  child: const Text('Aceptar'),
+                ),
+              ],
+            ),
           ],
         ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Rechazar'),
-            ),
-            const Spacer(),
-            FilledButton(
-              autofocus: true,
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Aceptar'),
-            ),
-          ],
-        ),
-      ],
+      ),
     );
   }
 }
