@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'app_theme.dart';
 
-/// App canvas: the dark background with two faint lime glows.
+/// App canvas: the dark background with two faint glows of the accent.
 class AppBackground extends StatelessWidget {
   const AppBackground({super.key, required this.child});
 

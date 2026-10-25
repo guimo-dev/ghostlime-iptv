@@ -14,6 +14,7 @@ import 'package:iptv_player/live/live_phone_view.dart'
 import 'package:iptv_player/live/live_tv_screen.dart';
 import 'package:iptv_player/player/play_target.dart';
 import 'package:iptv_player/player/player_screen.dart';
+import 'package:iptv_player/settings/app_settings.dart' show AccentColor;
 import 'package:iptv_player/settings/parental_session.dart';
 import 'package:iptv_player/browse/catalog_images.dart' show ChannelLogo;
 import 'package:iptv_player/ui/backdrop.dart' show GradientProgress;
@@ -613,6 +614,13 @@ final Map<String, _Capture> _screens = {
     await _enter(tester, harness, seed: _seedHome);
     await expectScreen(tester, name, masks: [_programmeProgress()]);
   },
+  'inicio-acento': (tester, harness, name) async {
+    harness.settings.update(
+      harness.settings.value.copyWith(accentColor: AccentColor.violet),
+    );
+    await _enter(tester, harness, seed: _seedHome);
+    await expectScreen(tester, name, masks: [_programmeProgress()]);
+  },
   'directo': (tester, harness, name) async {
     await _enter(tester, harness, seed: _seedGuide, section: 'Directo');
     await tester.tap(_channelRows(tester).at(1));
@@ -735,6 +743,19 @@ final Map<String, _Capture> _screens = {
     await _enter(tester, harness);
     await _openPlaylistSettings(tester);
     await _scrollSettingsTo(tester, find.text('Carruseles de Inicio'));
+    await expectScreen(tester, name);
+  },
+  'ajustes-acento': (tester, harness, name) async {
+    await _enter(tester, harness);
+    await _openPlaylistSettings(tester);
+    final title = find.text('Color de acento');
+    await _scrollSettingsTo(tester, title);
+    // Title a fifth down the list, so the swatches (two lines on phones) and
+    // the section above show too.
+    await Scrollable.ensureVisible(tester.element(title), alignment: 0.2);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('accent-swatch-violet')));
+    await settle(tester);
     await expectScreen(tester, name);
   },
   'ajustes-control-parental': (tester, harness, name) async {

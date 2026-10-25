@@ -811,8 +811,6 @@ class _AccentRow extends StatelessWidget {
     return _Row(
       title: 'Color de acento',
       trailing: Wrap(
-        spacing: 6,
-        runSpacing: 6,
         children: [
           for (final color in AccentColor.values)
             _AccentSwatch(
@@ -863,7 +861,9 @@ class _AccentSwatchState extends State<_AccentSwatch> {
           customBorder: const CircleBorder(),
           onTap: widget.onTap,
           onFocusChange: (focused) => setState(() => _focused = focused),
+          // 4 + ring 2 + gap 2 + circle 32: a 48 dp touch target.
           child: Container(
+            margin: const EdgeInsets.all(4),
             padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
               shape: BoxShape.circle,

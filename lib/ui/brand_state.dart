@@ -49,7 +49,7 @@ class BrandMessage extends StatelessWidget {
   }
 }
 
-/// Branded loading indicator: the ghost floating over a soft lime pulse.
+/// Branded loading indicator: the ghost floating over a soft accent pulse.
 /// Static when the platform asks to disable animations.
 class BrandLoader extends StatefulWidget {
   const BrandLoader({super.key, this.size = 64});

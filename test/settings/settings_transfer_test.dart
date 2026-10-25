@@ -79,4 +79,17 @@ void main() {
       AccentColor.orange,
     );
   });
+
+  test('a backup without accent colour keeps the current one', () {
+    final text = jsonEncode({
+      'format': 'iptv-player-settings',
+      'settings': {'networkCacheSecs': 5},
+    });
+    final result = importSettings(
+      text,
+      current: const AppSettings(accentColor: AccentColor.pink),
+    );
+    expect(result.networkCacheSecs, 5);
+    expect(result.accentColor, AccentColor.pink);
+  });
 }

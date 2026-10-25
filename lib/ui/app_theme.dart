@@ -227,7 +227,7 @@ ThemeData buildAppTheme({AccentColor accent = AccentColor.lime}) {
     chipTheme: base.chipTheme.copyWith(
       backgroundColor: Colors.white.withValues(alpha: 0.06),
       selectedColor: palette.accent,
-      // Dark text on the lime selected chip, light text otherwise. The chip
+      // Dark text on the accent selected chip, light text otherwise. The chip
       // only resolves states through the colour, not the whole style.
       labelStyle: TextStyle(
         color: WidgetStateColor.resolveWith(
@@ -261,7 +261,7 @@ ThemeData buildAppTheme({AccentColor accent = AccentColor.lime}) {
         side: const WidgetStatePropertyAll(BorderSide(color: AppColors.border)),
       ),
     ),
-    // Primary actions are lime pills, like modern TV apps; focus adds glow.
+    // Primary actions are accent pills, like modern TV apps; focus adds glow.
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: palette.accent,

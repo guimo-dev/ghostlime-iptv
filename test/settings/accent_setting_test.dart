@@ -71,4 +71,38 @@ void main() {
     await tester.pump();
     expect(controller.value.accentColor, AccentColor.violet);
   });
+
+  testWidgets('arrow keys move between swatches and Select activates', (
+    tester,
+  ) async {
+    final controller = await _pumpAtAccentRow(tester);
+    FocusNode nodeOf(AccentColor color) => Focus.of(
+      tester.element(find.byKey(ValueKey('accent-swatch-${color.name}'))),
+    );
+    nodeOf(AccentColor.lime).requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump();
+    expect(nodeOf(AccentColor.cyan).hasPrimaryFocus, isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump();
+    expect(nodeOf(AccentColor.blue).hasPrimaryFocus, isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pump();
+    expect(nodeOf(AccentColor.cyan).hasPrimaryFocus, isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.select);
+    await tester.pump();
+    expect(controller.value.accentColor, AccentColor.cyan);
+  });
+
+  testWidgets('every swatch is a touch target of at least 48 dp', (
+    tester,
+  ) async {
+    await _pumpAtAccentRow(tester);
+    for (final label in accentColorNames.values) {
+      final size = tester.getSize(find.bySemanticsLabel(label));
+      expect(size.width, greaterThanOrEqualTo(48), reason: label);
+      expect(size.height, greaterThanOrEqualTo(48), reason: label);
+    }
+  });
 }

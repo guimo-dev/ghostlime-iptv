@@ -59,7 +59,8 @@ class ChoiceSelector<T> extends StatelessWidget {
 }
 
 /// Chip border: a light ring outside the chip when it has keyboard or D-pad
-/// focus, visible on the lime selected chip too; the theme's border otherwise.
+/// focus, visible on the accent-coloured selected chip too; the theme's border
+/// otherwise.
 final _chipSide = WidgetStateBorderSide.resolveWith(
   (states) => states.contains(WidgetState.focused)
       ? const BorderSide(
