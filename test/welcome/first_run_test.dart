@@ -54,6 +54,42 @@ AccountService _service(
   return service;
 }
 
+/// An account service that records [start] and [syncNow] instead of
+/// talking to a server.
+class _RecordingAccount extends AccountService {
+  _RecordingAccount(CatalogDb db)
+    : super(
+        db: db,
+        auth: FakeAuthGateway({}),
+        backend: InMemorySyncBackend(),
+        keys: FakeKeyStore(),
+        passwords: FakePasswords(),
+      );
+
+  final calls = <String>[];
+
+  @override
+  Future<void> start() async => calls.add('start');
+
+  @override
+  Future<void> syncNow() async => calls.add('syncNow');
+}
+
+/// Brings the app back to the foreground, as after another app was shown.
+Future<void> _returnToApp(WidgetTester tester) async {
+  for (final state in [
+    AppLifecycleState.inactive,
+    AppLifecycleState.hidden,
+    AppLifecycleState.paused,
+    AppLifecycleState.hidden,
+    AppLifecycleState.inactive,
+    AppLifecycleState.resumed,
+  ]) {
+    tester.binding.handleAppLifecycleStateChanged(state);
+    await tester.pump();
+  }
+}
+
 void main() {
   test('a new installation shows the welcome', () {
     expect(
@@ -198,6 +234,67 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(AcceptTermsScreen), findsNothing);
     expect(find.byType(AppShell), findsOneWidget);
+  });
+
+  testWidgets('the account does not sync until the new terms are accepted', (
+    tester,
+  ) async {
+    final db = CatalogDb.inMemory();
+    addTearDown(db.close);
+    db.saveSyncUserId('user-ana');
+    final account = _RecordingAccount(db);
+    addTearDown(account.dispose);
+    await _pumpApp(tester, db, account: account);
+    expect(find.byType(AcceptTermsScreen), findsOneWidget);
+    await _returnToApp(tester);
+    await tester.tap(find.text('Rechazar'));
+    await tester.pumpAndSettle();
+    await _returnToApp(tester);
+    expect(account.calls, isEmpty);
+
+    await tester.tap(find.text('Revisar términos'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aceptar'));
+    await tester.pumpAndSettle();
+    expect(account.calls, ['start']);
+
+    await _returnToApp(tester);
+    expect(account.calls, ['start', 'syncNow']);
+  });
+
+  testWidgets('the account does not sync while the welcome is shown', (
+    tester,
+  ) async {
+    final db = CatalogDb.inMemory();
+    addTearDown(db.close);
+    final account = _RecordingAccount(db);
+    addTearDown(account.dispose);
+    await _pumpApp(tester, db, account: account);
+    expect(find.byType(WelcomeScreen), findsOneWidget);
+    await _returnToApp(tester);
+    expect(account.calls, isEmpty);
+
+    await tester.tap(find.text('Aceptar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continuar sin cuenta'));
+    await tester.pumpAndSettle();
+    expect(account.calls, ['start']);
+  });
+
+  testWidgets('with the terms accepted the account starts at once', (
+    tester,
+  ) async {
+    final db = CatalogDb.inMemory();
+    addTearDown(db.close);
+    db.saveWelcomeDone();
+    db.saveAcceptedTermsVersion(termsVersion);
+    final account = _RecordingAccount(db);
+    addTearDown(account.dispose);
+    await _pumpApp(tester, db, account: account);
+    expect(account.calls, ['start']);
+
+    await _returnToApp(tester);
+    expect(account.calls, ['start', 'syncNow']);
   });
 
   testWidgets('an account that needs a decision ends the welcome in Ajustes', (

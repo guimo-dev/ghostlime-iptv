@@ -152,6 +152,10 @@ class _IptvAppState extends State<IptvApp> {
   final _themes = <AccentColor, ThemeData>{};
   late final AppLifecycleListener _lifecycle;
 
+  /// Whether the account may sync: only once the current terms are accepted,
+  /// so nothing reaches the server while the first-run screen asks for them.
+  bool _accountStarted = false;
+
   /// What to show over the playlists at start. Every account that signed in
   /// here leaves its id ([CatalogDb.syncUserId], kept after signing out), so
   /// it tells an installation where an account was used.
@@ -169,11 +173,13 @@ class _IptvAppState extends State<IptvApp> {
     // covers the playlists: then it waits until that screen is done.
     if (_firstRun == FirstRunStep.none) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _startPlaylists());
+      _startAccount();
     }
-    // Resume the previous account session and sync, also in the background.
-    unawaited(widget.account?.start());
+    // Sync again on every return to the app.
     _lifecycle = AppLifecycleListener(
-      onResume: () => unawaited(widget.account?.syncNow()),
+      onResume: () {
+        if (_accountStarted) unawaited(widget.account?.syncNow());
+      },
     );
   }
 
@@ -181,6 +187,16 @@ class _IptvAppState extends State<IptvApp> {
   void dispose() {
     _lifecycle.dispose();
     super.dispose();
+  }
+
+  /// Resumes the previous account session and syncs. A session opened in
+  /// the welcome (after accepting the terms there) is already running.
+  void _startAccount() {
+    _accountStarted = true;
+    final account = widget.account;
+    if (account != null && account.status == AccountStatus.signedOut) {
+      unawaited(account.start());
+    }
   }
 
   /// Start-up work of the playlists screen: refresh stale catalogs in the
@@ -200,6 +216,7 @@ class _IptvAppState extends State<IptvApp> {
   void _finishFirstRun() {
     widget.db.saveWelcomeDone();
     widget.db.saveAcceptedTermsVersion(termsVersion);
+    _startAccount();
     final navigator = _navigatorKey.currentState!;
     navigator.pop();
     final status = widget.account?.status;
