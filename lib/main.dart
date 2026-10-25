@@ -27,6 +27,7 @@ import 'sync/auth_gateway.dart';
 import 'sync/key_store.dart';
 import 'sync/supabase_backend.dart';
 import 'ui/app_theme.dart';
+import 'ui/tv_device.dart';
 import 'welcome/first_run.dart';
 import 'welcome/welcome_screen.dart';
 
@@ -43,11 +44,12 @@ String? isolatedDataDir(Map<String, String> env) {
   return dir == null || dir.isEmpty ? null : dir;
 }
 
-/// Entry point: initialises libmpv, opens the catalog and, when Supabase is
-/// configured, creates the account service.
+/// Entry point: initialises libmpv, finds out whether this is a TV, opens the
+/// catalog and, when Supabase is configured, creates the account service.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
+  await detectTvDevice();
   final dataDir = isolatedDataDir(Platform.environment);
   final CatalogDb db;
   final PasswordStore passwords;

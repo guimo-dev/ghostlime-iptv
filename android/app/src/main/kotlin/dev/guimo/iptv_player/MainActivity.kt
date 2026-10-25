@@ -1,12 +1,14 @@
 package dev.guimo.iptv_player
 
+import android.app.UiModeManager
+import android.content.res.Configuration
 import android.provider.Settings
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-/** The app's only activity; it also serves the window brightness channel. */
+/** The app's only activity; it also serves the window brightness and device channels. */
 class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -30,6 +32,21 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEVICE_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "isTv" -> result.success(isTv())
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    /** Whether this device is a TV: Android TV, Google TV or Fire TV. */
+    private fun isTv(): Boolean {
+        val uiMode = getSystemService(UI_MODE_SERVICE) as UiModeManager
+        return uiMode.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
+            packageManager.hasSystemFeature("android.software.leanback") ||
+            packageManager.hasSystemFeature("amazon.hardware.fire_tv")
     }
 
     /**
@@ -55,6 +72,7 @@ class MainActivity : FlutterActivity() {
 
     private companion object {
         const val BRIGHTNESS_CHANNEL = "ghostlime/brightness"
+        const val DEVICE_CHANNEL = "ghostlime/device"
 
         /** Lowest brightness set, so the screen never goes fully dark. */
         const val MIN_BRIGHTNESS = 0.01f

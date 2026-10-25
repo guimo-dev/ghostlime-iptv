@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/widgets.dart';
 
+import 'tv_device.dart';
+
 /// Device class by the shortest side, in any orientation.
 enum FormFactor { phone, tablet }
 
@@ -19,16 +21,20 @@ FormFactor formFactorOf(Size size) =>
     ? FormFactor.phone
     : FormFactor.tablet;
 
-/// Whether a screen of [size] gets the desktop layout (side bar): a tablet at
-/// least 1024 wide. Portrait tablets and phones use the phone layout.
+/// Whether a screen of [size] gets the desktop layout (side bar): always on a
+/// TV, otherwise a tablet at least 1024 wide. Portrait tablets and phones use
+/// the phone layout.
 bool usesDesktopLayout(Size size) =>
-    formFactorOf(size) == FormFactor.tablet && size.width >= _desktopMinWidth;
+    isTvDevice ||
+    (formFactorOf(size) == FormFactor.tablet && size.width >= _desktopMinWidth);
 
 /// Whether the app runs on a phone or tablet system (Android, iOS), where
-/// the player takes touch gestures and turning the device matters.
+/// the player takes touch gestures and turning the device matters. A TV runs
+/// Android but is driven with a remote, so it is not one.
 bool get isTouchPlatform =>
-    defaultTargetPlatform == TargetPlatform.android ||
-    defaultTargetPlatform == TargetPlatform.iOS;
+    !isTvDevice &&
+    (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS);
 
 /// Side margin of pages in the phone layout.
 const phonePageMargin = 16.0;

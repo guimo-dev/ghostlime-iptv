@@ -93,6 +93,8 @@ for (const [density, scale] of Object.entries(densities)) {
   render('ghostlime.svg', 48 * scale, 48 * scale, join(dir, 'ic_launcher.png'));
   render('ghostlime-foreground.svg', 108 * scale, 108 * scale, join(dir, 'ic_launcher_foreground.png'));
 }
+// Android TV launcher banner (320x180 px = 160x90 dp at xhdpi).
+render('tv-banner.svg', 320, 180, join(android, 'drawable-xhdpi/tv_banner.png'));
 mkdirSync(join(android, 'mipmap-anydpi-v26'), { recursive: true });
 writeFileSync(
   join(android, 'mipmap-anydpi-v26/ic_launcher.xml'),

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" width="320" height="180">
+  <!-- Android TV launcher banner (320x180 at xhdpi): icon and name on the dark brand background. -->
+  <rect width="320" height="180" fill="#14151f"/>
+  <!-- Icon: same artwork as ghostlime.svg, scaled to 84 px. -->
+  <g transform="translate(18 48) scale(0.08203125)">
+    <rect width="1024" height="1024" rx="240" fill="#1d1f2d"/>
+    <g transform="scale(8.5333) translate(0 -3)"><path d="M28 102 L28 56 A32 32 0 0 1 92 56 L92 102 L81 92 L71 102 L60 92 L49 102 L39 92 Z" fill="#c6f432"/><path d="M52 46 L76 60 L52 74 Z" fill="#1d1f2d"/></g>
+  </g>
+  <g font-family="Segoe UI Variable, Segoe UI, system-ui, sans-serif" font-weight="700">
+    <text x="116" y="88" font-size="36" fill="#ffffff">Ghostlime</text>
+    <text x="117" y="126" font-size="32" fill="#c6f432">IPTV</text>
+  </g>
+</svg>
