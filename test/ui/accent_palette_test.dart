@@ -51,8 +51,8 @@ Future<Color> _logoPixel(
 }
 
 void main() {
-  test('there are 6 to 8 presets and lime is the brand palette', () {
-    expect(AccentColor.values.length, inInclusiveRange(6, 8));
+  test('there are 6 presets and lime is the brand palette', () {
+    expect(AccentColor.values.length, 6);
     expect(AccentColor.values.length, AccentPalette.presets.length);
     final lime = AccentPalette.presets[AccentColor.lime]!;
     expect(lime.accent, AppColors.accent);

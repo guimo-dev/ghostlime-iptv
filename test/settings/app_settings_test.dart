@@ -76,6 +76,13 @@ void main() {
     );
   });
 
+  test("the retired amber accent from another device falls back to lime", () {
+    expect(
+      AppSettings.fromJson(const {"accentColor": "amber"}).accentColor,
+      AccentColor.lime,
+    );
+  });
+
   test('unknown keys and values fall back to defaults without throwing', () {
     final s = AppSettings.fromJson({
       'mystery': 1,

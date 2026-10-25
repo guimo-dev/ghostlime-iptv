@@ -796,7 +796,6 @@ const accentColorNames = {
   AccentColor.violet: 'Violeta',
   AccentColor.pink: 'Rosa',
   AccentColor.orange: 'Naranja',
-  AccentColor.amber: 'Ámbar',
 };
 
 /// "Color de acento": one round swatch per preset, the chosen one checked.

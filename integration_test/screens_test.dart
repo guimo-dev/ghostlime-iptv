@@ -750,7 +750,7 @@ final Map<String, _Capture> _screens = {
     await _openPlaylistSettings(tester);
     final title = find.text('Color de acento');
     await _scrollSettingsTo(tester, title);
-    // Title a fifth down the list, so the swatches (two lines on phones) and
+    // Title a fifth down the list, so the row of swatches and
     // the section above show too.
     await Scrollable.ensureVisible(tester.element(title), alignment: 0.2);
     await tester.pumpAndSettle();

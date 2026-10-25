@@ -19,8 +19,10 @@ enum HomeRail {
 }
 
 /// Accent colour of buttons, indicators and the in-app logo. Lime is the
-/// brand colour; the launcher icon and emails always stay lime.
-enum AccentColor { lime, cyan, blue, violet, pink, orange, amber }
+/// brand colour; the launcher icon and emails always stay lime. Six presets
+/// so the swatches fit on one row of a 360 dp phone; a stored name that is no
+/// longer here (such as the retired "amber") falls back to lime.
+enum AccentColor { lime, cyan, blue, violet, pink, orange }
 
 T _enumFrom<T extends Enum>(List<T> values, Object? name, T fallback) {
   for (final value in values) {

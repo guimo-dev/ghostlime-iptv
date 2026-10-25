@@ -12,9 +12,12 @@ import 'package:iptv_player/ui/app_theme.dart';
 
 import '../sync/fake_passwords.dart';
 
-/// Pumps the settings screen and scrolls to the accent colour row.
-Future<SettingsController> _pumpAtAccentRow(WidgetTester tester) async {
-  tester.view.physicalSize = const Size(1024, 700);
+/// Pumps the settings screen at [size] and scrolls to the accent colour row.
+Future<SettingsController> _pumpAtAccentRow(
+  WidgetTester tester, {
+  Size size = const Size(1024, 700),
+}) async {
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   final db = CatalogDb.inMemory();
@@ -94,6 +97,21 @@ void main() {
     await tester.pump();
     expect(controller.value.accentColor, AccentColor.cyan);
   });
+
+  for (final size in const [Size(360, 640), Size(390, 844)]) {
+    testWidgets('all swatches fit on one row at ${size.width.toInt()} wide', (
+      tester,
+    ) async {
+      await _pumpAtAccentRow(tester, size: size);
+      final tops = {
+        for (final color in AccentColor.values)
+          tester
+              .getTopLeft(find.byKey(ValueKey('accent-swatch-${color.name}')))
+              .dy,
+      };
+      expect(tops, hasLength(1));
+    });
+  }
 
   testWidgets('every swatch is a touch target of at least 48 dp', (
     tester,

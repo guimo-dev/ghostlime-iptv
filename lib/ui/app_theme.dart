@@ -85,12 +85,6 @@ class AccentPalette extends ThemeExtension<AccentPalette> {
       onAccent: AppColors.onAccent,
       selected: Color(0xFF312523),
     ),
-    AccentColor.amber: AccentPalette(
-      accent: Color(0xFFFACC15),
-      accentAlt: Color(0xFFEAB308),
-      onAccent: AppColors.onAccent,
-      selected: Color(0xFF312C1E),
-    ),
   };
 
   /// The palette of the nearest theme; lime when the theme has none.
