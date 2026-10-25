@@ -22,6 +22,7 @@ import '../ui/content_width.dart';
 import '../ui/display_title.dart';
 import '../ui/focus_card.dart';
 import '../ui/form_factor.dart';
+import '../ui/tv_device.dart';
 import '../ui/ghostlime_logo.dart';
 import '../ui/rail_row.dart';
 import '../vod/movie_detail_screen.dart';
@@ -126,14 +127,17 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(_showRails);
   }
 
-  /// Handles Esc (or Back on a remote) while the search box has text; other
+  /// Handles Esc (or Back on a TV remote) while the search box has text; other
   /// keys, and Esc with an empty box, carry on. Back acts on its release, as
   /// Android does: a release left unhandled would also leave Inicio.
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     final escape =
         event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape;
+    // Only on a TV: a phone's Back key keeps its usual meaning.
     final back =
-        event is KeyUpEvent && event.logicalKey == LogicalKeyboardKey.goBack;
+        isTvDevice &&
+        event is KeyUpEvent &&
+        event.logicalKey == LogicalKeyboardKey.goBack;
     if (!(escape || back) || _searchController.text.isEmpty) {
       return KeyEventResult.ignored;
     }

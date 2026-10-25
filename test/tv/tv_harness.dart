@@ -172,10 +172,13 @@ FocusNode focusedNode() {
 Rect viewRect(WidgetTester tester) =>
     Offset.zero & (tester.view.physicalSize / tester.view.devicePixelRatio);
 
-/// Checks that something useful has the focus and that the arrows take it
-/// to another visible widget: down first, then right, then (for dialogs
-/// whose focused button is the last one) left and up.
-Future<void> expectFocusAndArrows(WidgetTester tester) async {
+/// Checks that something useful has the focus and that Down or Right takes
+/// it to another visible widget. With [dialog] (a dialog or sheet, whose
+/// focused button is often the last one) Left and Up count too.
+Future<void> expectFocusAndArrows(
+  WidgetTester tester, {
+  bool dialog = false,
+}) async {
   final first = focusedNode();
   expect(
     viewRect(tester).overlaps(first.rect),
@@ -185,8 +188,7 @@ Future<void> expectFocusAndArrows(WidgetTester tester) async {
   for (final key in [
     LogicalKeyboardKey.arrowDown,
     LogicalKeyboardKey.arrowRight,
-    LogicalKeyboardKey.arrowLeft,
-    LogicalKeyboardKey.arrowUp,
+    if (dialog) ...[LogicalKeyboardKey.arrowLeft, LogicalKeyboardKey.arrowUp],
   ]) {
     await tester.sendKeyEvent(key);
     await tester.pump();

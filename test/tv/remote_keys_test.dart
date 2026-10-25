@@ -297,6 +297,24 @@ void main() {
     expect(find.byType(AppShell), findsOneWidget);
   });
 
+  testWidgets('off the TV the Back key leaves the Inicio search alone', (
+    tester,
+  ) async {
+    // A phone with 3-button navigation sends Back as a key too.
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await _pumpIptvApp(tester, demo.db);
+    await tester.tap(find.text('Lista demo'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'canal');
+    await tester.pumpAndSettle();
+
+    expect(await _pressBack(tester), isFalse);
+    await tester.pumpAndSettle();
+    expect(find.text('canal'), findsOneWidget);
+  });
+
   testWidgets('the Back key closes a dialog but leaves pages to the system', (
     tester,
   ) async {

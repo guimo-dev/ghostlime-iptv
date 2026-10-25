@@ -64,7 +64,17 @@ class _BackWithRouteToClose extends ShortcutActivator {
     if (event is! KeyUpEvent) return false;
     if (event.logicalKey != LogicalKeyboardKey.goBack) return false;
     final focused = FocusManager.instance.primaryFocus?.context;
-    return focused != null && ModalRoute.of(focused) is PopupRoute;
+    // `Navigator.maybeOf` looks the navigator up without depending on it,
+    // and a `popUntil` whose test passes on the top route pops nothing: it
+    // only reads that route. `ModalRoute.of` would make the focused widget
+    // depend on its route.
+    final navigator = focused == null ? null : Navigator.maybeOf(focused);
+    Route<Object?>? top;
+    navigator?.popUntil((route) {
+      top = route;
+      return true;
+    });
+    return top is PopupRoute;
   }
 
   @override

@@ -75,7 +75,7 @@ void main() {
     addTearDown(db.close);
     await _pumpIptvApp(tester, db);
     expect(find.text('Aceptar'), findsOneWidget);
-    await expectFocusAndArrows(tester);
+    await expectFocusAndArrows(tester, dialog: true);
 
     await tester.tap(find.text('Aceptar'));
     await tester.pumpAndSettle();
@@ -111,7 +111,7 @@ void main() {
 
     await tester.tap(find.text('Entrar con email'));
     await tester.pumpAndSettle();
-    await expectFocusAndArrows(tester);
+    await expectFocusAndArrows(tester, dialog: true);
   });
 
   testWidgets('Listas with playlists', (tester) async {
@@ -129,7 +129,25 @@ void main() {
     _skipFirstRun(db);
     await _pumpIptvApp(tester, db);
     expect(find.text('Añade tu primera lista'), findsOneWidget);
-    await expectFocusAndArrows(tester);
+    // "Añadir lista" is the top right corner: the only other widget,
+    // Ajustes, is on its left.
+    Element focused() => focusedNode().context! as Element;
+    expect(
+      find.ancestor(
+        of: find.byElementPredicate((e) => e == focused()),
+        matching: find.widgetWithText(FilledButton, 'Añadir lista'),
+      ),
+      findsOneWidget,
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pump();
+    expect(
+      find.ancestor(
+        of: find.byElementPredicate((e) => e == focused()),
+        matching: find.byTooltip('Ajustes'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Inicio opened from Listas with the remote', (tester) async {
@@ -249,7 +267,7 @@ void main() {
       ),
     );
     await _open(tester);
-    await expectFocusAndArrows(tester);
+    await expectFocusAndArrows(tester, dialog: true);
   });
 
   testWidgets('category sort sheet', (tester) async {
@@ -262,7 +280,7 @@ void main() {
       ),
     );
     await _open(tester);
-    await expectFocusAndArrows(tester);
+    await expectFocusAndArrows(tester, dialog: true);
   });
 
   testWidgets('group order screen', (tester) async {
@@ -292,13 +310,13 @@ void main() {
       _opener((context) => askPin(context, title: 'Nuevo PIN', confirm: true)),
     );
     await _open(tester);
-    await expectFocusAndArrows(tester);
+    await expectFocusAndArrows(tester, dialog: true);
   });
 
   testWidgets('exit dialog', (tester) async {
     useTvView(tester);
     await pumpTvApp(tester, demo.db, _opener(confirmExit));
     await _open(tester);
-    await expectFocusAndArrows(tester);
+    await expectFocusAndArrows(tester, dialog: true);
   });
 }

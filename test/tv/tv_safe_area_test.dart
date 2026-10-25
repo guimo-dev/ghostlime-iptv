@@ -8,6 +8,9 @@ import 'package:iptv_player/playlists/playlist_form_screen.dart';
 import 'package:iptv_player/settings/memory_pin_store.dart';
 import 'package:iptv_player/settings/settings_controller.dart';
 import 'package:iptv_player/tv/exit_dialog.dart';
+import 'package:iptv_player/ui/focus_card.dart';
+import 'package:iptv_player/vod/movie_detail_screen.dart';
+import 'package:iptv_player/vod/series_detail_screen.dart';
 import 'package:iptv_player/ui/tv_scale.dart';
 
 import 'tv_harness.dart';
@@ -83,6 +86,71 @@ void main() {
     await tester.pumpAndSettle();
 
     _expectInside(tester, find.widgetWithText(FilledButton, 'Guardar'));
+  });
+
+  testWidgets('the movie page buttons stay inside the safe margin', (
+    tester,
+  ) async {
+    useTvView(tester);
+    final demo = TvDemo();
+    addTearDown(demo.db.close);
+    await pumpTvApp(
+      tester,
+      demo.db,
+      MovieDetailScreen(
+        db: demo.db,
+        playlist: demo.playlist,
+        passwords: MemoryPasswordStore(),
+        movie: demo.movies.first,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    _expectInside(tester, find.byType(FilledButton));
+    _expectInside(tester, find.byType(OutlinedButton));
+  });
+
+  testWidgets('the series seasons and episodes stay inside the safe margin', (
+    tester,
+  ) async {
+    useTvView(tester);
+    final demo = TvDemo();
+    addTearDown(demo.db.close);
+    await pumpTvApp(
+      tester,
+      demo.db,
+      SeriesDetailScreen(
+        db: demo.db,
+        playlist: demo.playlist,
+        passwords: MemoryPasswordStore(),
+        series: demo.firstSeries,
+        m3uEpisodes: demo.firstShow,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    _expectInside(tester, find.byType(FilledButton));
+    _expectInside(tester, find.textContaining('Temporada'));
+    // Only the rows on screen: the list scrolls.
+    final safe = _safeRect(tester);
+    final rows = find
+        .byType(FocusCard)
+        .evaluate()
+        .where(
+          (e) =>
+              tester.getRect(find.byElementPredicate((x) => x == e)).top <
+              safe.bottom,
+        );
+    expect(rows, isNotEmpty);
+    for (final row in rows) {
+      final rect = tester.getRect(find.byElementPredicate((x) => x == row));
+      expect(
+        rect.left,
+        greaterThanOrEqualTo(safe.left - 0.01),
+        reason: '$rect',
+      );
+      expect(rect.right, lessThanOrEqualTo(safe.right + 0.01), reason: '$rect');
+    }
   });
 
   testWidgets('dialog buttons stay inside the safe margin', (tester) async {
