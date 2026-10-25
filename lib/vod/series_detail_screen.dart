@@ -12,6 +12,7 @@ import '../ui/app_theme.dart';
 import '../ui/category_chips.dart';
 import '../ui/content_width.dart';
 import '../ui/focus_card.dart';
+import '../ui/form_factor.dart';
 import '../ui/backdrop.dart';
 import '../ui/back_on_escape.dart';
 import '../ui/brand_state.dart';
@@ -265,7 +266,11 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                   const SizedBox(height: 8),
                   ContentWidth(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: usesPhoneLayout(context)
+                            ? phonePageMargin
+                            : 32,
+                      ),
                       // One solid surface, so no strip of the blurred backdrop
                       // shows between rows.
                       child: ClipRRect(
