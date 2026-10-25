@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../legal/legal_info.dart';
-import '../legal/legal_screen.dart';
+import '../legal/legal_notice.dart';
 import '../sync/account_form.dart';
 import '../sync/account_service.dart';
 import '../sync/google_sign_in.dart';
@@ -13,15 +12,22 @@ import '../ui/ghostlime_logo.dart';
 /// Widest the first-run content grows.
 const _maxWidth = 520.0;
 
-/// Shown once per installation: what the app is (and is not), the terms to
-/// accept and the account options. The options stay disabled until the terms
-/// are accepted. Without an [account] (a build without Supabase) the only
-/// option is "Continuar sin cuenta". [onDone] runs when the user is through,
-/// with or without an account.
+/// Shown once per installation: what the app is (and is not) and the
+/// account options. Unless [termsAccepted] (the current terms), it opens the
+/// legal notice; the options stay disabled until it is accepted, and after
+/// "Rechazar" a "Revisar términos" link opens it again. Without an [account]
+/// (a build without Supabase) the only option is "Continuar sin cuenta".
+/// [onDone] runs when the user is through, with or without an account.
 class WelcomeScreen extends StatefulWidget {
-  const WelcomeScreen({super.key, this.account, required this.onDone});
+  const WelcomeScreen({
+    super.key,
+    this.account,
+    this.termsAccepted = false,
+    required this.onDone,
+  });
 
   final AccountService? account;
+  final bool termsAccepted;
   final VoidCallback onDone;
 
   @override
@@ -29,7 +35,28 @@ class WelcomeScreen extends StatefulWidget {
 }
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
-  bool _accepted = false;
+  late bool _accepted = widget.termsAccepted;
+
+  /// Whether the legal notice was closed with "Rechazar".
+  bool _rejected = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_accepted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _reviewTerms());
+    }
+  }
+
+  /// Opens the legal notice and keeps the answer.
+  Future<void> _reviewTerms() async {
+    final accepted = await showLegalNotice(context);
+    if (!mounted) return;
+    setState(() {
+      _accepted = accepted;
+      _rejected = !accepted;
+    });
+  }
 
   /// Opens the shared account form in a dialog titled [title]; finishes the
   /// welcome when it leaves a session open. A session that still needs a
@@ -116,11 +143,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 32),
-        _TermsNotice(
-          accepted: _accepted,
-          onAccept: () => setState(() => _accepted = true),
-        ),
-        const SizedBox(height: 24),
+        if (_rejected) ...[
+          _TermsRejected(onReview: _reviewTerms),
+          const SizedBox(height: 24),
+        ],
         if (account == null)
           FilledButton(
             onPressed: whenAccepted(widget.onDone),
@@ -132,13 +158,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               () => _openAccountForm(account, 'Entrar con email'),
             ),
             child: const Text('Entrar con email'),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton(
-            onPressed: whenAccepted(
-              () => _openAccountForm(account, 'Crear cuenta'),
-            ),
-            child: const Text('Crear cuenta'),
           ),
           const SizedBox(height: 12),
           if (account.supportsGoogle)
@@ -162,6 +181,24 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             onPressed: whenAccepted(widget.onDone),
             child: const Text('Continuar sin cuenta'),
           ),
+          const SizedBox(height: 32),
+          Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 4,
+            children: [
+              const Text(
+                '¿No tienes cuenta?',
+                style: TextStyle(color: AppColors.textMuted),
+              ),
+              TextButton(
+                onPressed: whenAccepted(
+                  () => _openAccountForm(account, 'Crear cuenta'),
+                ),
+                child: const Text('Crear cuenta'),
+              ),
+            ],
+          ),
         ],
       ],
     );
@@ -169,12 +206,38 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 }
 
 /// Asks an existing installation to accept the terms, the first time or after
-/// they changed ([termsVersion]), without the rest of the welcome.
-/// [onAccepted] runs on "Acepto y continúo".
-class AcceptTermsScreen extends StatelessWidget {
+/// they changed (`termsVersion`), without the rest of the welcome: it opens
+/// the legal notice and, after "Rechazar", stays with a "Revisar términos"
+/// link. [onAccepted] runs on "Aceptar".
+class AcceptTermsScreen extends StatefulWidget {
   const AcceptTermsScreen({super.key, required this.onAccepted});
 
   final VoidCallback onAccepted;
+
+  @override
+  State<AcceptTermsScreen> createState() => _AcceptTermsScreenState();
+}
+
+class _AcceptTermsScreenState extends State<AcceptTermsScreen> {
+  /// Whether the legal notice was closed with "Rechazar".
+  bool _rejected = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _reviewTerms());
+  }
+
+  /// Opens the legal notice; goes on when accepted.
+  Future<void> _reviewTerms() async {
+    final accepted = await showLegalNotice(context);
+    if (!mounted) return;
+    if (accepted) {
+      widget.onAccepted();
+    } else {
+      setState(() => _rejected = true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -187,8 +250,15 @@ class AcceptTermsScreen extends StatelessWidget {
               'de uso y la política de privacidad.',
           logoSize: 96,
         ),
-        const SizedBox(height: 32),
-        _TermsNotice(accepted: false, onAccept: onAccepted),
+        if (_rejected) ...[
+          const SizedBox(height: 24),
+          Center(
+            child: TextButton(
+              onPressed: _reviewTerms,
+              child: const Text('Revisar términos'),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -234,19 +304,17 @@ class _FirstRunFrame extends StatelessWidget {
   }
 }
 
-/// The "only a player" notice with links to the terms and the privacy policy
-/// and the "Acepto y continúo" button ([onAccept]); once [accepted], a check
-/// instead of the button.
-class _TermsNotice extends StatelessWidget {
-  const _TermsNotice({required this.accepted, required this.onAccept});
+/// What the welcome shows after "Rechazar": the terms are needed to go on,
+/// and [onReview] ("Revisar términos") opens the legal notice again.
+class _TermsRejected extends StatelessWidget {
+  const _TermsRejected({required this.onReview});
 
-  final bool accepted;
-  final VoidCallback onAccept;
+  final VoidCallback onReview;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.04),
         border: Border.all(color: AppColors.border),
@@ -256,41 +324,16 @@ class _TermsNotice extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Ghostlime IPTV es solo un reproductor: no incluye ni proporciona '
-            'canales ni contenido. Añade solo listas que tengas derecho a '
-            'usar. Al continuar aceptas los términos de uso y la política de '
-            'privacidad.',
+            'Para usar Ghostlime IPTV tienes que aceptar los términos de uso '
+            'y la política de privacidad.',
           ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            children: [
-              for (final doc in LegalDoc.values)
-                TextButton(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => LegalScreen(doc: doc),
-                    ),
-                  ),
-                  child: Text(doc.title),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (accepted)
-            const Row(
-              spacing: 8,
-              children: [
-                Icon(Icons.check_circle, color: AppColors.accent),
-                Text('Términos aceptados'),
-              ],
-            )
-          else
-            FilledButton(
-              autofocus: true,
-              onPressed: onAccept,
-              child: const Text('Acepto y continúo'),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: onReview,
+              child: const Text('Revisar términos'),
             ),
+          ),
         ],
       ),
     );

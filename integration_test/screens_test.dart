@@ -524,8 +524,11 @@ Finder _lastSyncMask() => find.textContaining('Última sincronización');
 final Map<String, _Capture> _screens = {
   'bienvenida': (tester, harness, name) async {
     await settle(tester);
-    // The button autofocuses and a mouse left by an earlier test may hover
-    // it: park the pointer away, unfocus and let the highlights fade.
+    // The legal notice opens first: accept it to show the welcome options.
+    await tester.tap(find.text('Aceptar'));
+    await settle(tester);
+    // A button may keep the focus and a mouse left by an earlier test may
+    // hover it: park the pointer away, unfocus and let the highlights fade.
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     try {
       await mouse.addPointer(location: const Offset(-10, -10));

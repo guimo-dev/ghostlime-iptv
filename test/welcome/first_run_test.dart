@@ -124,8 +124,8 @@ void main() {
     await _pumpApp(tester, db);
     expect(find.byType(WelcomeScreen), findsOneWidget);
 
-    await tester.tap(find.text('Acepto y continúo'));
-    await tester.pump();
+    await tester.tap(find.text('Aceptar'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Continuar sin cuenta'));
     await tester.pumpAndSettle();
     expect(find.byType(WelcomeScreen), findsNothing);
@@ -139,6 +139,22 @@ void main() {
     expect(find.byType(PlaylistsScreen), findsOneWidget);
   });
 
+  testWidgets('a welcome after the current terms skips the legal notice', (
+    tester,
+  ) async {
+    final db = CatalogDb.inMemory();
+    addTearDown(db.close);
+    db.saveAcceptedTermsVersion(termsVersion);
+    await _pumpApp(tester, db);
+    expect(find.byType(WelcomeScreen), findsOneWidget);
+    expect(find.text('Aceptar'), findsNothing);
+
+    await tester.tap(find.text('Continuar sin cuenta'));
+    await tester.pumpAndSettle();
+    expect(find.byType(WelcomeScreen), findsNothing);
+    expect(db.welcomeDone(), isTrue);
+  });
+
   testWidgets('an installation that used an account only accepts the terms', (
     tester,
   ) async {
@@ -149,7 +165,7 @@ void main() {
     expect(find.byType(WelcomeScreen), findsNothing);
     expect(find.byType(AcceptTermsScreen), findsOneWidget);
 
-    await tester.tap(find.text('Acepto y continúo'));
+    await tester.tap(find.text('Aceptar'));
     await tester.pumpAndSettle();
     expect(find.byType(AcceptTermsScreen), findsNothing);
     expect(db.acceptedTermsVersion(), termsVersion);
@@ -178,7 +194,7 @@ void main() {
     expect(find.byType(AcceptTermsScreen), findsOneWidget);
     expect(find.byType(AppShell), findsNothing);
 
-    await tester.tap(find.text('Acepto y continúo'));
+    await tester.tap(find.text('Aceptar'));
     await tester.pumpAndSettle();
     expect(find.byType(AcceptTermsScreen), findsNothing);
     expect(find.byType(AppShell), findsOneWidget);
@@ -206,8 +222,8 @@ void main() {
     addTearDown(db.close);
     final account = _service(db, accounts, backend);
     await _pumpApp(tester, db, account: account);
-    await tester.tap(find.text('Acepto y continúo'));
-    await tester.pump();
+    await tester.tap(find.text('Aceptar'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Entrar con email'));
     await tester.pumpAndSettle();
     await tester.enterText(

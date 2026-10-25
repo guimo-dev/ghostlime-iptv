@@ -220,7 +220,11 @@ class _IptvAppState extends State<IptvApp> {
     return MaterialPageRoute<void>(
       settings: settings,
       builder: (_) => _firstRun == FirstRunStep.welcome
-          ? WelcomeScreen(account: widget.account, onDone: _finishFirstRun)
+          ? WelcomeScreen(
+              account: widget.account,
+              termsAccepted: widget.db.acceptedTermsVersion() >= termsVersion,
+              onDone: _finishFirstRun,
+            )
           : AcceptTermsScreen(onAccepted: _finishFirstRun),
     );
   }

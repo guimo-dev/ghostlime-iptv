@@ -14,20 +14,34 @@ import 'package:iptv_player/welcome/welcome_screen.dart';
 import '../sync/fake_account.dart';
 import '../sync/fake_passwords.dart';
 
+/// The welcome options with an account, top to bottom.
 const _optionsWithAccount = [
   'Entrar con email',
-  'Crear cuenta',
   'Continuar con Google',
   'Continuar sin cuenta',
+  'Crear cuenta',
 ];
 
-/// Pumps [screen] in the app theme at a desktop size.
-Future<void> _pump(WidgetTester tester, Widget screen) async {
-  tester.view.physicalSize = const Size(1440, 900);
+/// Pumps [screen] in the app theme at [size] (a desktop one by default) and
+/// lets the legal notice come up.
+Future<void> _pump(
+  WidgetTester tester,
+  Widget screen, {
+  Size size = const Size(1440, 900),
+}) async {
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
+  // A fresh tree, so a second pump in a test starts over.
+  await tester.pumpWidget(const SizedBox.shrink());
   await tester.pumpWidget(MaterialApp(theme: buildAppTheme(), home: screen));
-  await tester.pump();
+  await tester.pumpAndSettle();
+}
+
+/// Taps [label] in the legal notice and waits for it to close.
+Future<void> _answerNotice(WidgetTester tester, String label) async {
+  await tester.tap(find.text(label));
+  await tester.pumpAndSettle();
 }
 
 /// The button showing [label].
@@ -61,7 +75,7 @@ AccountService _service(
 
 void main() {
   testWidgets(
-    'without an account only "Continuar sin cuenta", after "Acepto"',
+    'without an account only "Continuar sin cuenta", after "Aceptar"',
     (tester) async {
       var done = 0;
       await _pump(tester, WelcomeScreen(onDone: () => done++));
@@ -70,13 +84,16 @@ void main() {
       expect(find.text('Reproductor para tus listas IPTV'), findsOneWidget);
       // The column stretches its children; the logo keeps its size.
       expect(tester.getSize(find.byType(GhostlimeLogo)), const Size(96, 96));
-      for (final label in _optionsWithAccount.take(3)) {
+      for (final label in [
+        'Entrar con email',
+        'Continuar con Google',
+        'Crear cuenta',
+      ]) {
         expect(find.text(label), findsNothing);
       }
       expect(_button(tester, 'Continuar sin cuenta').enabled, isFalse);
 
-      await tester.tap(find.text('Acepto y continúo'));
-      await tester.pump();
+      await _answerNotice(tester, 'Aceptar');
       expect(_button(tester, 'Continuar sin cuenta').enabled, isTrue);
 
       await tester.tap(find.text('Continuar sin cuenta'));
@@ -86,7 +103,7 @@ void main() {
   );
 
   testWidgets(
-    'with an account every option is there, disabled until "Acepto"',
+    'with an account every option is there, disabled until "Aceptar"',
     (tester) async {
       final db = CatalogDb.inMemory();
       addTearDown(db.close);
@@ -98,8 +115,7 @@ void main() {
       for (final label in _optionsWithAccount) {
         expect(_button(tester, label).enabled, isFalse, reason: label);
       }
-      await tester.tap(find.text('Acepto y continúo'));
-      await tester.pump();
+      await _answerNotice(tester, 'Aceptar');
       for (final label in _optionsWithAccount) {
         // Google sign-in is not available yet (no gateway support).
         expect(
@@ -123,8 +139,7 @@ void main() {
     await _pump(tester, WelcomeScreen(account: account, onDone: () => done++));
     expect(_button(tester, 'Continuar con Google').enabled, isFalse);
     expect(find.byTooltip('Disponible pronto'), findsNothing);
-    await tester.tap(find.text('Acepto y continúo'));
-    await tester.pump();
+    await _answerNotice(tester, 'Aceptar');
     expect(_button(tester, 'Continuar con Google').enabled, isTrue);
 
     await tester.tap(find.text('Continuar con Google'));
@@ -149,8 +164,7 @@ void main() {
     final account = _service(db, {}, auth: auth);
     var done = 0;
     await _pump(tester, WelcomeScreen(account: account, onDone: () => done++));
-    await tester.tap(find.text('Acepto y continúo'));
-    await tester.pump();
+    await _answerNotice(tester, 'Aceptar');
 
     await tester.tap(find.text('Continuar con Google'));
     // The dialog's progress bar never settles.
@@ -169,22 +183,6 @@ void main() {
     expect(_button(tester, 'Continuar con Google').enabled, isTrue);
   });
 
-  testWidgets('the links open the terms and the privacy policy', (
-    tester,
-  ) async {
-    await _pump(tester, WelcomeScreen(onDone: () {}));
-    for (final doc in LegalDoc.values) {
-      await tester.tap(find.text(doc.title));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
-      expect(tester.widget<LegalScreen>(find.byType(LegalScreen)).doc, doc);
-      tester.state<NavigatorState>(find.byType(Navigator)).pop();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
-      expect(find.byType(LegalScreen), findsNothing);
-    }
-  });
-
   testWidgets('"Entrar con email" opens the account form; signing in ends', (
     tester,
   ) async {
@@ -193,8 +191,7 @@ void main() {
     final account = _service(db, {'ana@example.com': 'correct horse'});
     var done = 0;
     await _pump(tester, WelcomeScreen(account: account, onDone: () => done++));
-    await tester.tap(find.text('Acepto y continúo'));
-    await tester.pump();
+    await _answerNotice(tester, 'Aceptar');
     await tester.tap(find.text('Entrar con email'));
     await tester.pumpAndSettle();
 
@@ -224,14 +221,192 @@ void main() {
     expect(find.widgetWithText(TextField, 'Email'), findsNothing);
   });
 
-  testWidgets('AcceptTermsScreen only asks to accept the terms', (
+  testWidgets('the notice opens unless the current terms are accepted', (
+    tester,
+  ) async {
+    await _pump(tester, WelcomeScreen(onDone: () {}));
+    expect(find.byType(Dialog), findsOneWidget);
+    expect(find.textContaining('es solo un reproductor'), findsOneWidget);
+
+    await _pump(tester, WelcomeScreen(termsAccepted: true, onDone: () {}));
+    expect(find.byType(Dialog), findsNothing);
+    expect(find.textContaining('es solo un reproductor'), findsNothing);
+    expect(_button(tester, 'Continuar sin cuenta').enabled, isTrue);
+  });
+
+  testWidgets('a dialog at 1280x800, a bottom sheet at 390x844', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      WelcomeScreen(onDone: () {}),
+      size: const Size(1280, 800),
+    );
+    expect(find.byType(Dialog), findsOneWidget);
+    expect(find.byType(BottomSheet), findsNothing);
+
+    await _pump(
+      tester,
+      WelcomeScreen(onDone: () {}),
+      size: const Size(390, 844),
+    );
+    expect(find.byType(Dialog), findsNothing);
+    expect(find.byType(BottomSheet), findsOneWidget);
+    // Right-handed thumb: "Aceptar" bottom right, below the text.
+    final accept = tester.getRect(find.text('Aceptar'));
+    final reject = tester.getRect(find.text('Rechazar'));
+    final more = tester.getRect(find.text('Leer más'));
+    final notice = tester.getRect(
+      find.textContaining('es solo un reproductor'),
+    );
+    expect(more.top, greaterThan(notice.bottom));
+    expect(accept.top, greaterThan(more.bottom));
+    expect(accept.left, greaterThan(reject.right));
+    expect(accept.center.dy, closeTo(reject.center.dy, 1));
+    expect(accept.right, greaterThan(390 - 60));
+  });
+
+  for (final size in [const Size(1280, 800), const Size(390, 844)]) {
+    final at = '${size.width.toInt()}x${size.height.toInt()}';
+
+    testWidgets('"Rechazar" locks the welcome until accepted at $at', (
+      tester,
+    ) async {
+      final db = CatalogDb.inMemory();
+      addTearDown(db.close);
+      await _pump(
+        tester,
+        WelcomeScreen(account: _service(db, {}), onDone: () {}),
+        size: size,
+      );
+      await _answerNotice(tester, 'Rechazar');
+
+      expect(find.textContaining('es solo un reproductor'), findsNothing);
+      for (final label in _optionsWithAccount) {
+        expect(_button(tester, label).enabled, isFalse, reason: label);
+      }
+      await tester.tap(find.text('Revisar términos'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('es solo un reproductor'), findsOneWidget);
+
+      await _answerNotice(tester, 'Aceptar');
+      expect(find.text('Revisar términos'), findsNothing);
+      expect(_button(tester, 'Continuar sin cuenta').enabled, isTrue);
+    });
+
+    testWidgets('"Leer más" opens each document and comes back at $at', (
+      tester,
+    ) async {
+      await _pump(tester, WelcomeScreen(onDone: () {}), size: size);
+      await tester.tap(find.text('Leer más'));
+      await tester.pumpAndSettle();
+      for (final doc in LegalDoc.values) {
+        await tester.tap(find.text(doc.title));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(tester.widget<LegalScreen>(find.byType(LegalScreen)).doc, doc);
+        tester.state<NavigatorState>(find.byType(Navigator).last).pop();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(find.byType(LegalScreen), findsNothing);
+        expect(find.text('Aceptar'), findsOneWidget);
+      }
+    });
+  }
+
+  testWidgets('going back from the notice is the same as "Rechazar"', (
+    tester,
+  ) async {
+    await _pump(tester, WelcomeScreen(onDone: () {}));
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.textContaining('es solo un reproductor'), findsNothing);
+    expect(find.text('Revisar términos'), findsOneWidget);
+    expect(find.byType(WelcomeScreen), findsOneWidget);
+  });
+
+  testWidgets('the welcome buttons in order, "Crear cuenta" apart', (
+    tester,
+  ) async {
+    final db = CatalogDb.inMemory();
+    addTearDown(db.close);
+    await _pump(
+      tester,
+      WelcomeScreen(account: _service(db, {}), onDone: () {}),
+    );
+    await _answerNotice(tester, 'Aceptar');
+
+    final tops = [
+      for (final label in _optionsWithAccount)
+        tester.getRect(find.text(label)).top,
+    ];
+    for (var i = 1; i < tops.length; i++) {
+      expect(tops[i], greaterThan(tops[i - 1]), reason: _optionsWithAccount[i]);
+    }
+    expect(
+      tester.widget(
+        find
+            .ancestor(
+              of: find.text('Entrar con email'),
+              matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+            )
+            .first,
+      ),
+      isA<FilledButton>(),
+    );
+    expect(
+      find.ancestor(
+        of: find.text('Crear cuenta'),
+        matching: find.byType(TextButton),
+      ),
+      findsOneWidget,
+    );
+    final question = tester.getRect(find.text('¿No tienes cuenta?'));
+    final withoutAccount = tester.getRect(
+      find
+          .ancestor(
+            of: find.text('Continuar sin cuenta'),
+            matching: find.byType(OutlinedButton),
+          )
+          .first,
+    );
+    expect(question.top - withoutAccount.bottom, greaterThanOrEqualTo(24));
+    expect(
+      (tester.getCenter(find.text('Crear cuenta')).dy -
+              tester.getCenter(find.text('¿No tienes cuenta?')).dy)
+          .abs(),
+      lessThan(4),
+    );
+  });
+
+  testWidgets('AcceptTermsScreen shows the notice; "Aceptar" goes on', (
     tester,
   ) async {
     var accepted = 0;
     await _pump(tester, AcceptTermsScreen(onAccepted: () => accepted++));
     expect(find.text('Continuar sin cuenta'), findsNothing);
-    await tester.tap(find.text('Acepto y continúo'));
-    await tester.pump();
+    expect(find.byType(Dialog), findsOneWidget);
+    await _answerNotice(tester, 'Aceptar');
+    expect(accepted, 1);
+  });
+
+  testWidgets('AcceptTermsScreen after "Rechazar" offers "Revisar términos"', (
+    tester,
+  ) async {
+    var accepted = 0;
+    await _pump(
+      tester,
+      AcceptTermsScreen(onAccepted: () => accepted++),
+      size: const Size(390, 844),
+    );
+    expect(find.byType(BottomSheet), findsOneWidget);
+    await _answerNotice(tester, 'Rechazar');
+    expect(accepted, 0);
+    expect(find.byType(AcceptTermsScreen), findsOneWidget);
+
+    await tester.tap(find.text('Revisar términos'));
+    await tester.pumpAndSettle();
+    await _answerNotice(tester, 'Aceptar');
     expect(accepted, 1);
   });
 
@@ -244,8 +419,7 @@ void main() {
       tester,
       WelcomeScreen(account: _service(db, {}), onDone: () {}),
     );
-    await tester.tap(find.text('Acepto y continúo'));
-    await tester.pump();
+    await _answerNotice(tester, 'Aceptar');
     await tester.tap(find.text('Crear cuenta'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('¿Olvidaste la contraseña?'));
