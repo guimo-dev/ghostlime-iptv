@@ -28,6 +28,7 @@ import 'sync/key_store.dart';
 import 'sync/supabase_backend.dart';
 import 'ui/app_theme.dart';
 import 'ui/tv_device.dart';
+import 'ui/tv_scale.dart';
 import 'welcome/first_run.dart';
 import 'welcome/welcome_screen.dart';
 
@@ -278,6 +279,8 @@ class _IptvAppState extends State<IptvApp> {
       navigatorKey: _navigatorKey,
       title: 'Ghostlime IPTV',
       debugShowCheckedModeBanner: false,
+      // On a TV the whole app, routes and dialogs included, is scaled.
+      builder: (context, child) => TvScale(child: child!),
       theme: _themes.putIfAbsent(accent, () => buildAppTheme(accent: accent)),
       locale: const Locale('es'),
       supportedLocales: const [Locale('es')],
