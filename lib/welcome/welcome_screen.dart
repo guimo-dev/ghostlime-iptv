@@ -125,12 +125,12 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         ),
         const SizedBox(height: 20),
         Text.rich(
-          const TextSpan(
+          TextSpan(
             text: 'Ghostlime ',
             children: [
               TextSpan(
                 text: 'IPTV',
-                style: TextStyle(color: AppColors.accent),
+                style: TextStyle(color: AccentPalette.of(context).accent),
               ),
             ],
           ),

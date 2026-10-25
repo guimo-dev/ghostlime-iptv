@@ -391,6 +391,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                     onChanged: (v) => _update(s.copyWith(posterSize: v)),
                   ),
+                  _AccentRow(
+                    value: s.accentColor,
+                    onChanged: (v) => _update(s.copyWith(accentColor: v)),
+                  ),
                   _Row(
                     title: 'Carruseles de Inicio',
                     trailing: Wrap(
@@ -623,7 +627,7 @@ class _Section extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, color: AppColors.accent, size: 20),
+              Icon(icon, color: AccentPalette.of(context).accent, size: 20),
               const SizedBox(width: 10),
               Flexible(
                 child: Text(
@@ -759,6 +763,7 @@ class _ChoiceRow<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AccentPalette.of(context);
     return _Row(
       title: title,
       trailing: ChoiceSelector<T>(
@@ -769,13 +774,116 @@ class _ChoiceRow<T> extends StatelessWidget {
         segmentedStyle: ButtonStyle(
           backgroundColor: WidgetStateProperty.resolveWith(
             (states) => states.contains(WidgetState.selected)
-                ? AppColors.accent
+                ? palette.accent
                 : Colors.white.withValues(alpha: 0.04),
           ),
           foregroundColor: WidgetStateProperty.resolveWith(
             (states) => states.contains(WidgetState.selected)
-                ? AppColors.onAccent
+                ? palette.onAccent
                 : AppColors.text,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Spanish names of the accent colour presets, also their spoken labels.
+const accentColorNames = {
+  AccentColor.lime: 'Lima',
+  AccentColor.cyan: 'Cian',
+  AccentColor.blue: 'Azul',
+  AccentColor.violet: 'Violeta',
+  AccentColor.pink: 'Rosa',
+  AccentColor.orange: 'Naranja',
+  AccentColor.amber: 'Ámbar',
+};
+
+/// "Color de acento": one round swatch per preset, the chosen one checked.
+class _AccentRow extends StatelessWidget {
+  const _AccentRow({required this.value, required this.onChanged});
+
+  final AccentColor value;
+  final ValueChanged<AccentColor> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Row(
+      title: 'Color de acento',
+      trailing: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          for (final color in AccentColor.values)
+            _AccentSwatch(
+              color: color,
+              selected: color == value,
+              onTap: () => onChanged(color),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A round swatch of [color], focusable with the keyboard or D-pad: a light
+/// ring shows focus and a check marks the [selected] one.
+class _AccentSwatch extends StatefulWidget {
+  const _AccentSwatch({
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AccentColor color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  State<_AccentSwatch> createState() => _AccentSwatchState();
+}
+
+class _AccentSwatchState extends State<_AccentSwatch> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AccentPalette.presets[widget.color]!;
+    final name = accentColorNames[widget.color]!;
+    return Semantics(
+      container: true,
+      label: name,
+      button: true,
+      selected: widget.selected,
+      inMutuallyExclusiveGroup: true,
+      child: Tooltip(
+        message: name,
+        excludeFromSemantics: true,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: widget.onTap,
+          onFocusChange: (focused) => setState(() => _focused = focused),
+          child: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: _focused ? AppColors.text : Colors.transparent,
+                width: 2,
+              ),
+            ),
+            child: Container(
+              key: ValueKey('accent-swatch-${widget.color.name}'),
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: palette.accent,
+                shape: BoxShape.circle,
+              ),
+              child: widget.selected
+                  ? Icon(Icons.check, color: palette.onAccent, size: 20)
+                  : null,
+            ),
           ),
         ),
       ),

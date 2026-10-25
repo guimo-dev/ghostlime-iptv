@@ -335,7 +335,7 @@ class PhoneSchedule extends StatelessWidget {
                 onPressed: onToggleFavorite,
                 icon: Icon(
                   favorite ? Icons.star : Icons.star_border,
-                  color: favorite ? AppColors.accent : null,
+                  color: favorite ? AccentPalette.of(context).accent : null,
                 ),
               ),
               IconButton(
@@ -451,7 +451,9 @@ class PhoneChannelRow extends StatelessWidget {
               onPressed: onToggleFavorite,
               icon: Icon(
                 favorite ? Icons.star : Icons.star_border,
-                color: favorite ? AppColors.accent : AppColors.textMuted,
+                color: favorite
+                    ? AccentPalette.of(context).accent
+                    : AppColors.textMuted,
               ),
             ),
           ],

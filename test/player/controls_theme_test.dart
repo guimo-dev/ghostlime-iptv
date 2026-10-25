@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iptv_player/player/player_screen.dart';
+import 'package:iptv_player/ui/app_theme.dart';
 
 /// WCAG contrast ratio between two opaque colours.
 double _contrast(Color a, Color b) {
@@ -13,25 +14,34 @@ double _contrast(Color a, Color b) {
 void main() {
   const black = Color(0xFF000000);
 
-  test('desktop controls: icons and seek bar are at least 3:1 on black', () {
-    expect(_contrast(desktopControlsTheme.buttonBarButtonColor, black), 21);
-    for (final color in [
-      Color.alphaBlend(desktopControlsTheme.seekBarColor, black),
-      desktopControlsTheme.seekBarPositionColor,
-      desktopControlsTheme.seekBarThumbColor,
-    ]) {
-      expect(_contrast(color, black), greaterThan(3));
-    }
-  });
+  for (final MapEntry(key: name, value: palette)
+      in AccentPalette.presets.entries) {
+    test('desktop controls (${name.name}): icons and seek bar are at least '
+        '3:1 on black', () {
+      final theme = desktopControlsTheme(palette.accent);
+      expect(_contrast(theme.buttonBarButtonColor, black), 21);
+      expect(theme.seekBarPositionColor, palette.accent);
+      for (final color in [
+        Color.alphaBlend(theme.seekBarColor, black),
+        theme.seekBarPositionColor,
+        theme.seekBarThumbColor,
+      ]) {
+        expect(_contrast(color, black), greaterThan(3));
+      }
+    });
 
-  test('touch controls: icons and seek bar are at least 3:1 on black', () {
-    expect(_contrast(mobileControlsTheme.buttonBarButtonColor, black), 21);
-    for (final color in [
-      Color.alphaBlend(mobileControlsTheme.seekBarColor, black),
-      mobileControlsTheme.seekBarPositionColor,
-      mobileControlsTheme.seekBarThumbColor,
-    ]) {
-      expect(_contrast(color, black), greaterThan(3));
-    }
-  });
+    test('touch controls (${name.name}): icons and seek bar are at least '
+        '3:1 on black', () {
+      final theme = mobileControlsTheme(palette.accent);
+      expect(_contrast(theme.buttonBarButtonColor, black), 21);
+      expect(theme.seekBarThumbColor, palette.accent);
+      for (final color in [
+        Color.alphaBlend(theme.seekBarColor, black),
+        theme.seekBarPositionColor,
+        theme.seekBarThumbColor,
+      ]) {
+        expect(_contrast(color, black), greaterThan(3));
+      }
+    });
+  }
 }

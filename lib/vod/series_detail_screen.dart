@@ -291,9 +291,10 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                                     ),
                                     child: Row(
                                       children: [
-                                        const Icon(
+                                        Icon(
                                           Icons.play_circle_outline,
-                                          color: AppColors.accent,
+                                          color: AccentPalette.of(context)
+                                              .accent,
                                         ),
                                         const SizedBox(width: 16),
                                         Expanded(

@@ -65,4 +65,18 @@ void main() {
         '"settings": {"networkCacheSecs": 1e999}}';
     expect(() => importSettings(text, current: locked), throwsFormatException);
   });
+
+  test("the accent colour travels through export and import", () {
+    final text = exportSettings(
+      const AppSettings(accentColor: AccentColor.orange),
+    );
+    final settings =
+        (jsonDecode(text) as Map<String, Object?>)["settings"]
+            as Map<String, Object?>;
+    expect(settings["accentColor"], "orange");
+    expect(
+      importSettings(text, current: const AppSettings()).accentColor,
+      AccentColor.orange,
+    );
+  });
 }

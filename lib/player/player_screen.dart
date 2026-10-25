@@ -273,6 +273,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final error = _playback.error;
+    final accent = AccentPalette.of(context).accent;
+    final desktopControls = desktopControlsTheme(accent);
+    final mobileControls = mobileControlsTheme(accent);
     // Stop as soon as the pop starts, not when the route is disposed after
     // its exit animation: otherwise opening the next channel quickly can
     // overlap two connections on single-connection accounts. A shared
@@ -316,11 +319,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
           body: Stack(
             children: [
               MaterialDesktopVideoControlsTheme(
-                normal: desktopControlsTheme,
-                fullscreen: desktopControlsTheme,
+                normal: desktopControls,
+                fullscreen: desktopControls,
                 child: MaterialVideoControlsTheme(
-                  normal: mobileControlsTheme,
-                  fullscreen: mobileControlsTheme,
+                  normal: mobileControls,
+                  fullscreen: mobileControls,
                   child: MobileGestures(
                     live: widget.isLive,
                     levels: _settings.volumeBrightnessGestures,
@@ -513,32 +516,34 @@ class _StartFailedMessage extends StatelessWidget {
 /// Seek bar track over the picture: clearly visible even on black.
 const controlsTrackColor = Color(0x73FFFFFF);
 
-/// Desktop video controls: white icons, a lime position bar on a visible
-/// track, and the branded loader while buffering.
-const desktopControlsTheme = MaterialDesktopVideoControlsThemeData(
-  buttonBarButtonColor: Colors.white,
-  buttonBarButtonSize: 32,
-  seekBarColor: controlsTrackColor,
-  seekBarHoverColor: controlsTrackColor,
-  seekBarBufferColor: Color(0x99FFFFFF),
-  seekBarPositionColor: AppColors.accent,
-  seekBarThumbColor: AppColors.accent,
-  seekBarHeight: 4.5,
-  seekBarHoverHeight: 6.5,
-  seekBarThumbSize: 14,
-  volumeBarColor: controlsTrackColor,
-  bufferingIndicatorBuilder: _brandLoaderBuilder,
-);
+/// Desktop video controls: white icons, an [accent] position bar on a
+/// visible track, and the branded loader while buffering.
+MaterialDesktopVideoControlsThemeData desktopControlsTheme(Color accent) =>
+    MaterialDesktopVideoControlsThemeData(
+      buttonBarButtonColor: Colors.white,
+      buttonBarButtonSize: 32,
+      seekBarColor: controlsTrackColor,
+      seekBarHoverColor: controlsTrackColor,
+      seekBarBufferColor: const Color(0x99FFFFFF),
+      seekBarPositionColor: accent,
+      seekBarThumbColor: accent,
+      seekBarHeight: 4.5,
+      seekBarHoverHeight: 6.5,
+      seekBarThumbSize: 14,
+      volumeBarColor: controlsTrackColor,
+      bufferingIndicatorBuilder: _brandLoaderBuilder,
+    );
 
 /// Touch video controls, with the same contrast as [desktopControlsTheme].
-const mobileControlsTheme = MaterialVideoControlsThemeData(
-  buttonBarButtonColor: Colors.white,
-  seekBarColor: controlsTrackColor,
-  seekBarBufferColor: Color(0x99FFFFFF),
-  seekBarPositionColor: AppColors.accent,
-  seekBarThumbColor: AppColors.accent,
-  bufferingIndicatorBuilder: _brandLoaderBuilder,
-);
+MaterialVideoControlsThemeData mobileControlsTheme(Color accent) =>
+    MaterialVideoControlsThemeData(
+      buttonBarButtonColor: Colors.white,
+      seekBarColor: controlsTrackColor,
+      seekBarBufferColor: const Color(0x99FFFFFF),
+      seekBarPositionColor: accent,
+      seekBarThumbColor: accent,
+      bufferingIndicatorBuilder: _brandLoaderBuilder,
+    );
 
 /// Buffering indicator for the video controls.
 Widget _brandLoaderBuilder(BuildContext context) =>

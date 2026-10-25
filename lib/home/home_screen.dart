@@ -458,7 +458,9 @@ class _Hero extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     ShaderMask(
-                      shaderCallback: AppStyle.accentGradient.createShader,
+                      shaderCallback: AccentPalette.of(context)
+                          .gradient
+                          .createShader,
                       child: Text(
                         label.toUpperCase(),
                         style: text.labelLarge?.copyWith(

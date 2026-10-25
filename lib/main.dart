@@ -14,6 +14,7 @@ import 'player/playback_log.dart';
 import 'playlists/memory_password_store.dart';
 import 'playlists/password_store.dart';
 import 'playlists/playlists_screen.dart';
+import 'settings/app_settings.dart';
 import 'settings/memory_pin_store.dart';
 import 'settings/pin_scope.dart';
 import 'settings/pin_store.dart';
@@ -145,6 +146,10 @@ class IptvApp extends StatefulWidget {
 class _IptvAppState extends State<IptvApp> {
   final _playlistsKey = GlobalKey<PlaylistsScreenState>();
   final _navigatorKey = GlobalKey<NavigatorState>();
+
+  /// Themes built so far, one per accent colour, so a settings change that
+  /// keeps the accent hands [MaterialApp] the same theme.
+  final _themes = <AccentColor, ThemeData>{};
   late final AppLifecycleListener _lifecycle;
 
   /// What to show over the playlists at start. Every account that signed in
@@ -237,30 +242,36 @@ class _IptvAppState extends State<IptvApp> {
         controller: widget.settings,
         child: PinScope(
           store: widget.pins,
-          child: MaterialApp(
-            navigatorKey: _navigatorKey,
-            title: 'Ghostlime IPTV',
-            debugShowCheckedModeBanner: false,
-            theme: buildAppTheme(),
-            locale: const Locale('es'),
-            supportedLocales: const [Locale('es')],
-            localizationsDelegates: GlobalMaterialLocalizations.delegates,
-            home: PlaylistsScreen(
-              key: _playlistsKey,
-              db: widget.db,
-              passwords: widget.passwords,
-            ),
-            // The playlists stay underneath, so their start-up refresh and
-            // the sync of an account opened in the welcome run as usual.
-            initialRoute: _firstRun == FirstRunStep.none
-                ? null
-                : _firstRunRoute,
-            onGenerateRoute: _firstRunScreen,
+          child: Builder(
+            builder: (context) => _app(SettingsScope.of(context).value),
           ),
         ),
       ),
     );
     final log = widget.playbackLog;
     return log == null ? app : PlaybackLogScope(log: log, child: app);
+  }
+
+  /// The [MaterialApp], themed with the accent colour of [settings].
+  Widget _app(AppSettings settings) {
+    final accent = settings.accentColor;
+    return MaterialApp(
+      navigatorKey: _navigatorKey,
+      title: 'Ghostlime IPTV',
+      debugShowCheckedModeBanner: false,
+      theme: _themes.putIfAbsent(accent, () => buildAppTheme(accent: accent)),
+      locale: const Locale('es'),
+      supportedLocales: const [Locale('es')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      home: PlaylistsScreen(
+        key: _playlistsKey,
+        db: widget.db,
+        passwords: widget.passwords,
+      ),
+      // The playlists stay underneath, so their start-up refresh and
+      // the sync of an account opened in the welcome run as usual.
+      initialRoute: _firstRun == FirstRunStep.none ? null : _firstRunRoute,
+      onGenerateRoute: _firstRunScreen,
+    );
   }
 }

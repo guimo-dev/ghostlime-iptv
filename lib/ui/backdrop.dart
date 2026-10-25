@@ -12,6 +12,7 @@ class AppBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AccentPalette.of(context);
     return DecoratedBox(
       decoration: const BoxDecoration(color: AppColors.background),
       child: Stack(
@@ -23,7 +24,7 @@ class AppBackground extends StatelessWidget {
                   center: const Alignment(-0.9, -1.1),
                   radius: 1.1,
                   colors: [
-                    AppColors.accent.withValues(alpha: 0.09),
+                    palette.accent.withValues(alpha: 0.09),
                     Colors.transparent,
                   ],
                 ),
@@ -37,7 +38,7 @@ class AppBackground extends StatelessWidget {
                   center: const Alignment(1.1, -1.0),
                   radius: 0.9,
                   colors: [
-                    AppColors.accentAlt.withValues(alpha: 0.05),
+                    palette.accentAlt.withValues(alpha: 0.05),
                     Colors.transparent,
                   ],
                 ),
@@ -166,9 +167,11 @@ class GradientProgress extends StatelessWidget {
               child: FractionallySizedBox(
                 alignment: Alignment.centerLeft,
                 widthFactor: value.clamp(0.0, 1.0),
-                child: const DecoratedBox(
-                  key: Key('gradient-progress-fill'),
-                  decoration: BoxDecoration(gradient: AppStyle.accentGradient),
+                child: DecoratedBox(
+                  key: const Key('gradient-progress-fill'),
+                  decoration: BoxDecoration(
+                    gradient: AccentPalette.of(context).gradient,
+                  ),
                 ),
               ),
             ),

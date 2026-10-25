@@ -18,6 +18,10 @@ enum HomeRail {
   recentChannels,
 }
 
+/// Accent colour of buttons, indicators and the in-app logo. Lime is the
+/// brand colour; the launcher icon and emails always stay lime.
+enum AccentColor { lime, cyan, blue, violet, pink, orange, amber }
+
 T _enumFrom<T extends Enum>(List<T> values, Object? name, T fallback) {
   for (final value in values) {
     if (value.name == name) return value;
@@ -61,6 +65,7 @@ class AppSettings {
     this.parentalLock = false,
     this.lockedCategories = const {},
     this.volumeBrightnessGestures = true,
+    this.accentColor = AccentColor.lime,
   });
 
   /// Restores settings saved with [toJson]; missing, unknown or invalid values
@@ -116,6 +121,11 @@ class AppSettings {
         json['volumeBrightnessGestures'],
         true,
       ),
+      accentColor: _enumFrom(
+        AccentColor.values,
+        json['accentColor'],
+        AccentColor.lime,
+      ),
     );
   }
 
@@ -143,6 +153,9 @@ class AppSettings {
   /// (right side) and the window brightness (left side).
   final bool volumeBrightnessGestures;
 
+  /// Accent colour of the app; synced with the account like the rest.
+  final AccentColor accentColor;
+
   /// Returns a copy with the given fields replaced.
   AppSettings copyWith({
     bool? hardwareDecoding,
@@ -163,6 +176,7 @@ class AppSettings {
     bool? parentalLock,
     Set<String>? lockedCategories,
     bool? volumeBrightnessGestures,
+    AccentColor? accentColor,
   }) => AppSettings(
     hardwareDecoding: hardwareDecoding ?? this.hardwareDecoding,
     networkCacheSecs: networkCacheSecs ?? this.networkCacheSecs,
@@ -183,6 +197,7 @@ class AppSettings {
     lockedCategories: lockedCategories ?? this.lockedCategories,
     volumeBrightnessGestures:
         volumeBrightnessGestures ?? this.volumeBrightnessGestures,
+    accentColor: accentColor ?? this.accentColor,
   );
 
   /// JSON form for storage.
@@ -206,5 +221,6 @@ class AppSettings {
     'parentalLock': parentalLock,
     'lockedCategories': lockedCategories.toList()..sort(),
     'volumeBrightnessGestures': volumeBrightnessGestures,
+    'accentColor': accentColor.name,
   };
 }

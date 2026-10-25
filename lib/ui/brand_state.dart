@@ -86,6 +86,7 @@ class _BrandLoaderState extends State<BrandLoader>
   @override
   Widget build(BuildContext context) {
     final size = widget.size;
+    final accent = AccentPalette.of(context).accent;
     return Semantics(
       label: 'Cargando',
       child: AnimatedBuilder(
@@ -99,7 +100,7 @@ class _BrandLoaderState extends State<BrandLoader>
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.accent.withValues(alpha: 0.10 + 0.14 * t),
+                    color: accent.withValues(alpha: 0.10 + 0.14 * t),
                     blurRadius: size * 0.6,
                     spreadRadius: size * 0.05 * t,
                   ),

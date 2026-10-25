@@ -23,6 +23,7 @@ void main() {
     expect(s.parentalLock, isFalse);
     expect(s.lockedCategories, isEmpty);
     expect(s.volumeBrightnessGestures, isTrue);
+    expect(s.accentColor, AccentColor.lime);
   });
 
   test('fromJson of an empty map gives the defaults', () {
@@ -51,6 +52,7 @@ void main() {
       parentalLock: true,
       lockedCategories: {'1/live/5', '2/movie/9'},
       volumeBrightnessGestures: false,
+      accentColor: AccentColor.violet,
     );
     final restored = AppSettings.fromJson(original.toJson());
     expect(restored.toJson(), original.toJson());
@@ -60,6 +62,18 @@ void main() {
     expect(restored.defaultLiveFormat, LiveFormat.m3u8);
     expect(restored.epgOffsetMinutes, -90);
     expect(restored.volumeBrightnessGestures, isFalse);
+    expect(restored.accentColor, AccentColor.violet);
+  });
+
+  test("an accent colour from another version falls back to lime", () {
+    expect(
+      AppSettings.fromJson(const {"accentColor": "teal"}).accentColor,
+      AccentColor.lime,
+    );
+    expect(
+      AppSettings.fromJson(const {"accentColor": 3}).accentColor,
+      AccentColor.lime,
+    );
   });
 
   test('unknown keys and values fall back to defaults without throwing', () {

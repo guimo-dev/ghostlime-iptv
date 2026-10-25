@@ -665,6 +665,7 @@ void main() {
       db.saveSettings(
         const AppSettings(
           networkCacheSecs: 45,
+          accentColor: AccentColor.cyan,
           parentalLock: true,
           lockedCategories: {'1/live/x'},
           lastPlaylistId: 3,
@@ -690,6 +691,7 @@ void main() {
       applySettingsItem(other, item);
       final applied = AppSettings.fromJson(other.loadSettings());
       expect(applied.networkCacheSecs, 45);
+      expect(applied.accentColor, AccentColor.cyan);
       expect(applied.parentalLock, isTrue);
       expect(applied.lockedCategories, {'9/live/y'});
       expect(applied.lastPlaylistId, 8);

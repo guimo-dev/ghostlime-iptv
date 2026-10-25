@@ -827,7 +827,7 @@ class NowPanel extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                AppColors.selected.withValues(alpha: 0.9),
+                AccentPalette.of(context).selected.withValues(alpha: 0.9),
                 AppColors.surfaceHigh.withValues(alpha: 0.9),
               ],
             ),
@@ -840,7 +840,9 @@ class NowPanel extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       ShaderMask(
-                        shaderCallback: AppStyle.accentGradient.createShader,
+                        shaderCallback: AccentPalette.of(context)
+                            .gradient
+                            .createShader,
                         child: const Icon(
                           Icons.live_tv_rounded,
                           size: 48,
@@ -1019,7 +1021,9 @@ class OnAirDetails extends StatelessWidget {
         if (upcoming.isNotEmpty)
           Text(
             'A continuación',
-            style: text.labelSmall?.copyWith(color: AppColors.accent),
+            style: text.labelSmall?.copyWith(
+              color: AccentPalette.of(context).accent,
+            ),
           ),
         for (final programme in upcoming)
           UpcomingRow(programme: programme, timeStyle: mutedText),
@@ -1249,7 +1253,9 @@ class ChannelRow extends StatelessWidget {
               onPressed: onToggleFavorite,
               icon: Icon(
                 favorite ? Icons.star : Icons.star_border,
-                color: favorite ? AppColors.accent : AppColors.textMuted,
+                color: favorite
+                    ? AccentPalette.of(context).accent
+                    : AppColors.textMuted,
               ),
             ),
           ],

@@ -49,9 +49,10 @@ class _FocusCardState extends State<FocusCard> {
   @override
   Widget build(BuildContext context) {
     final highlight = _focused || _hovered;
+    final palette = AccentPalette.of(context);
     final radius = BorderRadius.circular(widget.radius);
     final background = widget.selected
-        ? AppColors.selected
+        ? palette.selected
         : highlight && !widget.grow
         ? Colors.white.withValues(alpha: 0.06)
         : widget.color;
@@ -65,11 +66,11 @@ class _FocusCardState extends State<FocusCard> {
           color: background,
           borderRadius: radius,
           border: Border.all(
-            color: _focused ? AppColors.accent : Colors.transparent,
+            color: _focused ? palette.accent : Colors.transparent,
             width: 3,
           ),
           boxShadow: _focused
-              ? AppStyle.focusGlow
+              ? palette.focusGlow
               : widget.shadow
               ? AppStyle.cardShadow
               : null,

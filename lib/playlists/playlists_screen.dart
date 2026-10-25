@@ -376,7 +376,7 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
       children: [
         TextSpan(
           text: 'IPTV',
-          style: TextStyle(color: AppColors.accent),
+          style: TextStyle(color: AccentPalette.of(context).accent),
         ),
       ],
     ),
@@ -482,7 +482,7 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
                     playlist.type == PlaylistType.xtream
                         ? Icons.dns_outlined
                         : Icons.list_alt,
-                    color: AppColors.accent,
+                    color: AccentPalette.of(context).accent,
                   ),
                   const SizedBox(width: 12),
                   Expanded(

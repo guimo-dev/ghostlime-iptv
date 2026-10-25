@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'app_theme.dart';
 
-/// The Ghostlime icon: a lime ghost whose face is a dark play button.
+/// The Ghostlime icon: a ghost in the theme accent (lime by default) whose
+/// face is a dark play button.
 ///
 /// Drawn from the paths of `branding/ghostlime.svg` (coordinates 0..120).
 /// With [tile] it sits on the dark rounded square of the app icon; without
@@ -28,7 +29,7 @@ class GhostlimeLogo extends StatelessWidget {
   Widget build(BuildContext context) {
     final logo = CustomPaint(
       size: Size.square(size),
-      painter: _GhostlimePainter(tile),
+      painter: _GhostlimePainter(tile, AccentPalette.of(context)),
     );
     final label = semanticLabel;
     if (label == null) return ExcludeSemantics(child: logo);
@@ -38,9 +39,13 @@ class GhostlimeLogo extends StatelessWidget {
 
 /// Paints the Ghostlime icon scaled to the canvas size.
 class _GhostlimePainter extends CustomPainter {
-  const _GhostlimePainter(this.tile);
+  const _GhostlimePainter(this.tile, this.palette);
 
   final bool tile;
+
+  /// Ghost body in [AccentPalette.accent], tile and face in
+  /// [AccentPalette.onAccent].
+  final AccentPalette palette;
 
   /// Side of the square the SVG paths are drawn in.
   static const _viewBox = 120.0;
@@ -71,17 +76,18 @@ class _GhostlimePainter extends CustomPainter {
           Offset.zero & size,
           Radius.circular(size.width * 240 / 1024),
         ),
-        Paint()..color = AppColors.onAccent,
+        Paint()..color = palette.onAccent,
       );
     }
     canvas.save();
     canvas.scale(size.width / _viewBox);
     canvas.translate(0, -3);
-    canvas.drawPath(_body, Paint()..color = AppColors.accent);
-    canvas.drawPath(_play, Paint()..color = AppColors.onAccent);
+    canvas.drawPath(_body, Paint()..color = palette.accent);
+    canvas.drawPath(_play, Paint()..color = palette.onAccent);
     canvas.restore();
   }
 
   @override
-  bool shouldRepaint(_GhostlimePainter oldDelegate) => oldDelegate.tile != tile;
+  bool shouldRepaint(_GhostlimePainter oldDelegate) =>
+      oldDelegate.tile != tile || oldDelegate.palette != palette;
 }

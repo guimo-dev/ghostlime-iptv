@@ -444,7 +444,10 @@ class _SideButton extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 child: Column(
                   children: [
-                    Icon(icon, color: active ? AppColors.accent : color),
+                    Icon(
+                      icon,
+                      color: active ? AccentPalette.of(context).accent : color,
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       label,
@@ -467,10 +470,10 @@ class _SideButton extends StatelessWidget {
               child: Container(
                 width: 3,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
+                  gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [AppColors.accent, AppColors.accentAlt],
+                    colors: AccentPalette.of(context).gradient.colors,
                   ),
                   borderRadius: BorderRadius.circular(2),
                 ),
