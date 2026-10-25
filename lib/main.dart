@@ -27,6 +27,7 @@ import 'sync/auth_gateway.dart';
 import 'sync/key_store.dart';
 import 'sync/supabase_backend.dart';
 import 'tv/remote_keys.dart';
+import 'tv/tv_focus_theme.dart';
 import 'ui/app_theme.dart';
 import 'ui/tv_device.dart';
 import 'ui/tv_scale.dart';
@@ -285,7 +286,11 @@ class _IptvAppState extends State<IptvApp> {
           TvScale(child: RemoteTextFieldKeys(child: child!)),
       // On a TV, the keys of the remote too.
       shortcuts: appShortcuts(),
-      theme: _themes.putIfAbsent(accent, () => buildAppTheme(accent: accent)),
+      theme: _themes.putIfAbsent(accent, () {
+        final theme = buildAppTheme(accent: accent);
+        // On a TV every control shows a clear focus for the remote.
+        return isTvDevice ? withTvFocus(theme) : theme;
+      }),
       locale: const Locale('es'),
       supportedLocales: const [Locale('es')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,

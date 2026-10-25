@@ -81,6 +81,9 @@ class _FocusCardState extends State<FocusCard> {
             borderRadius: radius,
             focusNode: widget.focusNode,
             autofocus: widget.autofocus,
+            // Its own ring shows the focus: keep the light tint even where
+            // the theme's focus colour is stronger (TV).
+            focusColor: palette.accent.withValues(alpha: 0.18),
             onTap: widget.onTap,
             onLongPress: widget.onLongPress,
             onFocusChange: (value) => setState(() => _focused = value),
