@@ -1,3 +1,6 @@
+import 'dart:io' show Platform;
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart'
     show LicenseEntryWithLineBreaks, LicenseRegistry;
 import 'package:flutter/gestures.dart';
@@ -6,6 +9,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:iptv_player/catalog/catalog_models.dart';
 import 'package:iptv_player/epg/programme.dart';
+import 'package:iptv_player/live/live_phone_view.dart'
+    show PhoneChannelRow, PhoneSchedule;
 import 'package:iptv_player/live/live_tv_screen.dart';
 import 'package:iptv_player/player/play_target.dart';
 import 'package:iptv_player/player/player_screen.dart';
@@ -13,6 +18,7 @@ import 'package:iptv_player/settings/parental_session.dart';
 import 'package:iptv_player/browse/catalog_images.dart' show ChannelLogo;
 import 'package:iptv_player/ui/backdrop.dart' show GradientProgress;
 import 'package:iptv_player/ui/focus_card.dart';
+import 'package:iptv_player/ui/form_factor.dart' show usesDesktopLayout;
 import 'package:media_kit_video/media_kit_video.dart'
     show MaterialDesktopSeekBar, Video;
 
@@ -30,6 +36,41 @@ typedef _Capture = Future<void> Function(
 
 /// Name of the playlist every test adds.
 const _playlistName = 'Demo';
+
+/// Whether the test window gets the phone layout (bottom bar, Directo for
+/// zapping): the `phone` and `tablet` sizes.
+bool _phoneLayout(WidgetTester tester) =>
+    !usesDesktopLayout(tester.view.physicalSize / tester.view.devicePixelRatio);
+
+/// The channel rows of Directo: [PhoneChannelRow] in the phone layout,
+/// [ChannelRow] otherwise.
+Finder _channelRows(WidgetTester tester) =>
+    find.byType(_phoneLayout(tester) ? PhoneChannelRow : ChannelRow);
+
+/// Scrolls [scrollable] in steps of [delta] until [finder] is built, then
+/// brings it into view, like `WidgetTester.scrollUntilVisible`. On Android
+/// it jumps the scroll position instead of dragging: on the emulator the
+/// test's drags did not move the lists.
+Future<void> _scrollUntilVisible(
+  WidgetTester tester,
+  Finder finder,
+  double delta, {
+  required Finder scrollable,
+}) async {
+  if (!Platform.isAndroid) {
+    await tester.scrollUntilVisible(finder, delta, scrollable: scrollable);
+    return;
+  }
+  final position = tester.state<ScrollableState>(scrollable).position;
+  while (finder.evaluate().isEmpty &&
+      position.pixels < position.maxScrollExtent) {
+    position.jumpTo(
+      math.min(position.pixels + delta, position.maxScrollExtent),
+    );
+    await tester.pump();
+  }
+  await tester.ensureVisible(finder);
+}
 
 /// Pumps (letting real time pass) until [done] is true; fails after [limit].
 Future<void> _pumpUntil(
@@ -248,14 +289,67 @@ Finder _posterOf(String title) => find.descendant(
   matching: find.byType(FocusCard),
 );
 
-/// Taps the side-bar button [section].
+/// Taps the side-bar button [section], or its bottom-bar destination in the
+/// phone layout (Inicio has a "Directo" button of its own).
 Future<void> _goTo(WidgetTester tester, String section) async {
-  await tester.tap(find.text(section).first);
+  await tester.tap(
+    _phoneLayout(tester)
+        ? find.descendant(
+            of: find.byType(NavigationBar),
+            matching: find.text(section),
+          )
+        : find.text(section).first,
+  );
   await settle(tester, timeout: const Duration(seconds: 2));
 }
 
+/// Opens the settings of the open playlist: the side-bar "Ajustes", or
+/// "Más" > "Ajustes" in the phone layout.
+Future<void> _openPlaylistSettings(WidgetTester tester) async {
+  if (_phoneLayout(tester)) {
+    await tester.tap(find.text('Más'));
+    await settle(tester, timeout: const Duration(seconds: 2));
+  }
+  await tester.tap(find.text('Ajustes'));
+  await settle(tester);
+}
+
+/// Taps the category chip [label]; in the phone layout it is scrolled into
+/// view first, since the chips run past the screen's edge (and are built
+/// lazily).
+Future<void> _tapChip(WidgetTester tester, String label) async {
+  if (_phoneLayout(tester)) {
+    await _scrollUntilVisible(
+      tester,
+      find.text(label),
+      100,
+      scrollable: find
+          .ancestor(
+            of: find.text('Continuar viendo'),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    // Lay the scrolled chips out before tapping, or the tap lands where the
+    // chip was before the scroll.
+    await tester.pump();
+  }
+  await tester.tap(find.text(label));
+  await settle(tester);
+}
+
+/// Taps Directo's "Orden": a button with its label, or only its icon in the
+/// phone layout.
+Future<void> _tapLiveSort(WidgetTester tester) async {
+  await tester.tap(
+    _phoneLayout(tester) ? find.byTooltip('Orden') : find.text('Orden'),
+  );
+  await tester.pumpAndSettle();
+}
+
 /// Masks for everything in live TV that follows the clock or the preview:
-/// start times (rows and the day's schedule), time left and progress.
+/// start times (rows and the day's schedule), time left and progress; in the
+/// phone layout also the schedule's progress and the preview.
 List<Finder> _liveMasks() => [
   find.textContaining(RegExp(r'^\d\d:\d\d')),
   find.textContaining('quedan'),
@@ -268,15 +362,30 @@ List<Finder> _liveMasks() => [
     of: find.byType(NowPanel),
     matching: find.byType(AspectRatio),
   ),
+  find.descendant(
+    of: find.byType(PhoneSchedule),
+    matching: find.byType(GradientProgress),
+  ),
+  find.byType(LivePreviewBox),
 ];
 
 /// Masks for the clocks of the guide grid: the time labels and its header
 /// row, whose controls move sideways with the width of the "HH:mm–HH:mm"
-/// button.
-List<Finder> _guideMasks() => [
-  find.textContaining(RegExp(r'^\d\d:\d\d')),
-  find.ancestor(of: find.byType(FilterChip), matching: find.byType(Row)).first,
-];
+/// button. On a narrow grid (a phone) that header is a `Wrap`.
+List<Finder> _guideMasks() {
+  final wrap = find.ancestor(
+    of: find.byType(FilterChip),
+    matching: find.byType(Wrap),
+  );
+  return [
+    find.textContaining(RegExp(r'^\d\d:\d\d')),
+    wrap.evaluate().isNotEmpty
+        ? wrap.first
+        : find
+              .ancestor(of: find.byType(FilterChip), matching: find.byType(Row))
+              .first,
+  ];
+}
 
 /// Mask for the content of the playlist cards: the subtitle (counts and "hace
 /// N min") changes width, so its own rectangle would leave part of it visible.
@@ -301,7 +410,7 @@ Finder _programmeProgress() => find.descendant(
 
 /// Plays the second live channel full screen and waits for the clip to play.
 Future<void> _playLive(WidgetTester tester) async {
-  final row = find.byType(ChannelRow).at(1);
+  final row = _channelRows(tester).at(1);
   await tester.tap(row);
   await settle(tester, timeout: const Duration(seconds: 2));
   await tester.tap(row);
@@ -382,7 +491,8 @@ void _registerDemoLicenses() {
 
 /// Scrolls the settings page until [finder] is visible.
 Future<void> _scrollSettingsTo(WidgetTester tester, Finder finder) async {
-  await tester.scrollUntilVisible(
+  await _scrollUntilVisible(
+    tester,
     finder,
     300,
     scrollable: find.byType(Scrollable).first,
@@ -392,8 +502,7 @@ Future<void> _scrollSettingsTo(WidgetTester tester, Finder finder) async {
 
 /// Taps the "Control parental con PIN" switch and types a PIN into the dialog.
 Future<void> _startParentalLock(WidgetTester tester) async {
-  await tester.tap(find.text('Ajustes'));
-  await settle(tester);
+  await _openPlaylistSettings(tester);
   final title = find.text('Control parental con PIN');
   await _scrollSettingsTo(tester, title);
   final row = find.ancestor(of: title, matching: find.byType(Row)).first;
@@ -490,20 +599,18 @@ final Map<String, _Capture> _screens = {
   },
   'directo': (tester, harness, name) async {
     await _enter(tester, harness, seed: _seedGuide, section: 'Directo');
-    await tester.tap(find.byType(ChannelRow).at(1));
+    await tester.tap(_channelRows(tester).at(1));
     await settle(tester, timeout: const Duration(seconds: 2));
     await expectScreen(tester, name, masks: _liveMasks());
   },
   'directo-orden': (tester, harness, name) async {
     await _enter(tester, harness, seed: _seedGuide, section: 'Directo');
-    await tester.tap(find.text('Orden'));
-    await tester.pumpAndSettle();
+    await _tapLiveSort(tester);
     await expectScreen(tester, name, masks: _liveMasks());
   },
   'directo-reordenar': (tester, harness, name) async {
     await _enter(tester, harness, seed: _seedGuide, section: 'Directo');
-    await tester.tap(find.text('Orden'));
-    await tester.pumpAndSettle();
+    await _tapLiveSort(tester);
     await tester.tap(find.text('Ordenar a mano…'));
     await settle(tester, timeout: const Duration(seconds: 2));
     await expectScreen(tester, name);
@@ -516,7 +623,11 @@ final Map<String, _Capture> _screens = {
       seed: (h) => _seedGuide(h, forGuideGrid: true),
       section: 'Directo',
     );
-    await tester.tap(find.byTooltip('Ver la guía de los canales'));
+    await tester.tap(
+      find.byTooltip(
+        _phoneLayout(tester) ? 'Guía' : 'Ver la guía de los canales',
+      ),
+    );
     await tester.pump();
     await tester.tap(find.byTooltip('Después'));
     await tester.pump();
@@ -558,8 +669,7 @@ final Map<String, _Capture> _screens = {
       seed: (h) => _seedFavorites(h, MediaKind.movie, 4),
       section: 'Películas',
     );
-    await tester.tap(find.text('Favoritos'));
-    await settle(tester);
+    await _tapChip(tester, 'Favoritos');
     await expectScreen(tester, name);
   },
   'recientes': (tester, harness, name) async {
@@ -569,8 +679,7 @@ final Map<String, _Capture> _screens = {
       seed: (h) => _seedRecents(h, MediaKind.movie, 4),
       section: 'Películas',
     );
-    await tester.tap(find.text('Recientes'));
-    await settle(tester);
+    await _tapChip(tester, 'Recientes');
     await expectScreen(tester, name);
   },
   'reproductor-controles': (tester, harness, name) async {
@@ -608,8 +717,7 @@ final Map<String, _Capture> _screens = {
   },
   'ajustes': (tester, harness, name) async {
     await _enter(tester, harness);
-    await tester.tap(find.text('Ajustes'));
-    await settle(tester);
+    await _openPlaylistSettings(tester);
     await _scrollSettingsTo(tester, find.text('Carruseles de Inicio'));
     await expectScreen(tester, name);
   },
@@ -649,14 +757,9 @@ final Map<String, _Capture> _screens = {
     await tester.tap(find.byTooltip('Ajustes'));
     await settle(tester);
     await _scrollSettingsTo(tester, find.text('Licencias'));
-    await tester.tap(
-      find.descendant(
-        of: find
-            .ancestor(of: find.text('Licencias'), matching: find.byType(Row))
-            .first,
-        matching: find.text('Ver'),
-      ),
-    );
+    // The first "Ver" is the licenses' one (the legal texts follow it); in
+    // the phone layout it sits below the title, not in its row.
+    await tester.tap(find.text('Ver').first);
     await _pumpUntil(
       tester,
       () => find.text('demo_player').evaluate().isNotEmpty,
@@ -666,13 +769,28 @@ final Map<String, _Capture> _screens = {
   },
 };
 
+/// Screens left out on Android, with the reason.
+const _skippedOnAndroid = {
+  'reproductor-controles': _noClipOnDevice,
+  'reproductor-info': _noClipOnDevice,
+};
+
+/// The harness's own demo server reads its clip from the repository
+/// (`tool/demo_server/assets`), which is not on the device, so nothing plays
+/// (`android_smoke_test.dart` plays from the PC's server instead).
+const _noClipOnDevice = 'the demo clip is not on the device';
+
 /// One visual test per screen and size; each starts the app on throwaway data.
+/// Every screen runs at every size: `phone` and `tablet` get the phone layout
+/// (bottom bar, Directo for zapping), and on Windows the player keeps its
+/// desktop controls.
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  for (final size in [smallSize, mediumSize]) {
+  for (final size in [smallSize, mediumSize, phoneSize, tabletSize]) {
     for (final MapEntry(key: name, value: capture) in _screens.entries) {
-      testWidgets('$name at ${sizeName(size)}', (tester) async {
+      final skipped = Platform.isAndroid && _skippedOnAndroid.containsKey(name);
+      testWidgets('$name at ${sizeName(size)}', skip: skipped, (tester) async {
         ParentalSession.unlocked.value = false;
         final harness = await AppHarness.start(
           tester,

@@ -24,10 +24,19 @@ const smallSize = Size(1024, 700);
 /// Window size of the usual desktop layout.
 const mediumSize = Size(1440, 900);
 
-/// Folder name of the references for [size]: `small`, `medium` or `<w>x<h>`.
+/// Window size of a phone held upright (phone layout, bottom bar).
+const phoneSize = Size(390, 844);
+
+/// Window size of a portrait tablet (still the phone layout: under 1024 wide).
+const tabletSize = Size(800, 1280);
+
+/// Folder name of the references for [size]: `small`, `medium`, `phone`,
+/// `tablet` or `<w>x<h>`.
 String sizeName(Size size) {
   if (size == smallSize) return 'small';
   if (size == mediumSize) return 'medium';
+  if (size == phoneSize) return 'phone';
+  if (size == tabletSize) return 'tablet';
   return '${size.width.toInt()}x${size.height.toInt()}';
 }
 
@@ -63,7 +72,10 @@ class AppHarness {
   final AccountService? account;
 
   /// Starts the app in a window of [size] logical pixels at device pixel
-  /// ratio 1.0, with a non-blinking caret, and pumps the first frame. With
+  /// ratio 1.0, with a non-blinking caret, and pumps the first frame. The
+  /// device's insets (status bar, keyboard) are zeroed as on Windows: on a
+  /// phone they come in physical pixels, which at ratio 1.0 would take two or
+  /// three times their real share of the window. With
   /// [signedIn] the account is created and signed in first (as
   /// `demo@example.com`). The welcome is marked done and the terms accepted,
   /// unless [firstRun] asks for a new installation (with a signed-out account,
@@ -78,6 +90,9 @@ class AppHarness {
     MediaKit.ensureInitialized();
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
+    tester.view.padding = FakeViewPadding.zero;
+    tester.view.viewPadding = FakeViewPadding.zero;
+    tester.view.viewInsets = FakeViewPadding.zero;
     EditableText.debugDeterministicCursor = true;
     final dir = await Directory.systemTemp.createTemp('ghostlime_visual_');
     CatalogDb? db;
@@ -154,6 +169,9 @@ class AppHarness {
     await dir.delete(recursive: true);
     tester.view.resetPhysicalSize();
     tester.view.resetDevicePixelRatio();
+    tester.view.resetPadding();
+    tester.view.resetViewPadding();
+    tester.view.resetViewInsets();
     EditableText.debugDeterministicCursor = false;
   }
 }

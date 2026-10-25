@@ -12,6 +12,11 @@ import 'harness.dart';
 /// (`--dart-define=UPDATE_GOLDENS=true`).
 const updateGoldens = bool.fromEnvironment('UPDATE_GOLDENS');
 
+/// Only captures each screen, without comparing nor writing references
+/// (`--dart-define=SKIP_GOLDENS=true`): for devices whose pixels are not
+/// those of the references, such as the Android emulator.
+const skipGoldens = bool.fromEnvironment('SKIP_GOLDENS');
+
 /// Also saves the medium-size captures, without the [masks], to `docs/guia/img`
 /// (`--dart-define=DOCS_SCREENSHOTS=true`).
 const docsScreenshots = bool.fromEnvironment('DOCS_SCREENSHOTS');
@@ -105,7 +110,9 @@ Future<(int, int, Uint8List)> captureScreen(
 /// reference is rewritten instead. On failure the actual and diff images go
 /// to `build/golden_failures/<size>/`. Widgets whose pixels depend on the
 /// time (clocks, guide progress, "termina en…") must be passed in [masks].
-/// [maskVideo] is passed on to [captureScreen]. Call `settle` first.
+/// [maskVideo] is passed on to [captureScreen]. With [skipGoldens] it only
+/// captures (the screen was built and its masks resolve). Call `settle`
+/// first.
 Future<void> expectScreen(
   WidgetTester tester,
   String name, {
@@ -118,6 +125,7 @@ Future<void> expectScreen(
     masks: masks,
     maskVideo: maskVideo,
   );
+  if (skipGoldens) return;
 
   if (docsScreenshots && size == 'medium') {
     await _writeDocsImage(tester, name, maskVideo);
