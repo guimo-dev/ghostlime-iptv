@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' show max;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../catalog/catalog_db.dart';
 import '../catalog/catalog_models.dart';
@@ -19,7 +20,9 @@ import '../ui/backdrop.dart';
 import '../ui/content_width.dart';
 import '../ui/focus_card.dart';
 import '../ui/form_factor.dart';
+import '../tv/exit_dialog.dart';
 import '../ui/ghostlime_logo.dart';
+import '../ui/tv_device.dart';
 import 'password_store.dart';
 import 'playlist.dart';
 import 'playlist_form_screen.dart';
@@ -303,9 +306,25 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
     return 'hace ${minutes ~/ (60 * 24)} d';
   }
 
+  /// On a TV, Back on this first screen asks before closing the app.
+  Future<void> _confirmExit() async {
+    if (await confirmExit(context)) await SystemNavigator.pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final phone = usesPhoneLayout(context);
+    return PopScope(
+      canPop: !isTvDevice,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) unawaited(_confirmExit());
+      },
+      child: _page(phone),
+    );
+  }
+
+  /// The page: header and playlist cards, with the phone layout when [phone].
+  Widget _page(bool phone) {
     return Scaffold(
       backgroundColor: Colors.transparent,
       // Phones: "Añadir lista" at the bottom right, within the thumb's reach.
@@ -397,7 +416,9 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
     onPressed: _openSettings,
   );
 
+  /// "Añadir lista"; on a TV without playlists it takes the focus.
   Widget _addButton() => FilledButton.icon(
+    autofocus: isTvDevice && _playlists.isEmpty,
     onPressed: _edit,
     icon: const Icon(Icons.add),
     label: const Text('Añadir lista'),
@@ -461,13 +482,15 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
     _subtitleText(),
   ];
 
-  /// One playlist as a card: open on tap, actions along the bottom.
+  /// One playlist as a card: open on tap, actions along the bottom. On a TV
+  /// the first card takes the focus.
   Widget _card(Playlist playlist, double width) {
     final text = Theme.of(context).textTheme;
     final syncing = _syncing.contains(playlist.id);
     return SizedBox(
       width: width,
       child: FocusCard(
+        autofocus: isTvDevice && playlist == _playlists.first,
         color: Colors.white.withValues(alpha: 0.05),
         radius: 18,
         onTap: () => _open(playlist),

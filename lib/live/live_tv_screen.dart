@@ -31,6 +31,7 @@ import '../ui/brand_state.dart';
 import '../ui/display_title.dart';
 import '../ui/focus_card.dart';
 import '../ui/form_factor.dart';
+import '../ui/tv_device.dart';
 import 'live_phone_view.dart';
 
 const _favoritesId = '__favorites__';
@@ -634,6 +635,8 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
     Widget tile(String id, String label, {IconData? icon}) => Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
       child: FocusCard(
+        // On a TV the group shown takes the focus.
+        autofocus: isTvDevice && id == _groupId,
         grow: false,
         selected: id == _groupId,
         onTap: () => _selectGroup(id),

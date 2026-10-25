@@ -126,12 +126,15 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(_showRails);
   }
 
-  /// Handles Esc while the search box has text; other keys, and Esc with an
-  /// empty box, carry on.
+  /// Handles Esc (or Back on a remote) while the search box has text; other
+  /// keys, and Esc with an empty box, carry on. Back acts on its release, as
+  /// Android does: a release left unhandled would also leave Inicio.
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent ||
-        event.logicalKey != LogicalKeyboardKey.escape ||
-        _searchController.text.isEmpty) {
+    final escape =
+        event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape;
+    final back =
+        event is KeyUpEvent && event.logicalKey == LogicalKeyboardKey.goBack;
+    if (!(escape || back) || _searchController.text.isEmpty) {
       return KeyEventResult.ignored;
     }
     _clearSearch();

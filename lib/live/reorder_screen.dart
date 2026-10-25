@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../tv/tv_initial_focus.dart';
 import '../ui/backdrop.dart';
 import '../ui/bottom_action_bar.dart';
 import '../ui/content_width.dart';
@@ -98,74 +99,80 @@ class _ReorderScreenState extends State<ReorderScreen> {
                 ),
               ),
             Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) => ReorderableListView.builder(
-                  padding: ContentWidth.paddingFor(
-                    constraints.maxWidth,
-                    EdgeInsets.zero,
-                  ),
-                  buildDefaultDragHandles: false,
-                  itemCount: _items.length,
-                  onReorderItem: _onReorder,
-                  itemBuilder: (context, index) {
-                    final item = _items[index];
-                    return ListTile(
-                      key: ValueKey(item.id),
-                      dense: true,
-                      leading: widget.allowHide
-                          ? Checkbox(
-                              value: !item.hidden,
-                              semanticLabel: 'Visible',
-                              onChanged: (visible) => setState(
-                                () => _items[index] = item.withHidden(
-                                  visible == false,
-                                ),
-                              ),
-                            )
-                          : null,
-                      title: Text(
-                        item.label,
-                        style: item.hidden
-                            ? TextStyle(color: Theme.of(context).disabledColor)
-                            : null,
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          PopupMenuButton<_Move>(
-                            tooltip: 'Mover',
-                            icon: const Icon(Icons.swap_vert),
-                            onSelected: (move) => _move(index, move),
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(
-                                value: _Move.up,
-                                child: Text('Subir'),
-                              ),
-                              PopupMenuItem(
-                                value: _Move.down,
-                                child: Text('Bajar'),
-                              ),
-                              PopupMenuItem(
-                                value: _Move.top,
-                                child: Text('Al principio'),
-                              ),
-                              PopupMenuItem(
-                                value: _Move.bottom,
-                                child: Text('Al final'),
-                              ),
-                            ],
-                          ),
-                          ReorderableDragStartListener(
-                            index: index,
-                            child: const Padding(
-                              padding: EdgeInsets.all(8),
-                              child: Icon(Icons.drag_handle),
+              // On a TV the first row takes the focus.
+              child: TvInitialFocus(
+                child: LayoutBuilder(
+                  builder: (context, constraints) =>
+                      ReorderableListView.builder(
+                        padding: ContentWidth.paddingFor(
+                          constraints.maxWidth,
+                          EdgeInsets.zero,
+                        ),
+                        buildDefaultDragHandles: false,
+                        itemCount: _items.length,
+                        onReorderItem: _onReorder,
+                        itemBuilder: (context, index) {
+                          final item = _items[index];
+                          return ListTile(
+                            key: ValueKey(item.id),
+                            dense: true,
+                            leading: widget.allowHide
+                                ? Checkbox(
+                                    value: !item.hidden,
+                                    semanticLabel: 'Visible',
+                                    onChanged: (visible) => setState(
+                                      () => _items[index] = item.withHidden(
+                                        visible == false,
+                                      ),
+                                    ),
+                                  )
+                                : null,
+                            title: Text(
+                              item.label,
+                              style: item.hidden
+                                  ? TextStyle(
+                                      color: Theme.of(context).disabledColor,
+                                    )
+                                  : null,
                             ),
-                          ),
-                        ],
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                PopupMenuButton<_Move>(
+                                  tooltip: 'Mover',
+                                  icon: const Icon(Icons.swap_vert),
+                                  onSelected: (move) => _move(index, move),
+                                  itemBuilder: (_) => const [
+                                    PopupMenuItem(
+                                      value: _Move.up,
+                                      child: Text('Subir'),
+                                    ),
+                                    PopupMenuItem(
+                                      value: _Move.down,
+                                      child: Text('Bajar'),
+                                    ),
+                                    PopupMenuItem(
+                                      value: _Move.top,
+                                      child: Text('Al principio'),
+                                    ),
+                                    PopupMenuItem(
+                                      value: _Move.bottom,
+                                      child: Text('Al final'),
+                                    ),
+                                  ],
+                                ),
+                                ReorderableDragStartListener(
+                                  index: index,
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(8),
+                                    child: Icon(Icons.drag_handle),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
                 ),
               ),
             ),

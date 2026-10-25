@@ -21,6 +21,7 @@ import '../ui/brand_state.dart';
 import '../ui/focus_card.dart';
 import '../ui/form_factor.dart';
 import '../ui/ghostlime_logo.dart';
+import '../ui/tv_device.dart';
 import '../xtream/xtream_client.dart';
 
 /// One destination of the side bar.
@@ -78,6 +79,10 @@ class _AppShellState extends State<AppShell> {
   bool _retrying = false;
   StreamSubscription<int>? _refreshes;
 
+  /// Focus of each section's side bar button: on a TV the section opened
+  /// gets it, since the widget focused in the section left may be gone.
+  final _sectionFocus = [for (final _ in _sections) FocusNode()];
+
   @override
   void initState() {
     super.initState();
@@ -89,6 +94,9 @@ class _AppShellState extends State<AppShell> {
   @override
   void dispose() {
     _refreshes?.cancel();
+    for (final node in _sectionFocus) {
+      node.dispose();
+    }
     super.dispose();
   }
 
@@ -130,12 +138,14 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
+  /// Shows section [index]; on a TV its side bar button takes the focus.
   void _go(int index) {
     _lastSectionIndex = index;
     setState(() {
       _index = index;
       if (index == 0) _homeVersion++;
     });
+    if (isTvDevice) _sectionFocus[index].requestFocus();
   }
 
   Widget _section(int index) {
@@ -230,8 +240,9 @@ class _AppShellState extends State<AppShell> {
             ),
     );
     return PopScope(
-      // With the bottom bar, Back from a section goes to Inicio first.
-      canPop: !bottomBar || _index == 0,
+      // With the bottom bar or a remote, Back from a section goes to Inicio
+      // first.
+      canPop: !(bottomBar || isTvDevice) || _index == 0,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _go(0);
       },
@@ -249,6 +260,7 @@ class _AppShellState extends State<AppShell> {
                 if (!bottomBar)
                   _SideBar(
                     selected: _index,
+                    sectionFocus: _sectionFocus,
                     onSelected: _go,
                     onExit: _exit,
                     onSettings: _openSettings,
@@ -352,12 +364,16 @@ class _SyncErrorPanel extends StatelessWidget {
 class _SideBar extends StatelessWidget {
   const _SideBar({
     required this.selected,
+    required this.sectionFocus,
     required this.onSelected,
     required this.onExit,
     required this.onSettings,
   });
 
   final int selected;
+
+  /// Focus nodes of the section buttons, in order.
+  final List<FocusNode> sectionFocus;
   final ValueChanged<int> onSelected;
   final VoidCallback onExit;
   final VoidCallback onSettings;
@@ -383,6 +399,7 @@ class _SideBar extends StatelessWidget {
                   const SizedBox(height: 28),
                   for (var i = 0; i < _sections.length; i++)
                     _SideButton(
+                      focusNode: sectionFocus[i],
                       icon: _sections[i].icon,
                       label: _sections[i].label,
                       active: i == selected,
@@ -415,12 +432,14 @@ class _SideBar extends StatelessWidget {
 /// marker on its left edge.
 class _SideButton extends StatelessWidget {
   const _SideButton({
+    this.focusNode,
     required this.icon,
     required this.label,
     required this.active,
     required this.onTap,
   });
 
+  final FocusNode? focusNode;
   final IconData icon;
   final String label;
   final bool active;
@@ -434,6 +453,7 @@ class _SideButton extends StatelessWidget {
       child: Stack(
         children: [
           FocusCard(
+            focusNode: focusNode,
             grow: false,
             radius: 14,
             color: active ? Colors.white.withValues(alpha: 0.08) : null,

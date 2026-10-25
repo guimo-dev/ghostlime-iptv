@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../settings/settings_scope.dart';
+import '../tv/tv_initial_focus.dart';
 import '../ui/bottom_action_bar.dart';
 import '../ui/choice_selector.dart';
 import '../xtream/xtream_urls.dart';
@@ -153,127 +154,131 @@ class _PlaylistFormScreenState extends State<PlaylistFormScreen> {
     final bottomActions = usesBottomActions(context);
     final saveLabel = _checking ? 'Comprobando…' : 'Guardar';
     final onSave = _checking ? null : _save;
-    final form = Form(
-      key: _formKey,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: _maxFormWidth),
-            child: Column(
-              spacing: 20,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ChoiceSelector<PlaylistType>(
-                  options: const {
-                    PlaylistType.xtream: 'Xtream',
-                    PlaylistType.m3uUrl: 'M3U (URL)',
-                    PlaylistType.m3uFile: 'M3U (fichero)',
-                  },
-                  value: _type,
-                  onChanged: (type) => setState(() => _type = type),
-                ),
-                if (_sourceError case final error?) _SourceError(error),
-                TextFormField(
-                  controller: _name,
-                  decoration: const InputDecoration(labelText: 'Nombre'),
-                  validator: _required,
-                ),
-                if (isXtream) ...[
-                  TextFormField(
-                    decoration: const InputDecoration(
-                      labelText: 'Pegar enlace del proveedor (opcional)',
-                      helperText: 'Rellena servidor, usuario y contraseña',
-                    ),
-                    onChanged: _applyLink,
+    // On a TV the type selector takes the focus (not a field, which would
+    // open the keyboard).
+    final form = TvInitialFocus(
+      child: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: _maxFormWidth),
+              child: Column(
+                spacing: 20,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ChoiceSelector<PlaylistType>(
+                    options: const {
+                      PlaylistType.xtream: 'Xtream',
+                      PlaylistType.m3uUrl: 'M3U (URL)',
+                      PlaylistType.m3uFile: 'M3U (fichero)',
+                    },
+                    value: _type,
+                    onChanged: (type) => setState(() => _type = type),
                   ),
+                  if (_sourceError case final error?) _SourceError(error),
                   TextFormField(
-                    controller: _server,
-                    decoration: const InputDecoration(labelText: 'Servidor'),
+                    controller: _name,
+                    decoration: const InputDecoration(labelText: 'Nombre'),
                     validator: _required,
                   ),
-                  TextFormField(
-                    controller: _username,
-                    decoration: const InputDecoration(labelText: 'Usuario'),
-                    validator: _required,
-                  ),
-                  TextFormField(
-                    controller: _password,
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      labelText: 'Contraseña',
-                      helperText: _editing
-                          ? 'Vacía para mantener la actual'
-                          : null,
-                    ),
-                    validator: _editing ? null : _required,
-                  ),
-                  Column(
-                    spacing: 8,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Directo en',
-                        style: Theme.of(context).textTheme.labelLarge,
+                  if (isXtream) ...[
+                    TextFormField(
+                      decoration: const InputDecoration(
+                        labelText: 'Pegar enlace del proveedor (opcional)',
+                        helperText: 'Rellena servidor, usuario y contraseña',
                       ),
-                      ChoiceSelector<LiveFormat>(
-                        options: const {
-                          LiveFormat.ts: 'TS',
-                          LiveFormat.m3u8: 'HLS',
-                        },
-                        value: _liveFormat,
-                        onChanged: (format) =>
-                            setState(() => _liveFormat = format),
-                      ),
-                    ],
-                  ),
-                ] else if (_type == PlaylistType.m3uUrl)
-                  TextFormField(
-                    controller: _source,
-                    decoration: const InputDecoration(
-                      labelText: 'URL de la lista',
+                      onChanged: _applyLink,
                     ),
-                    validator: _required,
-                  )
-                else
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _source,
-                          readOnly: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Fichero',
-                          ),
-                          validator: _required,
+                    TextFormField(
+                      controller: _server,
+                      decoration: const InputDecoration(labelText: 'Servidor'),
+                      validator: _required,
+                    ),
+                    TextFormField(
+                      controller: _username,
+                      decoration: const InputDecoration(labelText: 'Usuario'),
+                      validator: _required,
+                    ),
+                    TextFormField(
+                      controller: _password,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: 'Contraseña',
+                        helperText: _editing
+                            ? 'Vacía para mantener la actual'
+                            : null,
+                      ),
+                      validator: _editing ? null : _required,
+                    ),
+                    Column(
+                      spacing: 8,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Directo en',
+                          style: Theme.of(context).textTheme.labelLarge,
                         ),
+                        ChoiceSelector<LiveFormat>(
+                          options: const {
+                            LiveFormat.ts: 'TS',
+                            LiveFormat.m3u8: 'HLS',
+                          },
+                          value: _liveFormat,
+                          onChanged: (format) =>
+                              setState(() => _liveFormat = format),
+                        ),
+                      ],
+                    ),
+                  ] else if (_type == PlaylistType.m3uUrl)
+                    TextFormField(
+                      controller: _source,
+                      decoration: const InputDecoration(
+                        labelText: 'URL de la lista',
                       ),
-                      const SizedBox(width: 8),
-                      OutlinedButton(
-                        onPressed: _pickFile,
-                        child: const Text('Elegir…'),
-                      ),
-                    ],
+                      validator: _required,
+                    )
+                  else
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _source,
+                            readOnly: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Fichero',
+                            ),
+                            validator: _required,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        OutlinedButton(
+                          onPressed: _pickFile,
+                          child: const Text('Elegir…'),
+                        ),
+                      ],
+                    ),
+                  TextFormField(
+                    controller: _userAgent,
+                    decoration: const InputDecoration(
+                      labelText: 'User-Agent (opcional)',
+                    ),
                   ),
-                TextFormField(
-                  controller: _userAgent,
-                  decoration: const InputDecoration(
-                    labelText: 'User-Agent (opcional)',
+                  TextFormField(
+                    controller: _epgUrl,
+                    decoration: const InputDecoration(
+                      labelText: 'URL de la guía (opcional)',
+                      helperText: 'Si se deja vacía se usa la del proveedor',
+                    ),
                   ),
-                ),
-                TextFormField(
-                  controller: _epgUrl,
-                  decoration: const InputDecoration(
-                    labelText: 'URL de la guía (opcional)',
-                    helperText: 'Si se deja vacía se usa la del proveedor',
+                  Text(
+                    'Ghostlime no proporciona contenido. Añade solo listas que '
+                    'tengas derecho a usar.',
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
-                ),
-                Text(
-                  'Ghostlime no proporciona contenido. Añade solo listas que '
-                  'tengas derecho a usar.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

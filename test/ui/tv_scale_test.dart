@@ -7,8 +7,8 @@ import 'package:iptv_player/ui/tv_scale.dart';
 void _useTvView(WidgetTester tester) {
   tester.view.physicalSize = const Size(1920, 1080);
   tester.view.devicePixelRatio = 2;
-  tester.view.padding = const FakeViewPadding(bottom: 30);
-  tester.view.viewPadding = const FakeViewPadding(bottom: 30);
+  tester.view.padding = const FakeViewPadding(bottom: 120);
+  tester.view.viewPadding = const FakeViewPadding(bottom: 120);
   addTearDown(tester.view.reset);
 }
 
@@ -41,9 +41,13 @@ void main() {
     );
 
     expect(inside.size, const Size(1280, 720));
-    // 30 physical px of padding are 15 logical px outside and 20 inside
-    // (the Scaffold consumes `padding`; `viewPadding` keeps it).
-    expect(inside.viewPadding.bottom, closeTo(20, 0.001));
+    // 120 physical px of padding are 60 logical px outside and 80 inside
+    // (the Scaffold consumes `padding`; `viewPadding` keeps it). The other
+    // sides get the overscan margin.
+    expect(inside.viewPadding.bottom, closeTo(80, 0.001));
+    expect(inside.viewPadding.left, tvSafeMargin.left);
+    expect(inside.viewPadding.top, tvSafeMargin.top);
+    expect(inside.viewPadding.right, tvSafeMargin.right);
     expect(inside.devicePixelRatio, closeTo(1.5, 0.001));
     final rect = tester.getRect(find.byKey(const Key('box')));
     expect(rect.width * tester.view.devicePixelRatio, closeTo(150, 0.001));

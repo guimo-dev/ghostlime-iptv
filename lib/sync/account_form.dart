@@ -20,9 +20,18 @@ String accountSyncExplanation({required bool supportsGoogle}) =>
 /// text, never SnackBars). Shows the [account]'s last error and a progress
 /// bar while an action runs.
 class AccountForm extends StatefulWidget {
-  const AccountForm({super.key, required this.account, this.onSignedIn});
+  const AccountForm({
+    super.key,
+    required this.account,
+    this.onSignedIn,
+    this.autofocus = false,
+  });
 
   final AccountService account;
+
+  /// Whether the email field takes the focus when the form opens (in the
+  /// welcome dialog on a TV, where nothing else would have it).
+  final bool autofocus;
 
   /// Called when an action of this form leaves a session open: signed in, or
   /// in a state still to settle in Ajustes → Cuenta
@@ -179,6 +188,7 @@ class _AccountFormState extends State<AccountForm> {
                 SizedBox(
                   width: 260,
                   child: TextField(
+                    autofocus: widget.autofocus,
                     controller: _email,
                     keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(labelText: 'Email'),

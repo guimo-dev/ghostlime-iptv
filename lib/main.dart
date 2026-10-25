@@ -26,6 +26,7 @@ import 'sync/account_service.dart';
 import 'sync/auth_gateway.dart';
 import 'sync/key_store.dart';
 import 'sync/supabase_backend.dart';
+import 'tv/remote_keys.dart';
 import 'ui/app_theme.dart';
 import 'ui/tv_device.dart';
 import 'ui/tv_scale.dart';
@@ -280,7 +281,10 @@ class _IptvAppState extends State<IptvApp> {
       title: 'Ghostlime IPTV',
       debugShowCheckedModeBanner: false,
       // On a TV the whole app, routes and dialogs included, is scaled.
-      builder: (context, child) => TvScale(child: child!),
+      builder: (context, child) =>
+          TvScale(child: RemoteTextFieldKeys(child: child!)),
+      // On a TV, the keys of the remote too.
+      shortcuts: appShortcuts(),
       theme: _themes.putIfAbsent(accent, () => buildAppTheme(accent: accent)),
       locale: const Locale('es'),
       supportedLocales: const [Locale('es')],

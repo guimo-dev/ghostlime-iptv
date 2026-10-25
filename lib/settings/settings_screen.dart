@@ -21,6 +21,7 @@ import '../ui/backdrop.dart';
 import '../ui/choice_selector.dart';
 import '../ui/content_width.dart';
 import '../ui/form_factor.dart';
+import '../tv/tv_initial_focus.dart';
 import '../ui/ghostlime_logo.dart';
 import '../xtream/xtream_urls.dart';
 import 'app_settings.dart';
@@ -273,332 +274,341 @@ class _SettingsScreenState extends State<SettingsScreen> {
           backgroundColor: Colors.transparent,
           title: const Text('Ajustes'),
         ),
-        body: LayoutBuilder(
-          builder: (context, constraints) => ListView(
-            // Phones: full width with narrow margins.
-            padding: usesPhoneLayout(context)
-                ? const EdgeInsets.fromLTRB(
-                    phonePageMargin,
-                    8,
-                    phonePageMargin,
-                    32,
-                  )
-                : ContentWidth.paddingFor(
-                    constraints.maxWidth,
-                    const EdgeInsets.fromLTRB(48, 8, 48, 48),
-                  ),
-            children: [
-              _AccountSection(db: widget.db),
-              _Section(
-                icon: Icons.play_circle_outline,
-                title: 'Reproducción',
-                children: [
-                  // Desktop only: Android and iOS ignore the synced value (hwdecFor).
-                  if (!isTouchPlatform)
-                    _SwitchRow(
-                      title: 'Decodificación por hardware',
-                      subtitle: 'Usa la gráfica; desactívala si ves fallos de imagen.',
-                      value: s.hardwareDecoding,
+        // On a TV the first setting takes the focus.
+        body: TvInitialFocus(
+          child: LayoutBuilder(
+            builder: (context, constraints) => ListView(
+              // Phones: full width with narrow margins.
+              padding: usesPhoneLayout(context)
+                  ? const EdgeInsets.fromLTRB(
+                      phonePageMargin,
+                      8,
+                      phonePageMargin,
+                      32,
+                    )
+                  : ContentWidth.paddingFor(
+                      constraints.maxWidth,
+                      const EdgeInsets.fromLTRB(48, 8, 48, 48),
+                    ),
+              children: [
+                _AccountSection(db: widget.db),
+                _Section(
+                  icon: Icons.play_circle_outline,
+                  title: 'Reproducción',
+                  children: [
+                    // Desktop only: Android and iOS ignore the synced value (hwdecFor).
+                    if (!isTouchPlatform)
+                      _SwitchRow(
+                        title: 'Decodificación por hardware',
+                        subtitle: 'Usa la gráfica; desactívala si ves fallos de imagen.',
+                        value: s.hardwareDecoding,
+                        onChanged: (v) =>
+                            _update(s.copyWith(hardwareDecoding: v)),
+                      ),
+                    _SliderRow(
+                      title: 'Búfer de red',
+                      subtitle: 'Más segundos aguantan mejor los cortes, pero tarda más en empezar.',
+                      value: s.networkCacheSecs,
+                      min: 2,
+                      max: 60,
+                      unit: 's',
                       onChanged: (v) =>
-                          _update(s.copyWith(hardwareDecoding: v)),
+                          _update(s.copyWith(networkCacheSecs: v)),
                     ),
-                  _SliderRow(
-                    title: 'Búfer de red',
-                    subtitle: 'Más segundos aguantan mejor los cortes, pero tarda más en empezar.',
-                    value: s.networkCacheSecs,
-                    min: 2,
-                    max: 60,
-                    unit: 's',
-                    onChanged: (v) => _update(s.copyWith(networkCacheSecs: v)),
-                  ),
-                  _SwitchRow(
-                    title: 'Reconectar el directo si se corta',
-                    value: s.autoReconnect,
-                    onChanged: (v) => _update(s.copyWith(autoReconnect: v)),
-                  ),
-                  _ChoiceRow<ResumePolicy>(
-                    title: 'Al abrir algo empezado',
-                    value: s.resumePolicy,
-                    options: const {
-                      ResumePolicy.ask: 'Preguntar',
-                      ResumePolicy.resume: 'Reanudar',
-                      ResumePolicy.restart: 'Desde el principio',
-                    },
-                    onChanged: (v) => _update(s.copyWith(resumePolicy: v)),
-                  ),
-                  _SwitchRow(
-                    title: 'Siguiente episodio automático',
-                    subtitle: 'Cuenta atrás de 10 s al acabar un episodio.',
-                    value: s.autoNextEpisode,
-                    onChanged: (v) => _update(s.copyWith(autoNextEpisode: v)),
-                  ),
-                  if (isTouchPlatform)
                     _SwitchRow(
-                      title: 'Gestos de volumen y brillo',
-                      subtitle: 'En el reproductor, desliza en vertical por la derecha para el volumen y por la izquierda para el brillo.',
-                      value: s.volumeBrightnessGestures,
+                      title: 'Reconectar el directo si se corta',
+                      value: s.autoReconnect,
+                      onChanged: (v) => _update(s.copyWith(autoReconnect: v)),
+                    ),
+                    _ChoiceRow<ResumePolicy>(
+                      title: 'Al abrir algo empezado',
+                      value: s.resumePolicy,
+                      options: const {
+                        ResumePolicy.ask: 'Preguntar',
+                        ResumePolicy.resume: 'Reanudar',
+                        ResumePolicy.restart: 'Desde el principio',
+                      },
+                      onChanged: (v) => _update(s.copyWith(resumePolicy: v)),
+                    ),
+                    _SwitchRow(
+                      title: 'Siguiente episodio automático',
+                      subtitle: 'Cuenta atrás de 10 s al acabar un episodio.',
+                      value: s.autoNextEpisode,
+                      onChanged: (v) => _update(s.copyWith(autoNextEpisode: v)),
+                    ),
+                    if (isTouchPlatform)
+                      _SwitchRow(
+                        title: 'Gestos de volumen y brillo',
+                        subtitle: 'En el reproductor, desliza en vertical por la derecha para el volumen y por la izquierda para el brillo.',
+                        value: s.volumeBrightnessGestures,
+                        onChanged: (v) =>
+                            _update(s.copyWith(volumeBrightnessGestures: v)),
+                      ),
+                  ],
+                ),
+                _Section(
+                  icon: Icons.live_tv_outlined,
+                  title: 'Directo',
+                  children: [
+                    _SwitchRow(
+                      title: 'Sonido en la vista previa',
+                      value: s.previewSound,
+                      onChanged: (v) => _update(s.copyWith(previewSound: v)),
+                    ),
+                    _ChoiceRow<LiveFormat>(
+                      title: 'Formato de las listas nuevas',
+                      value: s.defaultLiveFormat,
+                      options: const {
+                        LiveFormat.ts: 'TS',
+                        LiveFormat.m3u8: 'HLS',
+                      },
                       onChanged: (v) =>
-                          _update(s.copyWith(volumeBrightnessGestures: v)),
+                          _update(s.copyWith(defaultLiveFormat: v)),
                     ),
-                ],
-              ),
-              _Section(
-                icon: Icons.live_tv_outlined,
-                title: 'Directo',
-                children: [
-                  _SwitchRow(
-                    title: 'Sonido en la vista previa',
-                    value: s.previewSound,
-                    onChanged: (v) => _update(s.copyWith(previewSound: v)),
-                  ),
-                  _ChoiceRow<LiveFormat>(
-                    title: 'Formato de las listas nuevas',
-                    value: s.defaultLiveFormat,
-                    options: const {
-                      LiveFormat.ts: 'TS',
-                      LiveFormat.m3u8: 'HLS',
-                    },
-                    onChanged: (v) => _update(s.copyWith(defaultLiveFormat: v)),
-                  ),
-                ],
-              ),
-              _Section(
-                icon: Icons.dashboard_outlined,
-                title: 'Interfaz',
-                children: [
-                  _ChoiceRow<StartSection>(
-                    title: 'Al abrir una lista, ir a',
-                    value: s.startSection,
-                    options: const {
-                      StartSection.home: 'Inicio',
-                      StartSection.live: 'Directo',
-                      StartSection.last: 'La última',
-                    },
-                    onChanged: (v) => _update(s.copyWith(startSection: v)),
-                  ),
-                  _SwitchRow(
-                    title: 'Abrir la última lista al arrancar',
-                    value: s.openLastPlaylist,
-                    onChanged: (v) => _update(s.copyWith(openLastPlaylist: v)),
-                  ),
-                  _ChoiceRow<PosterSize>(
-                    title: 'Tamaño de los pósteres',
-                    value: s.posterSize,
-                    options: const {
-                      PosterSize.small: 'Pequeño',
-                      PosterSize.medium: 'Medio',
-                      PosterSize.large: 'Grande',
-                    },
-                    onChanged: (v) => _update(s.copyWith(posterSize: v)),
-                  ),
-                  _AccentRow(
-                    value: s.accentColor,
-                    onChanged: (v) => _update(s.copyWith(accentColor: v)),
-                  ),
-                  _Row(
-                    title: 'Carruseles de Inicio',
-                    trailing: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final rail in HomeRail.values)
-                          FilterChip(
-                            label: Text(_railLabels[rail]!),
-                            labelStyle: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: s.hiddenHomeRails.contains(rail)
-                                  ? AppColors.text
-                                  : AppColors.background,
-                            ),
-                            selected: !s.hiddenHomeRails.contains(rail),
-                            onSelected: (visible) {
-                              final hidden = {...s.hiddenHomeRails};
-                              visible ? hidden.remove(rail) : hidden.add(rail);
-                              _update(s.copyWith(hiddenHomeRails: hidden));
-                            },
-                          ),
-                      ],
+                  ],
+                ),
+                _Section(
+                  icon: Icons.dashboard_outlined,
+                  title: 'Interfaz',
+                  children: [
+                    _ChoiceRow<StartSection>(
+                      title: 'Al abrir una lista, ir a',
+                      value: s.startSection,
+                      options: const {
+                        StartSection.home: 'Inicio',
+                        StartSection.live: 'Directo',
+                        StartSection.last: 'La última',
+                      },
+                      onChanged: (v) => _update(s.copyWith(startSection: v)),
                     ),
-                  ),
-                ],
-              ),
-              _Section(
-                icon: Icons.calendar_month_outlined,
-                title: 'Guía',
-                children: [
-                  _ChoiceRow<int>(
-                    title: 'Actualizar automáticamente cada',
-                    value: s.epgRefreshHours,
-                    options: const {6: '6 h', 12: '12 h', 24: '24 h'},
-                    onChanged: (v) => _update(s.copyWith(epgRefreshHours: v)),
-                  ),
-                  _SliderRow(
-                    title: 'Corrección horaria',
-                    subtitle: 'Para guías con la hora desplazada. Se aplica al actualizar.',
-                    value: s.epgOffsetMinutes,
-                    min: -720,
-                    max: 720,
-                    divisions: 48,
-                    unit: ' min',
-                    onChanged: (v) => _update(s.copyWith(epgOffsetMinutes: v)),
-                    onChangeEnd: (_) => _refreshGuide(),
-                  ),
-                ],
-              ),
-              _Section(
-                icon: Icons.shield_outlined,
-                title: 'Contenido',
-                children: [
-                  _SwitchRow(
-                    title: 'Ocultar contenido adulto',
-                    subtitle: 'Categorías con XXX, Adult o +18 en el nombre.',
-                    value: s.hideAdult,
-                    onChanged: _setHideAdult,
-                  ),
-                  _SwitchRow(
-                    title: 'Control parental con PIN',
-                    subtitle: signedIn
-                        ? 'Las categorías bloqueadas desaparecen hasta poner el PIN.'
-                        : s.parentalLock
-                        ? 'Al desactivarlo necesitarás iniciar sesión para volver a activarlo.'
-                        : 'Inicia sesión para usar el control parental.',
-                    value: s.parentalLock,
-                    onChanged: canUseLock ? _toggleParentalLock : null,
-                  ),
-                  if (s.parentalLock)
+                    _SwitchRow(
+                      title: 'Abrir la última lista al arrancar',
+                      value: s.openLastPlaylist,
+                      onChanged: (v) =>
+                          _update(s.copyWith(openLastPlaylist: v)),
+                    ),
+                    _ChoiceRow<PosterSize>(
+                      title: 'Tamaño de los pósteres',
+                      value: s.posterSize,
+                      options: const {
+                        PosterSize.small: 'Pequeño',
+                        PosterSize.medium: 'Medio',
+                        PosterSize.large: 'Grande',
+                      },
+                      onChanged: (v) => _update(s.copyWith(posterSize: v)),
+                    ),
+                    _AccentRow(
+                      value: s.accentColor,
+                      onChanged: (v) => _update(s.copyWith(accentColor: v)),
+                    ),
                     _Row(
-                      title: 'Bloqueo',
-                      subtitle:
-                          '${s.lockedCategories.length} categorías bloqueadas'
-                          '${ParentalSession.unlocked.value ? ' · desbloqueado en esta sesión' : ''}',
+                      title: 'Carruseles de Inicio',
                       trailing: Wrap(
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          if (hasPlaylist)
-                            OutlinedButton(
-                              onPressed: _editLockedCategories,
-                              child: const Text('Elegir categorías'),
-                            ),
-                          if (signedIn)
-                            OutlinedButton(
-                              onPressed: _changePin,
-                              child: const Text('Cambiar PIN'),
-                            ),
-                          if (!ParentalSession.unlocked.value)
-                            OutlinedButton(
-                              onPressed: _unlockSession,
-                              child: const Text('Desbloquear'),
+                          for (final rail in HomeRail.values)
+                            FilterChip(
+                              label: Text(_railLabels[rail]!),
+                              labelStyle: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: s.hiddenHomeRails.contains(rail)
+                                    ? AppColors.text
+                                    : AppColors.background,
+                              ),
+                              selected: !s.hiddenHomeRails.contains(rail),
+                              onSelected: (visible) {
+                                final hidden = {...s.hiddenHomeRails};
+                                visible
+                                    ? hidden.remove(rail)
+                                    : hidden.add(rail);
+                                _update(s.copyWith(hiddenHomeRails: hidden));
+                              },
                             ),
                         ],
                       ),
                     ),
-                ],
-              ),
-              _Section(
-                icon: Icons.storage_outlined,
-                title: 'Datos',
-                children: [
-                  _Row(
-                    title: 'Historial',
-                    trailing: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        OutlinedButton(
-                          onPressed: () => _confirm('¿Borrar los vistos recientemente de todas las listas?', () {
-                            widget.db.clearRecents();
-                            _snack('Recientes borrados.');
-                          }),
-                          child: const Text('Borrar recientes'),
-                        ),
-                        OutlinedButton(
-                          onPressed: () => _confirm('¿Olvidar dónde te quedaste en todas las películas y series?', () {
-                            widget.db.clearAllProgress();
-                            _snack('Progreso borrado.');
-                          }),
-                          child: const Text('Borrar progreso'),
-                        ),
-                        OutlinedButton(
-                          onPressed: () {
-                            PaintingBinding.instance.imageCache.clear();
-                            _snack('Caché de imágenes vaciada.');
-                          },
-                          child: const Text('Vaciar caché de imágenes'),
-                        ),
-                      ],
+                  ],
+                ),
+                _Section(
+                  icon: Icons.calendar_month_outlined,
+                  title: 'Guía',
+                  children: [
+                    _ChoiceRow<int>(
+                      title: 'Actualizar automáticamente cada',
+                      value: s.epgRefreshHours,
+                      options: const {6: '6 h', 12: '12 h', 24: '24 h'},
+                      onChanged: (v) => _update(s.copyWith(epgRefreshHours: v)),
                     ),
-                  ),
-                  _Row(
-                    title: 'Copia de seguridad de los ajustes',
-                    subtitle: 'Sin contraseñas ni PIN.',
-                    trailing: Wrap(
-                      spacing: 8,
-                      children: [
-                        OutlinedButton(
-                          onPressed: _export,
-                          child: const Text('Exportar'),
-                        ),
-                        OutlinedButton(
-                          onPressed: _import,
-                          child: const Text('Importar'),
-                        ),
-                      ],
+                    _SliderRow(
+                      title: 'Corrección horaria',
+                      subtitle: 'Para guías con la hora desplazada. Se aplica al actualizar.',
+                      value: s.epgOffsetMinutes,
+                      min: -720,
+                      max: 720,
+                      divisions: 48,
+                      unit: ' min',
+                      onChanged: (v) =>
+                          _update(s.copyWith(epgOffsetMinutes: v)),
+                      onChangeEnd: (_) => _refreshGuide(),
                     ),
-                  ),
-                ],
-              ),
-              _Section(
-                icon: Icons.info_outline,
-                title: 'Acerca de',
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Row(
-                      spacing: 16,
-                      children: [
-                        GhostlimeLogo(size: 56, semanticLabel: 'Ghostlime'),
-                        Expanded(
-                          child: _Row(
-                            title: 'Ghostlime IPTV',
-                            subtitle:
-                                'Versión $appVersion · reproductor libmpv',
-                          ),
-                        ),
-                      ],
+                  ],
+                ),
+                _Section(
+                  icon: Icons.shield_outlined,
+                  title: 'Contenido',
+                  children: [
+                    _SwitchRow(
+                      title: 'Ocultar contenido adulto',
+                      subtitle: 'Categorías con XXX, Adult o +18 en el nombre.',
+                      value: s.hideAdult,
+                      onChanged: _setHideAdult,
                     ),
-                  ),
-                  _Row(
-                    title: 'Licencias',
-                    subtitle: 'Apache-2.0 y componentes de terceros',
-                    trailing: TextButton(
-                      onPressed: () => showLicensePage(
-                        context: context,
-                        applicationName: 'Ghostlime IPTV',
-                        applicationVersion: appVersion,
-                        applicationLegalese:
-                            '© 2026 guimo-dev · Apache-2.0\n'
-                            'El nombre y el logo de Ghostlime no están incluidos '
-                            'en la licencia.',
+                    _SwitchRow(
+                      title: 'Control parental con PIN',
+                      subtitle: signedIn
+                          ? 'Las categorías bloqueadas desaparecen hasta poner el PIN.'
+                          : s.parentalLock
+                          ? 'Al desactivarlo necesitarás iniciar sesión para volver a activarlo.'
+                          : 'Inicia sesión para usar el control parental.',
+                      value: s.parentalLock,
+                      onChanged: canUseLock ? _toggleParentalLock : null,
+                    ),
+                    if (s.parentalLock)
+                      _Row(
+                        title: 'Bloqueo',
+                        subtitle:
+                            '${s.lockedCategories.length} categorías bloqueadas'
+                            '${ParentalSession.unlocked.value ? ' · desbloqueado en esta sesión' : ''}',
+                        trailing: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            if (hasPlaylist)
+                              OutlinedButton(
+                                onPressed: _editLockedCategories,
+                                child: const Text('Elegir categorías'),
+                              ),
+                            if (signedIn)
+                              OutlinedButton(
+                                onPressed: _changePin,
+                                child: const Text('Cambiar PIN'),
+                              ),
+                            if (!ParentalSession.unlocked.value)
+                              OutlinedButton(
+                                onPressed: _unlockSession,
+                                child: const Text('Desbloquear'),
+                              ),
+                          ],
+                        ),
                       ),
-                      child: const Text('Ver'),
-                    ),
-                  ),
-                  for (final doc in LegalDoc.values)
+                  ],
+                ),
+                _Section(
+                  icon: Icons.storage_outlined,
+                  title: 'Datos',
+                  children: [
                     _Row(
-                      title: doc.title,
-                      trailing: TextButton(
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => LegalScreen(doc: doc),
+                      title: 'Historial',
+                      trailing: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton(
+                            onPressed: () => _confirm('¿Borrar los vistos recientemente de todas las listas?', () {
+                              widget.db.clearRecents();
+                              _snack('Recientes borrados.');
+                            }),
+                            child: const Text('Borrar recientes'),
                           ),
+                          OutlinedButton(
+                            onPressed: () => _confirm('¿Olvidar dónde te quedaste en todas las películas y series?', () {
+                              widget.db.clearAllProgress();
+                              _snack('Progreso borrado.');
+                            }),
+                            child: const Text('Borrar progreso'),
+                          ),
+                          OutlinedButton(
+                            onPressed: () {
+                              PaintingBinding.instance.imageCache.clear();
+                              _snack('Caché de imágenes vaciada.');
+                            },
+                            child: const Text('Vaciar caché de imágenes'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _Row(
+                      title: 'Copia de seguridad de los ajustes',
+                      subtitle: 'Sin contraseñas ni PIN.',
+                      trailing: Wrap(
+                        spacing: 8,
+                        children: [
+                          OutlinedButton(
+                            onPressed: _export,
+                            child: const Text('Exportar'),
+                          ),
+                          OutlinedButton(
+                            onPressed: _import,
+                            child: const Text('Importar'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                _Section(
+                  icon: Icons.info_outline,
+                  title: 'Acerca de',
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        spacing: 16,
+                        children: [
+                          GhostlimeLogo(size: 56, semanticLabel: 'Ghostlime'),
+                          Expanded(
+                            child: _Row(
+                              title: 'Ghostlime IPTV',
+                              subtitle:
+                                  'Versión $appVersion · reproductor libmpv',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _Row(
+                      title: 'Licencias',
+                      subtitle: 'Apache-2.0 y componentes de terceros',
+                      trailing: TextButton(
+                        onPressed: () => showLicensePage(
+                          context: context,
+                          applicationName: 'Ghostlime IPTV',
+                          applicationVersion: appVersion,
+                          applicationLegalese:
+                              '© 2026 guimo-dev · Apache-2.0\n'
+                              'El nombre y el logo de Ghostlime no están incluidos '
+                              'en la licencia.',
                         ),
                         child: const Text('Ver'),
                       ),
                     ),
-                ],
-              ),
-            ],
+                    for (final doc in LegalDoc.values)
+                      _Row(
+                        title: doc.title,
+                        trailing: TextButton(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => LegalScreen(doc: doc),
+                            ),
+                          ),
+                          child: const Text('Ver'),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

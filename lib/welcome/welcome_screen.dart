@@ -8,6 +8,7 @@ import '../ui/app_theme.dart';
 import '../ui/backdrop.dart';
 import '../ui/brand_state.dart';
 import '../ui/ghostlime_logo.dart';
+import '../ui/tv_device.dart';
 
 /// Widest the first-run content grows.
 const _maxWidth = 520.0;
@@ -40,6 +41,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   /// Whether the legal notice was closed with "Rechazar".
   bool _rejected = false;
 
+  /// The first option; on a TV it takes the focus once the terms are
+  /// accepted (it was disabled until then, so `autofocus` cannot do it).
+  final _firstOptionFocus = FocusNode();
+
   @override
   void initState() {
     super.initState();
@@ -57,6 +62,17 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       _accepted = accepted;
       _rejected = !accepted;
     });
+    if (accepted && isTvDevice) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _firstOptionFocus.requestFocus();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _firstOptionFocus.dispose();
+    super.dispose();
   }
 
   /// Opens the shared account form in a dialog titled [title]; finishes the
@@ -91,6 +107,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 ),
                 AccountForm(
                   account: account,
+                  autofocus: isTvDevice,
                   onSignedIn: () => Navigator.pop(context, true),
                 ),
                 Align(
@@ -150,11 +167,15 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         ],
         if (account == null)
           FilledButton(
+            focusNode: _firstOptionFocus,
+            autofocus: isTvDevice,
             onPressed: whenAccepted(widget.onDone),
             child: const Text('Continuar sin cuenta'),
           )
         else ...[
           FilledButton(
+            focusNode: _firstOptionFocus,
+            autofocus: isTvDevice,
             onPressed: whenAccepted(
               () => _openAccountForm(account, 'Entrar con email'),
             ),
@@ -256,6 +277,7 @@ class _AcceptTermsScreenState extends State<AcceptTermsScreen> {
           const SizedBox(height: 24),
           Center(
             child: TextButton(
+              autofocus: isTvDevice,
               onPressed: _reviewTerms,
               child: const Text('Revisar términos'),
             ),
@@ -332,6 +354,7 @@ class _TermsRejected extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
+              autofocus: isTvDevice,
               onPressed: onReview,
               child: const Text('Revisar términos'),
             ),
