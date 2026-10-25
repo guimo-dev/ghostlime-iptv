@@ -222,13 +222,15 @@ class _PlaylistFormScreenState extends State<PlaylistFormScreen> {
                       ),
                       validator: _editing ? null : _required,
                     ),
-                    InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: 'Directo en',
-                      ),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: SegmentedButton<LiveFormat>(
+                    Column(
+                      spacing: 8,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Directo en',
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                        SegmentedButton<LiveFormat>(
                           segments: const [
                             ButtonSegment(
                               value: LiveFormat.ts,
@@ -243,7 +245,7 @@ class _PlaylistFormScreenState extends State<PlaylistFormScreen> {
                           onSelectionChanged: (s) =>
                               setState(() => _liveFormat = s.first),
                         ),
-                      ),
+                      ],
                     ),
                   ] else if (_type == PlaylistType.m3uUrl)
                     TextFormField(

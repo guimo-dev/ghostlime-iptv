@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iptv_player/catalog/catalog_db.dart';
+import 'package:iptv_player/xtream/xtream_urls.dart' show LiveFormat;
 import 'package:iptv_player/playlists/playlist_form_screen.dart';
 import 'package:iptv_player/settings/settings_controller.dart';
 import 'package:iptv_player/settings/settings_scope.dart';
@@ -101,5 +102,20 @@ void main() {
       find.descendant(of: server, matching: find.text('Servidor')),
     );
     expect(field.expandToInclude(label), field);
+  });
+
+  testWidgets('the live format selector has no form field around it', (
+    tester,
+  ) async {
+    await _pumpForm(tester, const Size(1024, 700), 'Xtream');
+    final selector = find.byType(SegmentedButton<LiveFormat>);
+    expect(selector, findsOneWidget);
+    expect(
+      find.ancestor(of: selector, matching: find.byType(InputDecorator)),
+      findsNothing,
+    );
+    expect(find.text('Directo en'), findsOneWidget);
+    expect(find.text('TS'), findsOneWidget);
+    expect(find.text('HLS'), findsOneWidget);
   });
 }

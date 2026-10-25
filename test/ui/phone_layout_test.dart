@@ -472,7 +472,7 @@ void main() {
     final section = tester.getRect(
       find
           .ancestor(
-            of: find.text('Decodificación por hardware'),
+            of: find.text('Búfer de red'),
             matching: find.byType(Container),
           )
           .last,

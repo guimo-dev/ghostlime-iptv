@@ -292,13 +292,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 icon: Icons.play_circle_outline,
                 title: 'Reproducción',
                 children: [
-                  _SwitchRow(
-                    title: 'Decodificación por hardware',
-                    subtitle:
-                        'Usa la gráfica; desactívala si ves fallos de imagen.',
-                    value: s.hardwareDecoding,
-                    onChanged: (v) => _update(s.copyWith(hardwareDecoding: v)),
-                  ),
+                  // Android ignores it (see hwdecFor) and iOS has no such option.
+                  if (!isTouchPlatform)
+                    _SwitchRow(
+                      title: 'Decodificación por hardware',
+                      subtitle: 'Usa la gráfica; desactívala si ves fallos de imagen.',
+                      value: s.hardwareDecoding,
+                      onChanged: (v) =>
+                          _update(s.copyWith(hardwareDecoding: v)),
+                    ),
                   _SliderRow(
                     title: 'Búfer de red',
                     subtitle: 'Más segundos aguantan mejor los cortes, pero tarda más en empezar.',

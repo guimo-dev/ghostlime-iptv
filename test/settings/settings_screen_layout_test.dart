@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,6 +16,7 @@ void main() {
   testWidgets('a setting row keeps label and control close when maximized', (
     tester,
   ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     tester.view.physicalSize = const Size(2560, 1300);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -37,6 +39,7 @@ void main() {
       lessThanOrEqualTo(ContentWidths.reading),
     );
     expect((label.left + control.right) / 2, closeTo(1280, 100));
+    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('the app bar sits over the app background, not the bare window', (
