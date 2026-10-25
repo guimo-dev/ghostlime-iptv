@@ -21,6 +21,7 @@ import 'package:iptv_player/sync/account_service.dart';
 import 'package:iptv_player/sync/sync_backend.dart';
 import 'package:iptv_player/ui/app_theme.dart';
 import 'package:iptv_player/ui/form_factor.dart';
+import 'package:iptv_player/ui/ghostlime_logo.dart';
 import 'package:iptv_player/vod/movie_detail_screen.dart';
 import 'package:iptv_player/vod/series_detail_screen.dart';
 import 'package:iptv_player/welcome/welcome_screen.dart';
@@ -41,8 +42,15 @@ const _sizes = [
   Size(768, 1024),
 ];
 
-/// Height of the simulated on-screen keyboard.
-const _keyboardHeight = 300.0;
+/// Screens with the height of their on-screen keyboard: phones upright, a
+/// portrait tablet and a phone on its side (a shorter keyboard).
+const _keyboards = [
+  (Size(360, 640), 300.0),
+  (Size(390, 844), 300.0),
+  (Size(412, 915), 300.0),
+  (Size(768, 1024), 400.0),
+  (Size(640, 360), 180.0),
+];
 
 /// The demo catalog in a fresh database, as an M3U playlist (no network).
 class _Demo {
@@ -304,32 +312,6 @@ void main() {
       });
     }
 
-    // A sideways phone keyboard is shorter than 300: only upright screens.
-    if (size.height > size.width) {
-      testWidgets('the keyboard leaves the focused form field visible at $at', (
-        tester,
-      ) async {
-        _setSize(tester, size);
-        await _pumpApp(tester, demo.db, const PlaylistFormScreen());
-        await tester.tap(find.text('Xtream'));
-        await tester.pumpAndSettle();
-        final last = find.byType(TextFormField).last;
-        await tester.ensureVisible(last);
-        await tester.pumpAndSettle();
-        await tester.tap(last);
-        await tester.pump();
-        tester.view.viewInsets = const FakeViewPadding(bottom: _keyboardHeight);
-        addTearDown(tester.view.resetViewInsets);
-        await tester.pumpAndSettle();
-
-        expect(tester.takeException(), isNull);
-        final field = tester.getRect(last);
-        // The app bar stays on top: the field must show below it.
-        expect(field.top, greaterThanOrEqualTo(kToolbarHeight));
-        expect(field.bottom, lessThanOrEqualTo(size.height - _keyboardHeight));
-      });
-    }
-
     testWidgets('Ajustes fits at $at', (tester) async {
       _setSize(tester, size);
       await _pumpApp(
@@ -368,6 +350,65 @@ void main() {
       await tester.runAsync(() => loadLegalText(LegalDoc.terms));
       await _pumpApp(tester, demo.db, const LegalScreen(doc: LegalDoc.terms));
       await _scrollThrough(tester);
+    });
+  }
+
+  for (final (size, keyboard) in _keyboards) {
+    final at = '${size.width.toInt()}x${size.height.toInt()}';
+    testWidgets('the keyboard leaves the focused form field visible at $at', (
+      tester,
+    ) async {
+      _setSize(tester, size);
+      await _pumpApp(tester, demo.db, const PlaylistFormScreen());
+      await tester.tap(find.text('Xtream'));
+      await tester.pumpAndSettle();
+      // The lowest field fully on screen: the keyboard will cover it.
+      final fields = find.byType(TextFormField);
+      final onScreen = [
+        for (var i = 0; i < fields.evaluate().length; i++)
+          if (tester.getRect(fields.at(i)).bottom <= size.height) i,
+      ];
+      final target = fields.at(onScreen.last);
+      final keyboardTop = size.height - keyboard;
+      expect(tester.getRect(target).bottom, greaterThan(keyboardTop));
+      await tester.tap(target);
+      await tester.pump();
+      tester.view.viewInsets = FakeViewPadding(bottom: keyboard);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      final field = tester.getRect(target);
+      // The app bar stays on top: the field must show below it.
+      expect(field.top, greaterThanOrEqualTo(kToolbarHeight));
+      expect(field.bottom, lessThanOrEqualTo(keyboardTop));
+    });
+  }
+
+  // A phone and a landscape tablet (desktop layout, side bar).
+  for (final size in const [Size(390, 844), Size(1280, 800)]) {
+    final at = '${size.width.toInt()}x${size.height.toInt()}';
+    testWidgets('nothing in the shell sits under the status bar at $at', (
+      tester,
+    ) async {
+      const statusBar = 24.0;
+      _setSize(tester, size);
+      tester.view.padding = const FakeViewPadding(top: statusBar);
+      addTearDown(tester.view.resetPadding);
+      await _pumpApp(tester, demo.db, shell());
+
+      final drawn = [
+        ...find.byType(Text).evaluate(),
+        ...find.byType(Icon).evaluate(),
+        ...find.byType(GhostlimeLogo).evaluate(),
+      ];
+      expect(drawn, isNotEmpty);
+      for (final element in drawn) {
+        final top = (element.renderObject! as RenderBox)
+            .localToGlobal(Offset.zero)
+            .dy;
+        expect(top, greaterThanOrEqualTo(statusBar), reason: '$element');
+      }
     });
   }
 

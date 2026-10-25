@@ -214,24 +214,20 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    final bottomBar = !usesDesktopLayout(MediaQuery.sizeOf(context));
+    final bottomBar = usesPhoneLayout(context);
     final content = Expanded(
       key: _contentKey,
-      // Keeps the sections clear of a phone's status bar and notch.
-      child: SafeArea(
-        bottom: false,
-        child: _syncError == null
-            ? SectionStack(
-                index: _index,
-                count: _sections.length,
-                builder: _section,
-              )
-            : _SyncErrorPanel(
-                message: _syncError!,
-                retrying: _retrying,
-                onRetry: _retrySync,
-              ),
-      ),
+      child: _syncError == null
+          ? SectionStack(
+              index: _index,
+              count: _sections.length,
+              builder: _section,
+            )
+          : _SyncErrorPanel(
+              message: _syncError!,
+              retrying: _retrying,
+              onRetry: _retrySync,
+            ),
     );
     return PopScope(
       // With the bottom bar, Back from a section goes to Inicio first.
@@ -245,17 +241,21 @@ class _AppShellState extends State<AppShell> {
             ? _BottomBar(selected: _index, onSelected: _go, onMore: _openMore)
             : null,
         body: AppBackground(
-          child: Row(
-            children: [
-              if (!bottomBar)
-                _SideBar(
-                  selected: _index,
-                  onSelected: _go,
-                  onExit: _exit,
-                  onSettings: _openSettings,
-                ),
-              content,
-            ],
+          // Side bar and sections stay clear of a status bar and notch (the
+          // bottom bar already keeps clear of the system navigation).
+          child: SafeArea(
+            child: Row(
+              children: [
+                if (!bottomBar)
+                  _SideBar(
+                    selected: _index,
+                    onSelected: _go,
+                    onExit: _exit,
+                    onSettings: _openSettings,
+                  ),
+                content,
+              ],
+            ),
           ),
         ),
       ),

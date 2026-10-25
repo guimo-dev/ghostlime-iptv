@@ -27,8 +27,9 @@ String formatClock(DateTime time) {
       '${local.minute.toString().padLeft(2, '0')}';
 }
 
-/// Programme guide grid: [channels] as rows over a 3-hour window that moves
-/// with the arrow buttons, with a "Solo con guía" filter. Tapping a channel
+/// Programme guide grid: [channels] as rows over a 3-hour window (90 minutes
+/// when the grid is under 600 wide, as on a phone) that moves with the arrow
+/// buttons, with a "Solo con guía" filter. Tapping a channel
 /// or any of its programmes calls [onChannel]. The parent rebuilds it (at
 /// least every minute) to move the "now" marker, and bumps [revision] when
 /// the guide may have changed.
