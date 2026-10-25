@@ -318,8 +318,10 @@ class PlaylistsScreenState extends State<PlaylistsScreen> {
                     phonePageMargin,
                     MediaQuery.paddingOf(context).top + 24,
                     phonePageMargin,
-                    // Room for the floating button below the last card.
-                    104,
+                    // Room for the floating button below the last card. The
+                    // Scaffold lifts the button over the system navigation
+                    // bar (view padding), so the list leaves that room too.
+                    104 + MediaQuery.viewPaddingOf(context).bottom,
                   )
                 : ContentWidth.paddingFor(
                     constraints.maxWidth,

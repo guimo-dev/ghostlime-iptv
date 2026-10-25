@@ -115,4 +115,21 @@ void main() {
     expect(find.byType(FloatingActionButton), findsNothing);
     expect(tester.getRect(find.text('Añadir lista')).top, lessThan(200));
   });
+
+  testWidgets('the last card scrolls clear of the floating button above a '
+      'system navigation bar', (tester) async {
+    // A three-button navigation bar: on a device both paddings hold it.
+    tester.view.padding = const FakeViewPadding(bottom: 48);
+    tester.view.viewPadding = const FakeViewPadding(bottom: 48);
+    await _pump(tester, const Size(390, 844), count: 8);
+    final list = find.byType(Scrollable).first;
+    final position = tester.state<ScrollableState>(list).position;
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pump();
+    final lastCard = tester.getRect(
+      find.ancestor(of: find.text('Lista 8'), matching: find.byType(FocusCard)),
+    );
+    final button = tester.getRect(find.byType(FloatingActionButton));
+    expect(lastCard.bottom, lessThanOrEqualTo(button.top));
+  });
 }

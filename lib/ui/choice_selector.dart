@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'app_theme.dart';
 import 'form_factor.dart';
 
 /// One choice among a few [options] (value → Spanish label).
@@ -39,6 +40,7 @@ class ChoiceSelector<T> extends StatelessWidget {
               label: Text(label),
               selected: key == value,
               onSelected: (_) => onChanged(key),
+              side: _chipSide,
             ),
         ],
       );
@@ -55,3 +57,15 @@ class ChoiceSelector<T> extends StatelessWidget {
     );
   }
 }
+
+/// Chip border: a light ring outside the chip when it has keyboard or D-pad
+/// focus, visible on the lime selected chip too; the theme's border otherwise.
+final _chipSide = WidgetStateBorderSide.resolveWith(
+  (states) => states.contains(WidgetState.focused)
+      ? const BorderSide(
+          color: AppColors.text,
+          width: 2,
+          strokeAlign: BorderSide.strokeAlignOutside,
+        )
+      : const BorderSide(color: AppColors.border),
+);
