@@ -42,6 +42,9 @@ class GoogleDeviceDialog extends StatefulWidget {
 }
 
 class _GoogleDeviceDialogState extends State<GoogleDeviceDialog> {
+  /// How long signing in with the id_token may take.
+  static const _signInTimeout = Duration(seconds: 45);
+
   static const _networkMessage =
       'No se ha podido conectar con Google. Comprueba tu red e inténtalo de '
       'nuevo.';
@@ -51,6 +54,9 @@ class _GoogleDeviceDialogState extends State<GoogleDeviceDialog> {
   final _retryFocus = FocusNode();
 
   _Phase _phase = _Phase.starting;
+
+  /// Sign-ins started by this dialog, so a late one knows if it was the last.
+  int _signInAttempts = 0;
   DeviceCode? _code;
   String? _error;
 
@@ -94,7 +100,7 @@ class _GoogleDeviceDialogState extends State<GoogleDeviceDialog> {
       if (!mounted) return;
       _ticker?.cancel();
       _setPhase(_Phase.signingIn);
-      await widget.account.signInWithGoogleIdToken(idToken);
+      await _signInOrGiveUp(idToken);
       if (!mounted) return;
       final status = widget.account.status;
       Navigator.pop(
@@ -116,6 +122,30 @@ class _GoogleDeviceDialogState extends State<GoogleDeviceDialog> {
     } catch (_) {
       // Anything else (never shown raw) must not leave the spinner up.
       _fail(_networkMessage);
+    }
+  }
+
+  /// Signs in with [idToken], giving up after [_signInTimeout] (Back and
+  /// "Cancelar" are blocked meanwhile) with a [TimeoutException]. A session
+  /// that still arrives later is closed, as the browser path does: nobody
+  /// goes on with it, unless a newer attempt has started since.
+  Future<void> _signInOrGiveUp(String idToken) async {
+    final account = widget.account;
+    final attempt = ++_signInAttempts;
+    final signIn = account.signInWithGoogleIdToken(idToken);
+    try {
+      await signIn.timeout(_signInTimeout);
+    } on TimeoutException {
+      unawaited(
+        signIn.then((_) async {
+          // A newer attempt (after "Reintentar") owns the session now.
+          if (attempt == _signInAttempts &&
+              account.status != AccountStatus.signedOut) {
+            await account.signOut();
+          }
+        }, onError: (_) {}),
+      );
+      rethrow;
     }
   }
 

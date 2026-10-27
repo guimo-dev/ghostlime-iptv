@@ -321,4 +321,38 @@ void main() {
     expect(account.status, AccountStatus.signedIn);
     await account.signOut();
   });
+
+  testWidgets('a sign-in that never ends times out and its late session goes', (
+    tester,
+  ) async {
+    google.tokenReplies.add(
+      http.Response(jsonEncode({'id_token': 'id-token-xyz'}), 200),
+    );
+    final results = await pumpOpener(tester);
+    final gate = auth.idTokenGate = Completer<void>();
+
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump();
+    expect(find.text('Entrando en tu cuenta…'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 45));
+    await tester.pump();
+    expect(find.textContaining('No se ha podido conectar'), findsOneWidget);
+    expect(find.text('Reintentar'), findsOneWidget);
+    final cancel = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Cancelar'),
+    );
+    expect(cancel.onPressed, isNotNull);
+
+    // The session arrives late: it is dropped, nobody goes on with it.
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(account.status, AccountStatus.signedOut);
+    expect(auth.email, isNull);
+    expect(find.text('Reintentar'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(results, [false]);
+  });
 }
