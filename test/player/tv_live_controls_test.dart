@@ -475,6 +475,24 @@ void main() {
     await _leave(tester);
   });
 
+  testWidgets('the options open over a playback error, which hides under '
+      'them', (tester) async {
+    await pumpFullScreen(tester);
+    player.emitError('Error decoding audio.');
+    await tester.pump();
+    await tester.pump();
+    const error = 'Error: Error decoding audio.';
+    expect(find.text(error), findsOneWidget);
+
+    await _press(tester, LogicalKeyboardKey.arrowRight);
+    expect(find.byKey(const ValueKey('tv-options')), findsOneWidget);
+    expect(find.text(error), findsNothing);
+    await _back(tester);
+    expect(find.byKey(const ValueKey('tv-options')), findsNothing);
+    expect(find.byType(PlayerScreen), findsOneWidget);
+    await _leave(tester);
+  });
+
   testWidgets('a channel picked in another group clears the filter of '
       'Directo', (tester) async {
     await pumpDirecto(tester);

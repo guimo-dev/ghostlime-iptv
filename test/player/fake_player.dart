@@ -5,8 +5,8 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 /// A [Player] without libmpv that records `open` and `stop` in [calls]
-/// (`open <uri>` / `stop`, also `audio <id>`, `subtitle <id>` and
-/// `playOrPause`). Members a test does not use answer with a
+/// (`open <uri>` / `stop`, also `audio <id>`, `subtitle <id>`,
+/// `playOrPause` and `seek <seconds>`). Members a test does not use answer with a
 /// completed future.
 class FakePlayer implements Player {
   final calls = <String>[];
@@ -80,6 +80,10 @@ class FakePlayer implements Player {
 
   @override
   Future<void> playOrPause() async => calls.add('playOrPause');
+
+  @override
+  Future<void> seek(Duration duration) async =>
+      calls.add('seek ${duration.inSeconds}');
 
   @override
   PlatformPlayer? get platform => null;

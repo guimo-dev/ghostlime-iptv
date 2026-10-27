@@ -15,6 +15,7 @@ import 'mpv_options.dart';
 import 'playback_log.dart';
 import 'stream_info.dart';
 import 'tv_live_controls.dart';
+import 'tv_vod_controls.dart';
 
 /// How often playback progress is reported while playing.
 const progressInterval = Duration(seconds: 10);
@@ -221,6 +222,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void _startCountdown() {
     if (_stopped || _secondsToNext != null) return;
     setState(() => _secondsToNext = nextEpisodeCountdown);
+    if (_tvVod) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _watchNowFocus.requestFocus();
+      });
+    }
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       final left = (_secondsToNext ?? 0) - 1;
       if (left <= 0) {
@@ -235,6 +241,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void _cancelCountdown() {
     _countdownTimer?.cancel();
     setState(() => _secondsToNext = null);
+    if (_tvVod) _tvVodFocus.requestFocus();
   }
 
   /// Saves progress, closes the stream and hands over to the next episode.
@@ -273,6 +280,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _lifecycle.dispose();
     _playback.removeListener(_onPlaybackChanged);
     if (_ownsPlayback) _playback.dispose();
+    _tvVodFocus.dispose();
+    _watchNowFocus.dispose();
     super.dispose();
   }
 
@@ -309,9 +318,24 @@ class _PlayerScreenState extends State<PlayerScreen> {
   /// drives [TvLiveControls] instead.
   bool get _tvLive => isTvDevice && widget.isLive;
 
+  /// A movie or episode on a TV: no media_kit controls nor app bar, the
+  /// remote drives [TvVodControls] instead.
+  bool get _tvVod => isTvDevice && !widget.isLive;
+
   /// The TV channel list or options are open: error messages hide under
   /// them.
   bool _tvPanelOpen = false;
+
+  /// Takes the remote keys of [TvVodControls]; it gets the focus back
+  /// after the next episode countdown.
+  final _tvVodFocus = FocusNode(
+    debugLabel: 'TV movie player',
+    skipTraversal: true,
+  );
+
+  /// "Ver ahora" of the next episode countdown, focused on a TV (the
+  /// player's controls already hold the focus, so autofocus would not).
+  final _watchNowFocus = FocusNode(debugLabel: 'Ver ahora');
 
   /// Handles `I` (toggle info) and `Esc` (go back).
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
@@ -346,13 +370,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
         }
       },
       child: Focus(
-        // On a TV the live controls take the focus.
-        autofocus: !_tvLive,
+        // On a TV the remote controls take the focus.
+        autofocus: !isTvDevice,
         onKeyEvent: _onKey,
         child: Scaffold(
           backgroundColor: Colors.black,
           extendBodyBehindAppBar: true,
-          appBar: _tvLive
+          appBar: isTvDevice
               ? null
               : AppBar(
                   backgroundColor: Colors.black.withValues(alpha: 0.55),
@@ -398,7 +422,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       key: ObjectKey(_playback.controller),
                       controller: _playback.controller,
                       fit: BoxFit.contain,
-                      controls: _tvLive
+                      controls: isTvDevice
                           ? NoVideoControls
                           : AdaptiveVideoControls,
                     ),
@@ -442,17 +466,34 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     seconds: _secondsToNext!,
                     onWatchNow: _goNext,
                     onCancel: _cancelCountdown,
+                    watchNowFocus: _watchNowFocus,
                   ),
                 ),
               // Last, so the list and options cover the messages above.
+              // Keyed: when a message above goes away, an unkeyed slot
+              // would be matched to it and the controls would lose their
+              // state (seen on the emulator: Menu closed the options).
               if (_tvLive)
                 Positioned.fill(
+                  key: const ValueKey('tv-live-controls'),
                   child: TvLiveControls(
                     playback: _playback,
                     title: _title,
                     subtitle: _subtitle,
                     source: widget.tvLive,
                     onChannelStep: widget.onChannelStep,
+                    onPanelChanged: (open) =>
+                        setState(() => _tvPanelOpen = open),
+                  ),
+                ),
+              if (_tvVod)
+                Positioned.fill(
+                  key: const ValueKey('tv-vod-controls-slot'),
+                  child: TvVodControls(
+                    playback: _playback,
+                    title: _title,
+                    subtitle: _subtitle,
+                    focusNode: _tvVodFocus,
                     onPanelChanged: (open) =>
                         setState(() => _tvPanelOpen = open),
                   ),
@@ -472,12 +513,16 @@ class _NextEpisodePanel extends StatelessWidget {
     required this.onWatchNow,
     required this.onCancel,
     this.title,
+    this.watchNowFocus,
   });
 
   final String? title;
   final int seconds;
   final VoidCallback onWatchNow;
   final VoidCallback onCancel;
+
+  /// Focus node of "Ver ahora".
+  final FocusNode? watchNowFocus;
 
   @override
   Widget build(BuildContext context) {
@@ -507,6 +552,7 @@ class _NextEpisodePanel extends StatelessWidget {
             children: [
               FilledButton(
                 autofocus: true,
+                focusNode: watchNowFocus,
                 onPressed: onWatchNow,
                 child: const Text('Ver ahora'),
               ),

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:media_kit/media_kit.dart';
 
 import '../catalog/catalog_models.dart';
 import '../epg/guide_grid.dart' show formatClock;
@@ -14,6 +13,7 @@ import '../ui/focus_card.dart';
 import 'channel_number.dart';
 import 'live_playback.dart';
 import 'player_screen.dart' show ChannelStep;
+import 'tv_track_options.dart';
 
 /// How long the info bar stays up on its own.
 const tvInfoDuration = Duration(seconds: 5);
@@ -28,7 +28,7 @@ const _messageDuration = Duration(seconds: 3);
 const _maxDigits = 4;
 
 const _channelRowHeight = 56.0;
-const _panelColor = Color(0xE60D0E15);
+const _panelColor = tvPanelColor;
 
 /// What the TV live player reads from Directo and asks it to do: the
 /// channel playing, the groups and their channels (as Directo shows them,
@@ -399,7 +399,7 @@ class _TvLiveControlsState extends State<TvLiveControls> {
                   top: padding.top,
                   bottom: padding.bottom,
                   child: FocusTraversalGroup(
-                    child: _OptionsPanel(player: widget.playback.player),
+                    child: TvTrackOptions(player: widget.playback.player),
                   ),
                 ),
               if (_typed.isNotEmpty || _message != null)
@@ -742,126 +742,6 @@ class _ChannelColumnState extends State<_ChannelColumn> {
 /// Scroll offset that shows row [index] with two rows above it.
 double _offsetFor(int index) =>
     index <= 2 ? 0 : (index - 2) * _channelRowHeight;
-
-/// The quick options: the audio and subtitle tracks of [player]; OK picks
-/// one.
-class _OptionsPanel extends StatefulWidget {
-  const _OptionsPanel({required this.player});
-
-  final Player player;
-
-  @override
-  State<_OptionsPanel> createState() => _OptionsPanelState();
-}
-
-class _OptionsPanelState extends State<_OptionsPanel> {
-  final _firstNode = FocusNode(debugLabel: 'TV first option');
-
-  /// Tracks picked here, shown as selected before the player reports them.
-  String? _audioId;
-  String? _subtitleId;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _firstNode.requestFocus();
-    });
-  }
-
-  @override
-  void dispose() {
-    _firstNode.dispose();
-    super.dispose();
-  }
-
-  /// The label of an audio or subtitle track.
-  static String _label(String id, String? title, String? language) =>
-      switch (id) {
-        'auto' => 'Automático',
-        'no' => 'Desactivados',
-        _ => title ?? language ?? 'Pista $id',
-      };
-
-  @override
-  Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    final state = widget.player.state;
-    final audioId = _audioId ?? state.track.audio.id;
-    final subtitleId = _subtitleId ?? state.track.subtitle.id;
-    final audio = [
-      for (final track in state.tracks.audio)
-        if (track.id != 'no') track,
-    ];
-    final subtitles = state.tracks.subtitle;
-    var first = true;
-    Widget option(String label, bool selected, VoidCallback onTap) {
-      final node = first ? _firstNode : null;
-      first = false;
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: FocusCard(
-          grow: false,
-          selected: selected,
-          focusNode: node,
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              spacing: 12,
-              children: [
-                Icon(
-                  selected ? Icons.check : null,
-                  size: 18,
-                  color: AccentPalette.of(context).accent,
-                ),
-                Expanded(child: Text(label)),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      key: const ValueKey('tv-options'),
-      width: 340,
-      color: _panelColor,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text('Audio', style: text.titleMedium),
-          if (audio.isEmpty)
-            Text('Sin pistas', style: text.bodySmall)
-          else
-            for (final track in audio)
-              option(
-                _label(track.id, track.title, track.language),
-                track.id == audioId,
-                () {
-                  setState(() => _audioId = track.id);
-                  widget.player.setAudioTrack(track);
-                },
-              ),
-          const SizedBox(height: 16),
-          Text('Subtítulos', style: text.titleMedium),
-          if (subtitles.isEmpty)
-            Text('Sin pistas', style: text.bodySmall)
-          else
-            for (final track in subtitles)
-              option(
-                _label(track.id, track.title, track.language),
-                track.id == subtitleId,
-                () {
-                  setState(() => _subtitleId = track.id);
-                  widget.player.setSubtitleTrack(track);
-                },
-              ),
-        ],
-      ),
-    );
-  }
-}
 
 /// A box at the top right: the channel number being typed ([big]) or a
 /// short notice.
