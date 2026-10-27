@@ -26,6 +26,7 @@ import '../settings/parental_session.dart';
 import '../settings/settings_scope.dart';
 import '../sync/account_scope.dart';
 import '../sync/account_service.dart';
+import '../tv/tv_text_input.dart';
 import '../ui/app_theme.dart';
 import '../ui/backdrop.dart';
 import '../ui/brand_state.dart';
@@ -828,13 +829,16 @@ class _LiveTvScreenState extends State<LiveTvScreen> implements TvLiveSource {
       child: Row(
         children: [
           Expanded(
-            child: TextField(
-              controller: _filterController,
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search, size: 20),
-                hintText: 'Filtrar canales',
+            child: TvKeyboardGate(
+              builder: (context, locked) => TextField(
+                readOnly: locked,
+                controller: _filterController,
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search, size: 20),
+                  hintText: 'Filtrar canales',
+                ),
+                onChanged: (value) => setState(() => _filter = value),
               ),
-              onChanged: (value) => setState(() => _filter = value),
             ),
           ),
           const SizedBox(width: 8),

@@ -27,6 +27,7 @@ import 'sync/auth_gateway.dart';
 import 'sync/key_store.dart';
 import 'sync/supabase_backend.dart';
 import 'tv/remote_keys.dart';
+import 'tv/tv_text_input.dart';
 import 'tv/tv_focus_theme.dart';
 import 'ui/app_theme.dart';
 import 'ui/tv_device.dart';
@@ -277,32 +278,35 @@ class _IptvAppState extends State<IptvApp> {
   /// The [MaterialApp], themed with the accent colour of [settings].
   Widget _app(AppSettings settings) {
     final accent = settings.accentColor;
-    return MaterialApp(
-      navigatorKey: _navigatorKey,
-      title: 'Ghostlime IPTV',
-      debugShowCheckedModeBanner: false,
-      // On a TV the whole app, routes and dialogs included, is scaled.
-      builder: (context, child) =>
-          TvScale(child: RemoteTextFieldKeys(child: child!)),
-      // On a TV, the keys of the remote too.
-      shortcuts: appShortcuts(),
-      theme: _themes.putIfAbsent(accent, () {
-        final theme = buildAppTheme(accent: accent);
-        // On a TV every control shows a clear focus for the remote.
-        return isTvDevice ? withTvFocus(theme) : theme;
-      }),
-      locale: const Locale('es'),
-      supportedLocales: const [Locale('es')],
-      localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      home: PlaylistsScreen(
-        key: _playlistsKey,
-        db: widget.db,
-        passwords: widget.passwords,
+    // Above the app, so on a TV Back leaves a text field before the page.
+    return TvTextFieldBack(
+      child: MaterialApp(
+        navigatorKey: _navigatorKey,
+        title: 'Ghostlime IPTV',
+        debugShowCheckedModeBanner: false,
+        // On a TV the whole app, routes and dialogs included, is scaled.
+        builder: (context, child) =>
+            TvScale(child: RemoteTextFieldKeys(child: child!)),
+        // On a TV, the keys of the remote too.
+        shortcuts: appShortcuts(),
+        theme: _themes.putIfAbsent(accent, () {
+          final theme = buildAppTheme(accent: accent);
+          // On a TV every control shows a clear focus for the remote.
+          return isTvDevice ? withTvFocus(theme) : theme;
+        }),
+        locale: const Locale('es'),
+        supportedLocales: const [Locale('es')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
+        home: PlaylistsScreen(
+          key: _playlistsKey,
+          db: widget.db,
+          passwords: widget.passwords,
+        ),
+        // The playlists stay underneath, so their start-up refresh and
+        // the sync of an account opened in the welcome run as usual.
+        initialRoute: _firstRun == FirstRunStep.none ? null : _firstRunRoute,
+        onGenerateRoute: _firstRunScreen,
       ),
-      // The playlists stay underneath, so their start-up refresh and
-      // the sync of an account opened in the welcome run as usual.
-      initialRoute: _firstRun == FirstRunStep.none ? null : _firstRunRoute,
-      onGenerateRoute: _firstRunScreen,
     );
   }
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../sync/account_service.dart';
 import '../sync/auth_gateway.dart' show AccountException;
+import '../tv/tv_text_input.dart';
+import '../ui/tv_device.dart';
 import 'email_code_dialog.dart';
 import 'pin_store.dart';
 
@@ -112,10 +114,14 @@ class _PinDialogState extends State<_PinDialog> {
   final _second = TextEditingController();
   String? _error;
 
+  /// Aceptar: on a TV "Hecho" in the last PIN goes there.
+  final _acceptFocus = FocusNode();
+
   @override
   void dispose() {
     _first.dispose();
     _second.dispose();
+    _acceptFocus.dispose();
     super.dispose();
   }
 
@@ -132,15 +138,31 @@ class _PinDialogState extends State<_PinDialog> {
     Navigator.pop(context, pin);
   }
 
-  Widget _field(TextEditingController controller, String label, bool focus) {
-    return TextField(
-      controller: controller,
-      autofocus: focus,
-      obscureText: true,
-      keyboardType: TextInputType.number,
-      maxLength: 4,
-      decoration: InputDecoration(labelText: label, counterText: ''),
-      onSubmitted: (_) => _submit(),
+  /// A PIN field; [last] is whether no other PIN field follows it.
+  /// Elsewhere Enter submits; on a TV "Siguiente" goes to the second PIN and
+  /// "Hecho" in the last one to Aceptar.
+  Widget _field(
+    TextEditingController controller,
+    String label, {
+    required bool focus,
+    required bool last,
+  }) {
+    return TvKeyboardGate(
+      builder: (context, locked) => TextField(
+        readOnly: locked,
+        controller: controller,
+        autofocus: focus,
+        obscureText: true,
+        keyboardType: TextInputType.number,
+        textInputAction: isTvDevice && !last ? TextInputAction.next : null,
+        maxLength: 4,
+        decoration: InputDecoration(labelText: label, counterText: ''),
+        onSubmitted: !isTvDevice
+            ? (_) => _submit()
+            : last
+            ? (_) => _acceptFocus.requestFocus()
+            : null,
+      ),
     );
   }
 
@@ -153,10 +175,10 @@ class _PinDialogState extends State<_PinDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _field(_first, 'PIN', true),
+            _field(_first, 'PIN', focus: true, last: !widget.confirm),
             if (widget.confirm) ...[
               const SizedBox(height: 12),
-              _field(_second, 'Repite el PIN', false),
+              _field(_second, 'Repite el PIN', focus: false, last: true),
             ],
             if (_error != null) ...[
               const SizedBox(height: 12),
@@ -178,7 +200,11 @@ class _PinDialogState extends State<_PinDialog> {
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancelar'),
         ),
-        FilledButton(onPressed: _submit, child: const Text('Aceptar')),
+        FilledButton(
+          focusNode: _acceptFocus,
+          onPressed: _submit,
+          child: const Text('Aceptar'),
+        ),
       ],
     );
   }

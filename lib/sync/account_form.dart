@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../tv/tv_text_input.dart';
+import '../ui/tv_device.dart';
+
 import 'account_service.dart';
 import 'auth_gateway.dart' show AccountException;
 import 'google_sign_in.dart';
@@ -46,6 +49,9 @@ class AccountForm extends StatefulWidget {
 class _AccountFormState extends State<AccountForm> {
   final _email = TextEditingController();
   final _password = TextEditingController();
+
+  /// "Entrar": on a TV "Hecho" in the password goes there.
+  final _signInFocus = FocusNode();
   bool _busy = false;
 
   /// What the user has to do before an action can run, e.g. type the email.
@@ -57,6 +63,7 @@ class _AccountFormState extends State<AccountForm> {
   void dispose() {
     _email.dispose();
     _password.dispose();
+    _signInFocus.dispose();
     super.dispose();
   }
 
@@ -187,20 +194,34 @@ class _AccountFormState extends State<AccountForm> {
               children: [
                 SizedBox(
                   width: 260,
-                  child: TextField(
-                    autofocus: widget.autofocus,
-                    controller: _email,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(labelText: 'Email'),
+                  child: TvKeyboardGate(
+                    builder: (context, locked) => TextField(
+                      readOnly: locked,
+                      autofocus: widget.autofocus,
+                      controller: _email,
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: isTvDevice ? TextInputAction.next : null,
+                      decoration: const InputDecoration(labelText: 'Email'),
+                    ),
                   ),
                 ),
                 SizedBox(
                   width: 220,
-                  child: TextField(
-                    controller: _password,
-                    obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Contraseña'),
-                    onSubmitted: (_) => _busy ? null : _signIn(),
+                  child: TvKeyboardGate(
+                    builder: (context, locked) => TextField(
+                      readOnly: locked,
+                      controller: _password,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Contraseña',
+                      ),
+                      // On a TV "Hecho" goes to Entrar, pressed with OK.
+                      onSubmitted: (_) => isTvDevice
+                          ? _signInFocus.requestFocus()
+                          : _busy
+                          ? null
+                          : _signIn(),
+                    ),
                   ),
                 ),
                 if (_account.status == AccountStatus.awaitingConfirmation)
@@ -214,6 +235,7 @@ class _AccountFormState extends State<AccountForm> {
                     child: const Text('Introducir código'),
                   ),
                 FilledButton(
+                  focusNode: _signInFocus,
                   onPressed: _busy ? null : _signIn,
                   child: const Text('Entrar'),
                 ),
@@ -282,12 +304,25 @@ class _PasswordDialogState extends State<PasswordDialog> {
   ];
   String? _error;
 
+  /// The confirm button: on a TV "Hecho" in the last field goes there.
+  final _confirmFocus = FocusNode();
+
   @override
   void dispose() {
     for (final controller in _controllers) {
       controller.dispose();
     }
+    _confirmFocus.dispose();
     super.dispose();
+  }
+
+  /// What "Siguiente" or "Hecho" does in field [index]: elsewhere Enter
+  /// submits; on a TV the keyboard moves on to the next field and from the
+  /// last one to the confirm button.
+  ValueChanged<String>? _onSubmitted(int index) {
+    if (!isTvDevice) return (_) => _submit();
+    if (index < _controllers.length - 1) return null;
+    return (_) => _confirmFocus.requestFocus();
   }
 
   void _submit() {
@@ -317,12 +352,18 @@ class _PasswordDialogState extends State<PasswordDialog> {
             for (var i = 0; i < _controllers.length; i++)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: TextField(
-                  controller: _controllers[i],
-                  obscureText: !widget.plainFields.contains(i),
-                  autofocus: i == 0,
-                  decoration: InputDecoration(labelText: widget.labels[i]),
-                  onSubmitted: (_) => _submit(),
+                child: TvKeyboardGate(
+                  builder: (context, locked) => TextField(
+                    readOnly: locked,
+                    controller: _controllers[i],
+                    obscureText: !widget.plainFields.contains(i),
+                    autofocus: i == 0,
+                    textInputAction: isTvDevice && i < _controllers.length - 1
+                        ? TextInputAction.next
+                        : null,
+                    decoration: InputDecoration(labelText: widget.labels[i]),
+                    onSubmitted: _onSubmitted(i),
+                  ),
                 ),
               ),
             if (_error != null)
@@ -338,7 +379,11 @@ class _PasswordDialogState extends State<PasswordDialog> {
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancelar'),
         ),
-        FilledButton(onPressed: _submit, child: Text(widget.confirmLabel)),
+        FilledButton(
+          focusNode: _confirmFocus,
+          onPressed: _submit,
+          child: Text(widget.confirmLabel),
+        ),
       ],
     );
   }

@@ -12,6 +12,7 @@ import 'package:iptv_player/settings/settings_controller.dart';
 import 'package:iptv_player/settings/settings_scope.dart';
 import 'package:iptv_player/tv/remote_keys.dart';
 import 'package:iptv_player/tv/tv_focus_theme.dart';
+import 'package:iptv_player/tv/tv_text_input.dart';
 import 'package:iptv_player/ui/app_theme.dart';
 import 'package:iptv_player/ui/tv_device.dart';
 import 'package:iptv_player/ui/tv_scale.dart';
@@ -142,12 +143,14 @@ Future<void> pumpTvApp(
         controller: SettingsController(db),
         child: PinScope(
           store: MemoryPinStore(),
-          child: MaterialApp(
-            theme: withTvFocus(buildAppTheme()),
-            builder: (context, child) =>
-                TvScale(child: RemoteTextFieldKeys(child: child!)),
-            shortcuts: appShortcuts(),
-            home: home,
+          child: TvTextFieldBack(
+            child: MaterialApp(
+              theme: withTvFocus(buildAppTheme()),
+              builder: (context, child) =>
+                  TvScale(child: RemoteTextFieldKeys(child: child!)),
+              shortcuts: appShortcuts(),
+              home: home,
+            ),
           ),
         ),
       ),

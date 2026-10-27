@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../ui/tv_device.dart';
+import 'tv_text_input.dart';
 
 /// Channel up/down on the remote: zap [step] channels away (1 up, -1 down)
 /// in the live player.
@@ -46,7 +47,8 @@ class QuickOptionsIntent extends Intent {
 /// Back on the remote while a dialog, sheet or menu (a popup route) is on
 /// top: there is a route to close. Elsewhere it lets the key go on to Android,
 /// which pops the page (through `PopScope`): a focused text field would
-/// otherwise take the [DismissIntent] and swallow Back.
+/// otherwise take the [DismissIntent] and swallow Back. In a text field it
+/// is left to Android as well, so Back first leaves the field.
 ///
 /// It fires when the key is released, as Android does: Android goes back on
 /// the release of an unhandled Back, so acting on the press would close the
@@ -63,7 +65,11 @@ class _BackWithRouteToClose extends ShortcutActivator {
   bool accepts(KeyEvent event, HardwareKeyboard state) {
     if (event is! KeyUpEvent) return false;
     if (event.logicalKey != LogicalKeyboardKey.goBack) return false;
-    final focused = FocusManager.instance.primaryFocus?.context;
+    final focus = FocusManager.instance.primaryFocus;
+    // A text field leaves it to Android too: its Back first leaves the field
+    // (`TvTextFieldBack`).
+    if (isTextFieldFocus(focus)) return false;
+    final focused = focus?.context;
     // `Navigator.maybeOf` looks the navigator up without depending on it,
     // and a `popUntil` whose test passes on the top route pops nothing: it
     // only reads that route. `ModalRoute.of` would make the focused widget

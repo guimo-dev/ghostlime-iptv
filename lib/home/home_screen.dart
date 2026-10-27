@@ -16,6 +16,7 @@ import '../settings/app_settings.dart';
 import '../settings/content_filters.dart';
 import '../settings/parental_session.dart';
 import '../settings/settings_scope.dart';
+import '../tv/tv_text_input.dart';
 import '../ui/app_theme.dart';
 import '../ui/backdrop.dart';
 import '../ui/content_width.dart';
@@ -268,18 +269,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   )
                 : const EdgeInsets.fromLTRB(32, 20, 32, 12),
             child: ContentWidth(
-              child: TextField(
-                controller: _searchController,
-                focusNode: _searchFocus,
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.search),
-                  hintText: 'Buscar en directo, películas y series',
+              child: TvKeyboardGate(
+                builder: (context, locked) => TextField(
+                  readOnly: locked,
+                  controller: _searchController,
+                  focusNode: _searchFocus,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search),
+                    hintText: 'Buscar en directo, películas y series',
+                  ),
+                  onChanged: _onSearchChanged,
+                  onSubmitted: (value) {
+                    _searchTimer?.cancel();
+                    setState(() => _query = value);
+                  },
                 ),
-                onChanged: _onSearchChanged,
-                onSubmitted: (value) {
-                  _searchTimer?.cancel();
-                  setState(() => _query = value);
-                },
               ),
             ),
           ),

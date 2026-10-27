@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../sync/auth_gateway.dart' show AccountException;
+import '../tv/tv_text_input.dart';
+import '../ui/tv_device.dart';
 
 /// Asks for the code emailed to the account (the caller already sent it).
 /// [onSubmit] checks the code without closing the dialog, so a mistyped code
@@ -45,9 +47,13 @@ class _EmailCodeDialogState extends State<EmailCodeDialog> {
   /// Confirmation shown after a code was sent again.
   String? _notice;
 
+  /// The confirm button: on a TV "Hecho" in the code goes there.
+  final _confirmFocus = FocusNode();
+
   @override
   void dispose() {
     _code.dispose();
+    _confirmFocus.dispose();
     super.dispose();
   }
 
@@ -102,11 +108,21 @@ class _EmailCodeDialogState extends State<EmailCodeDialog> {
               '${widget.purpose}',
             ),
             const SizedBox(height: 16),
-            TextField(
-              controller: _code,
-              autofocus: true,
-              decoration: const InputDecoration(labelText: 'Código del correo'),
-              onSubmitted: (_) => _busy ? null : _submit(),
+            TvKeyboardGate(
+              builder: (context, locked) => TextField(
+                readOnly: locked,
+                controller: _code,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Código del correo',
+                ),
+                // On a TV "Hecho" goes to the confirm button, pressed with OK.
+                onSubmitted: (_) => isTvDevice
+                    ? _confirmFocus.requestFocus()
+                    : _busy
+                    ? null
+                    : _submit(),
+              ),
             ),
             if (widget.extra != null) widget.extra!,
             if (_error != null || _notice != null) ...[
@@ -135,6 +151,7 @@ class _EmailCodeDialogState extends State<EmailCodeDialog> {
           child: const Text('Cancelar'),
         ),
         FilledButton(
+          focusNode: _confirmFocus,
           onPressed: _busy ? null : _submit,
           child: Text(widget.confirmLabel),
         ),

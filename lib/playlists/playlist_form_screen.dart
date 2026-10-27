@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 
 import '../settings/settings_scope.dart';
 import '../tv/tv_initial_focus.dart';
+import '../tv/tv_text_input.dart';
 import '../ui/bottom_action_bar.dart';
 import '../ui/choice_selector.dart';
+import '../ui/tv_device.dart';
 import '../xtream/xtream_urls.dart';
 import 'playlist.dart';
 import 'xtream_link.dart';
@@ -59,6 +61,9 @@ class _PlaylistFormScreenState extends State<PlaylistFormScreen> {
   /// Error of the last failed source check, shown above the fields.
   String? _sourceError;
 
+  /// Guardar in the app bar: on a TV "Hecho" in the last field goes there.
+  final _saveFocus = FocusNode();
+
   bool get _editing => widget.initial != null;
 
   @override
@@ -74,6 +79,7 @@ class _PlaylistFormScreenState extends State<PlaylistFormScreen> {
     ]) {
       c.dispose();
     }
+    _saveFocus.dispose();
     super.dispose();
   }
 
@@ -154,13 +160,21 @@ class _PlaylistFormScreenState extends State<PlaylistFormScreen> {
     final bottomActions = usesBottomActions(context);
     final saveLabel = _checking ? 'Comprobando…' : 'Guardar';
     final onSave = _checking ? null : _save;
+    // On a TV "Siguiente" on the system keyboard moves on through the form;
+    // elsewhere the keyboard keeps its usual action.
+    final next = isTvDevice ? TextInputAction.next : null;
     // On a TV the type selector takes the focus (not a field, which would
     // open the keyboard).
     final form = TvInitialFocus(
       child: Form(
         key: _formKey,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.fromLTRB(
+            24,
+            24,
+            24,
+            isTvDevice ? tvTypingRoom : 24,
+          ),
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: _maxFormWidth),
@@ -178,39 +192,61 @@ class _PlaylistFormScreenState extends State<PlaylistFormScreen> {
                     onChanged: (type) => setState(() => _type = type),
                   ),
                   if (_sourceError case final error?) _SourceError(error),
-                  TextFormField(
-                    controller: _name,
-                    decoration: const InputDecoration(labelText: 'Nombre'),
-                    validator: _required,
+                  TvKeyboardGate(
+                    builder: (context, locked) => TextFormField(
+                      readOnly: locked,
+                      textInputAction: next,
+                      controller: _name,
+                      decoration: const InputDecoration(labelText: 'Nombre'),
+                      validator: _required,
+                    ),
                   ),
                   if (isXtream) ...[
-                    TextFormField(
-                      decoration: const InputDecoration(
-                        labelText: 'Pegar enlace del proveedor (opcional)',
-                        helperText: 'Rellena servidor, usuario y contraseña',
+                    TvKeyboardGate(
+                      builder: (context, locked) => TextFormField(
+                        readOnly: locked,
+                        textInputAction: next,
+                        decoration: const InputDecoration(
+                          labelText: 'Pegar enlace del proveedor (opcional)',
+                          helperText: 'Rellena servidor, usuario y contraseña',
+                        ),
+                        onChanged: _applyLink,
                       ),
-                      onChanged: _applyLink,
                     ),
-                    TextFormField(
-                      controller: _server,
-                      decoration: const InputDecoration(labelText: 'Servidor'),
-                      validator: _required,
-                    ),
-                    TextFormField(
-                      controller: _username,
-                      decoration: const InputDecoration(labelText: 'Usuario'),
-                      validator: _required,
-                    ),
-                    TextFormField(
-                      controller: _password,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        labelText: 'Contraseña',
-                        helperText: _editing
-                            ? 'Vacía para mantener la actual'
-                            : null,
+                    TvKeyboardGate(
+                      builder: (context, locked) => TextFormField(
+                        readOnly: locked,
+                        textInputAction: next,
+                        controller: _server,
+                        decoration: const InputDecoration(
+                          labelText: 'Servidor',
+                        ),
+                        validator: _required,
                       ),
-                      validator: _editing ? null : _required,
+                    ),
+                    TvKeyboardGate(
+                      builder: (context, locked) => TextFormField(
+                        readOnly: locked,
+                        textInputAction: next,
+                        controller: _username,
+                        decoration: const InputDecoration(labelText: 'Usuario'),
+                        validator: _required,
+                      ),
+                    ),
+                    TvKeyboardGate(
+                      builder: (context, locked) => TextFormField(
+                        readOnly: locked,
+                        textInputAction: next,
+                        controller: _password,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          labelText: 'Contraseña',
+                          helperText: _editing
+                              ? 'Vacía para mantener la actual'
+                              : null,
+                        ),
+                        validator: _editing ? null : _required,
+                      ),
                     ),
                     Column(
                       spacing: 8,
@@ -232,12 +268,16 @@ class _PlaylistFormScreenState extends State<PlaylistFormScreen> {
                       ],
                     ),
                   ] else if (_type == PlaylistType.m3uUrl)
-                    TextFormField(
-                      controller: _source,
-                      decoration: const InputDecoration(
-                        labelText: 'URL de la lista',
+                    TvKeyboardGate(
+                      builder: (context, locked) => TextFormField(
+                        readOnly: locked,
+                        textInputAction: next,
+                        controller: _source,
+                        decoration: const InputDecoration(
+                          labelText: 'URL de la lista',
+                        ),
+                        validator: _required,
                       ),
-                      validator: _required,
                     )
                   else
                     Row(
@@ -259,17 +299,27 @@ class _PlaylistFormScreenState extends State<PlaylistFormScreen> {
                         ),
                       ],
                     ),
-                  TextFormField(
-                    controller: _userAgent,
-                    decoration: const InputDecoration(
-                      labelText: 'User-Agent (opcional)',
+                  TvKeyboardGate(
+                    builder: (context, locked) => TextFormField(
+                      readOnly: locked,
+                      textInputAction: next,
+                      controller: _userAgent,
+                      decoration: const InputDecoration(
+                        labelText: 'User-Agent (opcional)',
+                      ),
                     ),
                   ),
-                  TextFormField(
-                    controller: _epgUrl,
-                    decoration: const InputDecoration(
-                      labelText: 'URL de la guía (opcional)',
-                      helperText: 'Si se deja vacía se usa la del proveedor',
+                  TvKeyboardGate(
+                    builder: (context, locked) => TextFormField(
+                      readOnly: locked,
+                      onFieldSubmitted: isTvDevice
+                          ? (_) => _saveFocus.requestFocus()
+                          : null,
+                      controller: _epgUrl,
+                      decoration: const InputDecoration(
+                        labelText: 'URL de la guía (opcional)',
+                        helperText: 'Si se deja vacía se usa la del proveedor',
+                      ),
                     ),
                   ),
                   Text(
@@ -290,7 +340,11 @@ class _PlaylistFormScreenState extends State<PlaylistFormScreen> {
         actions: bottomActions
             ? null
             : [
-                FilledButton(onPressed: onSave, child: Text(saveLabel)),
+                FilledButton(
+                  focusNode: _saveFocus,
+                  onPressed: onSave,
+                  child: Text(saveLabel),
+                ),
                 const SizedBox(width: 12),
               ],
       ),

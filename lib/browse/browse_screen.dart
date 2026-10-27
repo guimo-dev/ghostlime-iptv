@@ -12,6 +12,7 @@ import '../settings/app_settings.dart';
 import '../settings/content_filters.dart';
 import '../settings/parental_session.dart';
 import '../settings/settings_scope.dart';
+import '../tv/tv_text_input.dart';
 import '../ui/app_theme.dart';
 import '../ui/brand_state.dart';
 import '../ui/backdrop.dart';
@@ -340,12 +341,15 @@ class _BrowseScreenState extends State<BrowseScreen> {
     final items = _visibleItems(settings);
     final phone = usesPhoneLayout(context);
     final side = phone ? phonePageMargin : 32.0;
-    final filter = TextField(
-      decoration: const InputDecoration(
-        prefixIcon: Icon(Icons.search, size: 20),
-        hintText: 'Filtrar',
+    final filter = TvKeyboardGate(
+      builder: (context, locked) => TextField(
+        readOnly: locked,
+        decoration: const InputDecoration(
+          prefixIcon: Icon(Icons.search, size: 20),
+          hintText: 'Filtrar',
+        ),
+        onChanged: (value) => setState(() => _filter = value),
       ),
-      onChanged: (value) => setState(() => _filter = value),
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

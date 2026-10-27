@@ -269,7 +269,10 @@ void main() {
     await _pumpIptvApp(tester, demo.db);
     await tester.sendKeyEvent(LogicalKeyboardKey.select);
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'canal');
+    // Inicio opens on the search box; OK opens the keyboard to type.
+    await tester.sendKeyEvent(LogicalKeyboardKey.select);
+    await tester.pumpAndSettle();
+    tester.testTextInput.enterText('canal');
     await tester.pumpAndSettle();
 
     expect(await _pressBack(tester), isTrue);
