@@ -6,8 +6,8 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 /// A [Player] without libmpv that records `open` and `stop` in [calls]
 /// (`open <uri>` / `stop`, also `audio <id>`, `subtitle <id>`,
-/// `playOrPause` and `seek <seconds>`). Members a test does not use answer with a
-/// completed future.
+/// `playOrPause` and `seek <seconds>`). Members a test does not use
+/// answer with a completed future.
 class FakePlayer implements Player {
   final calls = <String>[];
 

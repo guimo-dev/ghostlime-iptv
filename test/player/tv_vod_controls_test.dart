@@ -112,7 +112,34 @@ void main() {
     await _leave(tester);
   });
 
-  testWidgets('jumps stay within the movie', (tester) async {
+  testWidgets('holding Right jumps 10 s every 250 ms, and 30 s after 2 s', (
+    tester,
+  ) async {
+    await pumpMovie(tester);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowRight);
+    // Android repeats a held key about every 50 ms.
+    for (var i = 0; i < 60; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.sendKeyRepeatEvent(LogicalKeyboardKey.arrowRight);
+    }
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump();
+    // The press and one repeat every 250 ms (13 jumps in 3 s): 10 s each
+    // until 2 s, then 30 s.
+    expect(seeks(), [
+      310, 320, 330, 340, 350, 360, 370, 380, //
+      410, 440, 470, 500, 530,
+    ]);
+
+    // Released, a press jumps 10 s again.
+    await _press(tester, LogicalKeyboardKey.arrowRight);
+    expect(seeks().last, 540);
+    await _leave(tester);
+  });
+
+  testWidgets('jumps stop 2 s before the end, without seeking again there', (
+    tester,
+  ) async {
     player.fakeState = const PlayerState(
       position: Duration(seconds: 4),
       duration: Duration(seconds: 15),
@@ -121,34 +148,33 @@ void main() {
     await _press(tester, LogicalKeyboardKey.arrowLeft);
     await _press(tester, LogicalKeyboardKey.arrowRight);
     await _press(tester, LogicalKeyboardKey.arrowRight);
-    expect(seeks(), [0, 10, 15]);
+    await _press(tester, LogicalKeyboardKey.arrowRight);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowRight);
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.sendKeyRepeatEvent(LogicalKeyboardKey.arrowRight);
+    }
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump();
+    expect(seeks(), [0, 10, 13]);
     await _leave(tester);
   });
 
-  testWidgets('holding Right 2 s jumps 30 s per repeat', (tester) async {
+  testWidgets('the bar shows where a jump goes until the player gets there '
+      'or for 1 s', (tester) async {
     await pumpMovie(tester);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowRight);
-    await tester.pump();
-    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.arrowRight);
-    await tester.pump(const Duration(seconds: 2));
-    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.arrowRight);
-    await tester.pump();
-    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.arrowRight);
-    await tester.pump();
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowRight);
-    await tester.pump();
-    // Released, a press jumps 10 s again.
     await _press(tester, LogicalKeyboardKey.arrowRight);
-    expect(seeks(), [310, 320, 350, 380, 390]);
+    expect(find.text('5:10'), findsOneWidget);
+    player.emitPosition(const Duration(seconds: 312));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('5:12'), findsOneWidget);
 
-    // The same holding Left.
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowLeft);
-    await tester.pump(const Duration(seconds: 2));
-    await tester.sendKeyRepeatEvent(LogicalKeyboardKey.arrowLeft);
-    await tester.pump();
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowLeft);
-    await tester.pump();
-    expect(seeks().skip(5), [380, 350]);
+    await _press(tester, LogicalKeyboardKey.arrowRight);
+    expect(find.text('5:20'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('5:20'), findsNothing);
+    expect(controls, findsOneWidget);
     await _leave(tester);
   });
 
@@ -271,15 +297,9 @@ void main() {
     await tester.pump();
     final watchNow = find.widgetWithText(FilledButton, 'Ver ahora');
     expect(watchNow, findsOneWidget);
-    final focused = FocusManager.instance.primaryFocus!.context!;
     expect(
-      find.descendant(
-        of: watchNow,
-        matching: find.byElementPredicate((e) {
-          return e == focused;
-        }),
-      ),
-      findsOneWidget,
+      Focus.of(tester.element(find.text('Ver ahora'))).hasPrimaryFocus,
+      isTrue,
     );
 
     await _press(tester, LogicalKeyboardKey.arrowRight);

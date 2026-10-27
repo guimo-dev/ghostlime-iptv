@@ -24,16 +24,32 @@ const tvFastSeekStep = Duration(seconds: 30);
 /// How long Left or Right must be held to jump [tvFastSeekStep].
 const tvFastSeekAfter = Duration(seconds: 2);
 
+/// Shortest time between two jumps of a held Left or Right: the remote
+/// repeats a key about every 50 ms, far too fast to jump on each.
+const tvSeekRepeatGap = Duration(milliseconds: 250);
+
+/// How close to the end a jump may land, so holding Right does not end the
+/// movie (nor start the next episode).
+const tvSeekEndMargin = Duration(seconds: 2);
+
+/// How long the bar shows where a jump goes when the player does not get
+/// there sooner.
+const _seekTargetTime = Duration(seconds: 1);
+
+/// How close the position must be to a jump's target to count as there.
+const _targetReached = Duration(seconds: 2);
+
 /// Remote controls of a movie or episode on a TV, over a video without
 /// media_kit controls.
 ///
 /// OK (and play/pause) pauses and resumes; Left and Right jump
-/// [tvSeekStep], and [tvFastSeekStep] per repeat once held
-/// [tvFastSeekAfter]; fast forward and rewind jump too; Up and Down show the
-/// title and the progress for [tvControlsDuration] (jumps show them as
-/// well); Menu opens the audio and subtitle tracks. Back closes what is
-/// shown and, with nothing left, leaves the player, which saves the
-/// position as on every device.
+/// [tvSeekStep], and while held once every [tvSeekRepeatGap]
+/// ([tvFastSeekStep] once held [tvFastSeekAfter]), never closer than
+/// [tvSeekEndMargin] to the end; fast forward and rewind jump too; Up and
+/// Down show the title and the progress for [tvControlsDuration] (jumps
+/// show them as well); Menu opens the audio and subtitle tracks. Back
+/// closes what is shown and, with nothing left, leaves the player, which
+/// saves the position as on every device.
 class TvVodControls extends StatefulWidget {
   /// Controls for [playback], playing [title].
   const TvVodControls({
@@ -77,15 +93,20 @@ class _TvVodControlsState extends State<TvVodControls> {
   /// Whether the audio and subtitle options are open.
   bool _options = false;
 
-  /// Where the last jump went, while the controls show it: the next jump
-  /// starts there, as the player may not have got there yet.
+  /// Where the last jump went, for [_seekTargetTime] after it: the next
+  /// jump starts there, as the player may not have got there yet.
   Duration? _seekTarget;
+
+  /// Whether a repeat of a held Left or Right may jump now.
+  bool _repeatMayJump = true;
 
   /// Whether Left or Right has been held long enough to jump faster.
   bool _fast = false;
 
   Timer? _hideTimer;
   Timer? _holdTimer;
+  Timer? _repeatTimer;
+  Timer? _targetTimer;
 
   Player get _player => widget.playback.player;
 
@@ -93,6 +114,8 @@ class _TvVodControlsState extends State<TvVodControls> {
   void dispose() {
     _hideTimer?.cancel();
     _holdTimer?.cancel();
+    _repeatTimer?.cancel();
+    _targetTimer?.cancel();
     if (widget.focusNode == null) _root.dispose();
     super.dispose();
   }
@@ -129,20 +152,28 @@ class _TvVodControlsState extends State<TvVodControls> {
   }
 
   /// Jumps [offset] from where the last jump went (or the position),
-  /// within the movie, and shows where it lands.
+  /// between the start and [tvSeekEndMargin] before the end, and shows
+  /// where it lands. Already there, it does not seek again.
   void _seekBy(Duration offset) {
     final state = _player.state;
-    var target = (_seekTarget ?? state.position) + offset;
-    if (state.duration > Duration.zero && target > state.duration) {
-      target = state.duration;
+    final from = _seekTarget ?? state.position;
+    var target = from + offset;
+    final last = state.duration - tvSeekEndMargin;
+    if (state.duration > Duration.zero && target > last) {
+      target = last > from ? last : from;
     }
     if (target < Duration.zero) target = Duration.zero;
-    _player.seek(target);
+    if (target != from) _player.seek(target);
+    _targetTimer?.cancel();
+    _targetTimer = Timer(_seekTargetTime, () {
+      if (mounted) setState(() => _seekTarget = null);
+    });
     _showControls(() => _seekTarget = target);
   }
 
-  /// Left or Right ([forward]): a press jumps [tvSeekStep], and so does each
-  /// repeat until the key has been held [tvFastSeekAfter].
+  /// Left or Right ([forward]): a press jumps [tvSeekStep]; held, it
+  /// jumps again every [tvSeekRepeatGap], [tvFastSeekStep] once held
+  /// [tvFastSeekAfter].
   void _seekKey(KeyEvent event, {required bool forward}) {
     if (event is KeyUpEvent) {
       _holdTimer?.cancel();
@@ -153,7 +184,12 @@ class _TvVodControlsState extends State<TvVodControls> {
       _holdTimer?.cancel();
       _fast = false;
       _holdTimer = Timer(tvFastSeekAfter, () => _fast = true);
+    } else if (!_repeatMayJump) {
+      return;
     }
+    _repeatMayJump = false;
+    _repeatTimer?.cancel();
+    _repeatTimer = Timer(tvSeekRepeatGap, () => _repeatMayJump = true);
     final step = _fast ? tvFastSeekStep : tvSeekStep;
     _seekBy(forward ? step : -step);
   }
@@ -245,7 +281,8 @@ class _TvVodControlsState extends State<TvVodControls> {
 }
 
 /// The bar at the bottom: the title, play or pause, the position (or where
-/// the last jump goes, [seekTarget]) and the progress over the length.
+/// the last jump goes, [seekTarget], until the player gets near it) and the
+/// progress over the length.
 class _ControlsBar extends StatelessWidget {
   const _ControlsBar({
     required this.player,
@@ -292,7 +329,13 @@ class _ControlsBar extends StatelessWidget {
             stream: player.stream.position,
             initialData: player.state.position,
             builder: (context, snapshot) {
-              final position = seekTarget ?? snapshot.data ?? Duration.zero;
+              final playing = snapshot.data ?? Duration.zero;
+              final target = seekTarget;
+              // The jump's target until the player gets there.
+              final position =
+                  target == null || (playing - target).abs() <= _targetReached
+                  ? playing
+                  : target;
               final duration = player.state.duration;
               final share = duration > Duration.zero
                   ? (position.inMilliseconds / duration.inMilliseconds).clamp(
