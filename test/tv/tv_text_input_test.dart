@@ -322,6 +322,60 @@ void main() {
       );
     });
 
+    testWidgets('Back keeps the scroll when the new focus is in view', (
+      tester,
+    ) async {
+      useTvView(tester);
+      await pumpTvApp(tester, demo.db, const PlaylistFormScreen());
+      await tester.pumpAndSettle();
+      _field(tester, 'Usuario').focusNode.requestFocus();
+      await tester.pumpAndSettle();
+      final scroll = tester
+          .state<ScrollableState>(find.byType(Scrollable).first)
+          .position;
+      final before = scroll.pixels;
+
+      await _systemBack(tester);
+      expect(_focusedLabel(tester), isNull);
+      expect(viewRect(tester).contains(focusedNode().rect.center), isTrue);
+      expect(scroll.pixels, before);
+    });
+
+    testWidgets('the picked file field lets Right and Back go on', (
+      tester,
+    ) async {
+      useTvView(tester);
+      await pumpTvApp(tester, demo.db, const PlaylistFormScreen());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('M3U (fichero)'));
+      await tester.pumpAndSettle();
+      _field(tester, 'Fichero').focusNode.requestFocus();
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(_buttonFocused('Elegir…'), isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pumpAndSettle();
+      expect(_focusedLabel(tester), 'Fichero');
+      expect(tester.testTextInput.isVisible, isFalse);
+
+      await _systemBack(tester);
+      expect(find.byType(PlaylistFormScreen), findsOneWidget);
+      expect(_focusedLabel(tester), isNull);
+      focusedNode();
+    });
+
+    testWidgets('a tap on a field opens the keyboard', (tester) async {
+      useTvView(tester);
+      await pumpTvApp(tester, demo.db, const PlaylistFormScreen());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Nombre'));
+      await tester.pumpAndSettle();
+      expect(_focusedLabel(tester), 'Nombre');
+      expect(tester.testTextInput.isVisible, isTrue);
+    });
+
     testWidgets('off the TV the fields open the keyboard as before', (
       tester,
     ) async {
@@ -388,6 +442,8 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
       await tester.pumpAndSettle();
       expect(_focusedLabel(tester), 'Contraseña');
+      // Reached with a key: it does not open the keyboard.
+      expect(_field(tester, 'Contraseña').readOnly, isTrue);
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
       await tester.pumpAndSettle();
       expect(_focusedLabel(tester), 'Email');
@@ -400,6 +456,28 @@ void main() {
       await tester.pumpAndSettle();
       expect(_focusedLabel(tester), 'Email');
       expect(_field(tester, 'Email').controller.selection.baseOffset, 1);
+    });
+
+    testWidgets('after typing and closing the keyboard, Right leaves', (
+      tester,
+    ) async {
+      useTvView(tester);
+      final account = _account(demo);
+      addTearDown(account.dispose);
+      await openDialog(tester, account);
+      await _ok(tester);
+      tester.testTextInput.enterText('ab');
+      await tester.pumpAndSettle();
+      // The keyboard's own Back closes it; the app is not told.
+      tester.testTextInput.hide();
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(_focusedLabel(tester), 'Contraseña');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pumpAndSettle();
+      expect(_focusedLabel(tester), 'Email');
     });
 
     testWidgets('Back first leaves the field, then closes the dialog', (

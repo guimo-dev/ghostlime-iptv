@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../tv/tv_text_input.dart';
 import '../ui/tv_device.dart';
-
 import 'account_service.dart';
 import 'auth_gateway.dart' show AccountException;
 import 'google_sign_in.dart';

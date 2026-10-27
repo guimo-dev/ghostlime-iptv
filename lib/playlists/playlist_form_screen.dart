@@ -283,13 +283,17 @@ class _PlaylistFormScreenState extends State<PlaylistFormScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: TextFormField(
-                            controller: _source,
-                            readOnly: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Fichero',
+                          // Always read-only; the gate lets the remote's
+                          // arrows and Back leave it on a TV.
+                          child: TvKeyboardGate(
+                            builder: (context, _) => TextFormField(
+                              controller: _source,
+                              readOnly: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Fichero',
+                              ),
+                              validator: _required,
                             ),
-                            validator: _required,
                           ),
                         ),
                         const SizedBox(width: 8),

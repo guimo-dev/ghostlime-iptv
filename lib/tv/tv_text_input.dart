@@ -31,11 +31,14 @@ const tvTypingRoom = 360.0;
 /// The text field built by [builder], made for the remote on a TV.
 ///
 /// On a TV the field takes the focus without opening the system keyboard
-/// ([builder] gets `locked` true: pass it as `readOnly`), so the arrows, Left
-/// and Right included, go past it; OK opens the keyboard and scrolls the field to the top. "Siguiente"
-/// on the keyboard keeps it open in the next field; when the field drops the
-/// focus to nothing ("Hecho" on a search box) it keeps it, with the keyboard
-/// closed. Elsewhere [builder] gets `false` and nothing changes.
+/// ([builder] gets `locked` true: pass it as `readOnly`), so the arrows go
+/// past it; OK (or a tap) opens the keyboard and scrolls the field to the
+/// top. Left and Right leave the field while it is locked, or once the caret
+/// is at that end. "Siguiente" on the keyboard keeps it open in the next
+/// field; when the field drops the focus to nothing ("Hecho" on a search
+/// box) it keeps it, with the keyboard closed. Elsewhere [builder] gets
+/// `false` and nothing changes. A field that is always read-only (a picked
+/// file) goes in a gate too, for the arrows and Back.
 class TvKeyboardGate extends StatefulWidget {
   /// Builds the field with [builder].
   const TvKeyboardGate({super.key, required this.builder});
@@ -95,8 +98,26 @@ class _TvKeyboardGateState extends State<TvKeyboardGate> {
     }
   }
 
-  /// OK starts typing; until then Left and Right leave the field, as Up and
-  /// Down always do (once typing they move the caret).
+  /// Whether Left or Right ([direction]) leaves the field: always while it
+  /// is locked; once typing, only with the caret already at that end. The
+  /// system keyboard closes with its own Back without telling the app, so the
+  /// field may stay unlocked with nothing to type with.
+  bool _leavesSideways(TraversalDirection direction) {
+    if (_locked) return true;
+    final value = _fieldFocus?.context
+        ?.findAncestorStateOfType<EditableTextState>()
+        ?.textEditingValue;
+    if (value == null) return true;
+    final selection = value.selection;
+    if (!selection.isValid) return true;
+    if (!selection.isCollapsed) return false;
+    return direction == TraversalDirection.left
+        ? selection.baseOffset <= 0
+        : selection.baseOffset >= value.text.length;
+  }
+
+  /// OK starts typing; Left and Right leave the field as [_leavesSideways]
+  /// says (Up and Down always leave it).
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
     final key = event.logicalKey;
@@ -105,7 +126,7 @@ class _TvKeyboardGateState extends State<TvKeyboardGate> {
         : key == LogicalKeyboardKey.arrowRight
         ? TraversalDirection.right
         : null;
-    if (_locked && sideways != null) {
+    if (sideways != null && _leavesSideways(sideways)) {
       _fieldFocus?.focusInDirection(sideways);
       return KeyEventResult.handled;
     }
@@ -148,7 +169,13 @@ class _TvKeyboardGateState extends State<TvKeyboardGate> {
       focusNode: _area,
       onKeyEvent: _onKey,
       onFocusChange: _onFocusChange,
-      child: widget.builder(context, _locked),
+      // A tap (devices with a pointer) opens the keyboard at once, as usual.
+      child: Listener(
+        onPointerUp: (_) {
+          if (_locked) _startTyping();
+        },
+        child: widget.builder(context, _locked),
+      ),
     );
   }
 }
@@ -202,7 +229,15 @@ class _TvTextFieldBackState extends State<TvTextFieldBack>
     );
     closest.requestFocus();
     final target = closest.context;
-    if (target != null) unawaited(Scrollable.ensureVisible(target));
+    if (target != null) {
+      // Scrolls only when it is out of view, at the edge it is past.
+      for (final policy in [
+        ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+        ScrollPositionAlignmentPolicy.keepVisibleAtStart,
+      ]) {
+        unawaited(Scrollable.ensureVisible(target, alignmentPolicy: policy));
+      }
+    }
     return true;
   }
 
