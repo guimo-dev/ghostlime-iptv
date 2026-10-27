@@ -116,6 +116,10 @@ class _LiveTvScreenState extends State<LiveTvScreen> implements TvLiveSource {
   /// Whether the guide grid replaces the channel rows.
   late bool _guideGrid = _db.liveGuideGrid(_playlistId);
   String _filter = '';
+  final _filterController = TextEditingController();
+
+  /// Scrolls the channel rows (to the selected one on a TV).
+  final _channelScroll = ScrollController();
   Channel? _selected;
   Timer? _clock;
 
@@ -282,6 +286,8 @@ class _LiveTvScreenState extends State<LiveTvScreen> implements TvLiveSource {
     _playback
       ..removeListener(_onPlaybackChanged)
       ..dispose();
+    _filterController.dispose();
+    _channelScroll.dispose();
     super.dispose();
   }
 
@@ -457,6 +463,57 @@ class _LiveTvScreenState extends State<LiveTvScreen> implements TvLiveSource {
     _playback.setVolume(_muted ? 0 : 100);
     setState(_loadChannels);
     _startPreview();
+    if (isTvDevice) _focusSelectedRow();
+  }
+
+  /// Scrolls the channel rows to the selected channel and focuses its row,
+  /// so OK goes full screen again on the channel zapped to.
+  void _focusSelectedRow() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _guideGrid || !_channelScroll.hasClients) return;
+      final settings = SettingsScope.read(context).value;
+      final index = _visibleChannels(settings)
+          .indexWhere((c) => c.key == _selected?.key);
+      if (index < 0) return;
+      final position = _channelScroll.position;
+      _channelScroll.jumpTo(
+        ((index - 2) * _rowHeight).clamp(0.0, position.maxScrollExtent),
+      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final key = _selected?.key;
+        if (mounted && key != null) _focusRow(key);
+      });
+    });
+  }
+
+  /// Focuses the row of channel [key], when it is built. Rows keep their
+  /// own focus nodes: handing one node from row to row would drop the
+  /// focus of the row being selected.
+  void _focusRow(String key) {
+    void visit(Element element) {
+      final widget = element.widget;
+      if (widget is ChannelRow && widget.channel.key == key) {
+        Element? focus;
+        void findFocus(Element e) {
+          if (focus != null) return;
+          if (e.widget is Focus) {
+            e.visitChildElements((child) => focus ??= child);
+          } else {
+            e.visitChildElements(findFocus);
+          }
+        }
+
+        element.visitChildElements(findFocus);
+        // No dependency: the element is not ours to rebuild.
+        if (focus != null) {
+          Focus.maybeOf(focus!, createDependency: false)?.requestFocus();
+        }
+        return;
+      }
+      element.visitChildElements(visit);
+    }
+
+    (context as Element).visitChildElements(visit);
   }
 
   /// Zaps the full player to the channel [step] places away in the group
@@ -534,6 +591,9 @@ class _LiveTvScreenState extends State<LiveTvScreen> implements TvLiveSource {
     setState(() {
       if (groupId != _groupId) {
         _groupId = groupId;
+        // The filter typed for the old group could hide the new channel.
+        _filter = '';
+        _filterController.clear();
         _loadChannels();
       }
       _selected = channel;
@@ -769,6 +829,7 @@ class _LiveTvScreenState extends State<LiveTvScreen> implements TvLiveSource {
         children: [
           Expanded(
             child: TextField(
+              controller: _filterController,
               decoration: const InputDecoration(
                 prefixIcon: Icon(Icons.search, size: 20),
                 hintText: 'Filtrar canales',
@@ -835,6 +896,7 @@ class _LiveTvScreenState extends State<LiveTvScreen> implements TvLiveSource {
     }
     final names = _namesByKey();
     return ListView.builder(
+      controller: _channelScroll,
       padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
       itemExtent: _rowHeight,
       itemCount: channels.length,

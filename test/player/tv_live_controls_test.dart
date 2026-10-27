@@ -7,10 +7,13 @@ import 'package:iptv_player/catalog/catalog_db.dart';
 import 'package:iptv_player/catalog/catalog_models.dart';
 import 'package:iptv_player/epg/programme.dart';
 import 'package:iptv_player/live/live_tv_screen.dart';
+import 'package:iptv_player/player/live_playback.dart';
+import 'package:iptv_player/player/mpv_options.dart';
 import 'package:iptv_player/player/player_screen.dart';
 import 'package:iptv_player/player/tv_live_controls.dart';
 import 'package:iptv_player/playlists/memory_password_store.dart';
 import 'package:iptv_player/playlists/playlist.dart';
+import 'package:iptv_player/settings/app_settings.dart';
 import 'package:media_kit/media_kit.dart'
     show AudioTrack, PlayerState, SubtitleTrack, Track, Tracks;
 import 'package:media_kit_video/media_kit_video.dart';
@@ -79,8 +82,12 @@ void main() {
   });
   tearDown(() => db.close());
 
-  /// Directo on a TV, with the focus on the row of "Canal 1".
-  Future<void> pumpDirecto(WidgetTester tester) async {
+  /// Directo on a TV, with the focus on the row of "Canal 1"; channels fail
+  /// to start after [startTimeout].
+  Future<void> pumpDirecto(
+    WidgetTester tester, {
+    Duration startTimeout = streamStartTimeout,
+  }) async {
     useTvView(tester);
     await pumpTvApp(
       tester,
@@ -91,6 +98,7 @@ void main() {
           playlist: playlist,
           passwords: MemoryPasswordStore(),
           clock: () => _now,
+          previewStartTimeout: startTimeout,
           createPlayer: (_) => (player, FakeVideoController(player)),
         ),
       ),
@@ -104,8 +112,11 @@ void main() {
   }
 
   /// Directo on a TV, full screen on "Canal 1" (OK twice on its row).
-  Future<void> pumpFullScreen(WidgetTester tester) async {
-    await pumpDirecto(tester);
+  Future<void> pumpFullScreen(
+    WidgetTester tester, {
+    Duration startTimeout = streamStartTimeout,
+  }) async {
+    await pumpDirecto(tester, startTimeout: startTimeout);
     await _press(tester, LogicalKeyboardKey.select);
     await _press(tester, LogicalKeyboardKey.select);
     await _settle(tester);
@@ -366,8 +377,10 @@ void main() {
     await pumpFullScreen(tester);
     await _press(tester, LogicalKeyboardKey.arrowDown);
     expect(player.current, 'http://h/k2.ts');
+    expect(find.byKey(const ValueKey('tv-info')), findsOneWidget);
     await _back(tester);
     // Zapping showed the info bar: Back hides it first.
+    expect(find.byKey(const ValueKey('tv-info')), findsNothing);
     expect(find.byType(PlayerScreen), findsOneWidget);
 
     await _press(tester, LogicalKeyboardKey.select);
@@ -398,6 +411,151 @@ void main() {
     await _leave(tester);
   });
 
+  testWidgets('back in Directo the row of the channel zapped to has the '
+      'focus, and OK goes full screen on it', (tester) async {
+    await pumpFullScreen(tester);
+    await _press(tester, LogicalKeyboardKey.digit1);
+    await _press(tester, LogicalKeyboardKey.digit2);
+    await tester.pump(const Duration(milliseconds: 1600));
+    expect(player.current, 'http://h/k12.ts');
+    await _back(tester);
+    await _back(tester);
+    expect(find.byType(PlayerScreen), findsNothing);
+
+    final focused = FocusManager.instance.primaryFocus!.context!;
+    final row = focused.findAncestorWidgetOfExactType<ChannelRow>();
+    expect(row?.channel.key, 'k12');
+    expect(
+      viewRect(tester).contains(tester.getCenter(find.byWidget(row!))),
+      isTrue,
+    );
+
+    final opened = player.opened.length;
+    await _press(tester, LogicalKeyboardKey.select);
+    await _settle(tester);
+    expect(find.byType(PlayerScreen), findsOneWidget);
+    expect(player.current, 'http://h/k12.ts');
+    expect(player.opened.length, opened);
+    await _leave(tester);
+  });
+
+  testWidgets('play/pause on the remote toggles the live player', (
+    tester,
+  ) async {
+    await pumpFullScreen(tester);
+    await _press(tester, LogicalKeyboardKey.mediaPlayPause);
+    expect(player.calls, contains('playOrPause'));
+    await _leave(tester);
+  });
+
+  testWidgets('the list and the options hide the start error', (tester) async {
+    await pumpFullScreen(tester, startTimeout: const Duration(seconds: 3));
+    await tester.pump(const Duration(seconds: 3));
+    const failed = 'No se ha podido abrir el canal';
+    expect(find.text(failed), findsOneWidget);
+
+    await _press(tester, LogicalKeyboardKey.select);
+    await _press(tester, LogicalKeyboardKey.select);
+    final list = find.byKey(const ValueKey('tv-channel-list'));
+    expect(list, findsOneWidget);
+    expect(find.text(failed), findsNothing);
+    expect(focusedChannel(), 'k1');
+    final rect = tester.getRect(list);
+    expect(viewRect(tester).contains(rect.topLeft), isTrue);
+    expect(
+      viewRect(tester).contains(rect.bottomRight - const Offset(1, 1)),
+      isTrue,
+    );
+
+    await _back(tester);
+    expect(find.text(failed), findsOneWidget);
+    await _press(tester, LogicalKeyboardKey.arrowRight);
+    expect(find.byKey(const ValueKey('tv-options')), findsOneWidget);
+    expect(find.text(failed), findsNothing);
+    await _leave(tester);
+  });
+
+  testWidgets('a channel picked in another group clears the filter of '
+      'Directo', (tester) async {
+    await pumpDirecto(tester);
+    await tester.enterText(find.byType(TextField), 'Canal 1');
+    await tester.pump();
+    final name = find.descendant(
+      of: find.byType(ChannelRow),
+      matching: find.text('Canal 1'),
+    );
+    Focus.of(tester.element(name)).requestFocus();
+    await tester.pump();
+    await _press(tester, LogicalKeyboardKey.select);
+    await _press(tester, LogicalKeyboardKey.select);
+    await _settle(tester);
+    expect(find.byType(PlayerScreen), findsOneWidget);
+
+    await _press(tester, LogicalKeyboardKey.arrowLeft);
+    await _press(tester, LogicalKeyboardKey.arrowDown);
+    await _press(tester, LogicalKeyboardKey.select);
+    await _press(tester, LogicalKeyboardKey.arrowDown);
+    await _press(tester, LogicalKeyboardKey.select);
+    expect(player.current, 'http://h/Beta.ts');
+    await _back(tester);
+    await _back(tester);
+    expect(find.byType(PlayerScreen), findsNothing);
+
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '',
+    );
+    final beta = find.ancestor(
+      of: find.text('Beta'),
+      matching: find.byType(ChannelRow),
+    );
+    expect(beta, findsOneWidget);
+    expect(tester.widget<ChannelRow>(beta).number, 2);
+    await _leave(tester);
+  });
+
+  testWidgets('without the group playing among the groups, the first one '
+      'takes the focus', (tester) async {
+    useTvView(tester);
+    final playback = LivePlayback(
+      settings: () => AppSettings(),
+      createPlayer: (_) => (player, FakeVideoController(player)),
+    );
+    addTearDown(playback.dispose);
+    await pumpTvApp(
+      tester,
+      db,
+      Scaffold(
+        body: TvLiveControls(
+          playback: playback,
+          title: 'Canal',
+          source: _FixedSource(
+            groupId: 'hidden',
+            groups: const [('a', 'Primero'), ('b', 'Segundo')],
+          ),
+        ),
+      ),
+    );
+    await _press(tester, LogicalKeyboardKey.arrowLeft);
+    final focused = FocusManager.instance.primaryFocus!.context!;
+    expect(
+      find.descendant(
+        of: find.byElementPredicate((e) => e == focused),
+        matching: find.text('Primero'),
+      ),
+      findsOneWidget,
+    );
+    // The focus is on that tile alone, not on something around both.
+    expect(
+      find.descendant(
+        of: find.byElementPredicate((e) => e == focused),
+        matching: find.text('Segundo'),
+      ),
+      findsNothing,
+    );
+    await _leave(tester);
+  });
+
   testWidgets('in Directo OK previews a channel and OK again goes full '
       'screen', (tester) async {
     await pumpDirecto(tester);
@@ -413,6 +571,40 @@ void main() {
     expect(player.opened, ['http://h/k1.ts']);
     await _leave(tester);
   });
+}
+
+/// Directo's channels as a fixed list: the group playing is [groupId], and
+/// [groups] the ones offered.
+class _FixedSource implements TvLiveSource {
+  _FixedSource({required this.groupId, required this.groups});
+
+  final String groupId;
+  final List<(String, String)> groups;
+
+  @override
+  Channel? get currentChannel => null;
+
+  @override
+  String? get currentGroupId => groupId;
+
+  @override
+  List<(String, String)> get groupChoices => groups;
+
+  @override
+  List<Channel> channelsOf(String groupId) => const [];
+
+  @override
+  String channelName(Channel channel) => channel.name;
+
+  @override
+  Map<String, (Programme?, Programme?)> guideOf(List<Channel> channels) =>
+      const {};
+
+  @override
+  DateTime now() => _now;
+
+  @override
+  void playChannel(Channel channel, String groupId) {}
 }
 
 /// Presses and releases [key], then lets a frame run.

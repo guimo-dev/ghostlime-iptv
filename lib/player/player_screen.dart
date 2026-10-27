@@ -309,6 +309,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
   /// drives [TvLiveControls] instead.
   bool get _tvLive => isTvDevice && widget.isLive;
 
+  /// The TV channel list or options are open: error messages hide under
+  /// them.
+  bool _tvPanelOpen = false;
+
   /// Handles `I` (toggle info) and `Esc` (go back).
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
@@ -401,14 +405,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   ),
                 ),
               ),
-              if (_playback.startFailed)
+              if (_playback.startFailed && !_tvPanelOpen)
                 Center(
                   child: _StartFailedMessage(
                     what: widget.isLive ? 'el canal' : 'el vídeo',
                     timeout: _playback.startTimeout,
                   ),
                 ),
-              if (_showInfo || error != null)
+              if (_showInfo || (error != null && !_tvPanelOpen))
                 Positioned(
                   top: 72,
                   left: 12,
@@ -449,6 +453,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     subtitle: _subtitle,
                     source: widget.tvLive,
                     onChannelStep: widget.onChannelStep,
+                    onPanelChanged: (open) =>
+                        setState(() => _tvPanelOpen = open),
                   ),
                 ),
             ],

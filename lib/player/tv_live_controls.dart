@@ -84,6 +84,7 @@ class TvLiveControls extends StatefulWidget {
     this.subtitle,
     this.source,
     this.onChannelStep,
+    this.onPanelChanged,
   });
 
   /// The playback shown (its player gives the tracks).
@@ -100,6 +101,10 @@ class TvLiveControls extends StatefulWidget {
 
   /// Zaps to the channel a number of places away (Directo's).
   final ChannelStep? onChannelStep;
+
+  /// Told whether the channel list or the options are open (the player
+  /// hides its error messages under them).
+  final ValueChanged<bool>? onPanelChanged;
 
   @override
   State<TvLiveControls> createState() => _TvLiveControlsState();
@@ -124,6 +129,9 @@ class _TvLiveControlsState extends State<TvLiveControls> {
   /// A short notice, such as a number without a channel.
   String? _message;
 
+  /// What the info bar shows, read when it appears.
+  _InfoData? _info;
+
   Timer? _infoTimer;
   Timer? _digitTimer;
   Timer? _messageTimer;
@@ -137,10 +145,24 @@ class _TvLiveControlsState extends State<TvLiveControls> {
     super.dispose();
   }
 
+  /// Shows [layer], telling [TvLiveControls.onPanelChanged] when a panel
+  /// opens or closes.
+  void _setLayer(_Layer layer, [VoidCallback? also]) {
+    final wasPanel = _isPanel(_layer);
+    setState(() {
+      _layer = layer;
+      also?.call();
+    });
+    if (_isPanel(layer) != wasPanel) widget.onPanelChanged?.call(!wasPanel);
+  }
+
+  static bool _isPanel(_Layer layer) =>
+      layer == _Layer.list || layer == _Layer.options;
+
   /// Hides whatever is shown and gives the focus back to the player.
   void _close() {
     _infoTimer?.cancel();
-    setState(() => _layer = _Layer.none);
+    _setLayer(_Layer.none);
     _root.requestFocus();
   }
 
@@ -150,8 +172,37 @@ class _TvLiveControlsState extends State<TvLiveControls> {
     _infoTimer = Timer(tvInfoDuration, () {
       if (mounted && _layer == _Layer.info) _close();
     });
-    setState(() => _layer = _Layer.info);
+    _setLayer(_Layer.info, () => _info = _readInfo());
     _root.requestFocus();
+  }
+
+  /// The channel playing, its number and its programmes, for the info bar.
+  _InfoData _readInfo() {
+    final source = widget.source;
+    final channel = source?.currentChannel;
+    final groupId = source?.currentGroupId;
+    if (source == null || channel == null) {
+      return (
+        number: 0,
+        name: widget.title,
+        now: null,
+        next: null,
+        time: DateTime.now(),
+        subtitle: widget.subtitle,
+      );
+    }
+    final (now, next) =
+        source.guideOf([channel])[channel.epgId] ?? (null, null);
+    return (
+      number: groupId == null
+          ? 0
+          : channelNumberOf(channel, source.channelsOf(groupId)),
+      name: source.channelName(channel),
+      now: now,
+      next: next,
+      time: source.now(),
+      subtitle: null,
+    );
   }
 
   /// Opens the channel list on the group playing, with the groups column
@@ -160,8 +211,7 @@ class _TvLiveControlsState extends State<TvLiveControls> {
     final groupId = widget.source?.currentGroupId;
     if (groupId == null) return;
     _infoTimer?.cancel();
-    setState(() {
-      _layer = _Layer.list;
+    _setLayer(_Layer.list, () {
       _listGroups = groups;
       _listGroupId = groupId;
       _focusChannels = !groups;
@@ -170,7 +220,7 @@ class _TvLiveControlsState extends State<TvLiveControls> {
 
   void _openOptions() {
     _infoTimer?.cancel();
-    setState(() => _layer = _Layer.options);
+    _setLayer(_Layer.options);
   }
 
   /// Zaps [step] channels away and shows where it landed.
@@ -310,11 +360,7 @@ class _TvLiveControlsState extends State<TvLiveControls> {
                   left: padding.left,
                   right: padding.right,
                   bottom: padding.bottom,
-                  child: _InfoBar(
-                    source: source,
-                    title: widget.title,
-                    subtitle: widget.subtitle,
-                  ),
+                  child: _InfoBar(info: _info!),
                 ),
               if (_layer == _Layer.list &&
                   source != null &&
@@ -374,31 +420,32 @@ class _TvLiveControlsState extends State<TvLiveControls> {
   }
 }
 
+/// What the info bar shows: the channel's [number] (0 when it has none)
+/// and [name], its programmes [now] and [next] at [time], and, without
+/// guide, a [subtitle] given by whoever opened the player.
+typedef _InfoData = ({
+  int number,
+  String name,
+  Programme? now,
+  Programme? next,
+  DateTime time,
+  String? subtitle,
+});
+
 /// The bar at the bottom: number and name of the channel, the programme on
 /// air with its times and progress, and the next one ("Sin guía" without
 /// guide).
 class _InfoBar extends StatelessWidget {
-  const _InfoBar({required this.source, required this.title, this.subtitle});
+  const _InfoBar({required this.info});
 
-  final TvLiveSource? source;
-  final String title;
-  final String? subtitle;
+  final _InfoData info;
 
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final muted = text.bodyMedium?.copyWith(color: AppColors.textMuted);
     final accent = AccentPalette.of(context).accent;
-    final source = this.source;
-    final channel = source?.currentChannel;
-    final groupId = source?.currentGroupId;
-    final number = channel == null || groupId == null
-        ? 0
-        : channelNumberOf(channel, source!.channelsOf(groupId));
-    final (now, next) = channel == null
-        ? (null, null)
-        : source!.guideOf([channel])[channel.epgId] ?? (null, null);
-    final time = source?.now() ?? DateTime.now();
+    final (:number, :name, :now, :next, :time, :subtitle) = info;
     return Container(
       key: const ValueKey('tv-info'),
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
@@ -421,7 +468,7 @@ class _InfoBar extends StatelessWidget {
                 ),
               Expanded(
                 child: Text(
-                  channel == null ? title : source!.channelName(channel),
+                  name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: text.headlineSmall,
@@ -451,8 +498,8 @@ class _InfoBar extends StatelessWidget {
               key: const ValueKey('tv-info-progress'),
               value: _share(now, time),
             ),
-          ] else if (channel == null && subtitle != null)
-            Text(subtitle!, style: text.titleMedium)
+          ] else if (subtitle != null)
+            Text(subtitle, style: text.titleMedium)
           else
             Text('Sin guía', style: muted),
           if (next != null)
@@ -476,7 +523,8 @@ class _InfoBar extends StatelessWidget {
 }
 
 /// The groups column of the channel list; OK on a group shows its
-/// channels. The group shown takes the focus when it appears.
+/// channels. The group shown (or the first, when it is not listed) takes
+/// the focus when it appears.
 class _GroupColumn extends StatefulWidget {
   const _GroupColumn({
     required this.groups,
@@ -494,10 +542,14 @@ class _GroupColumn extends StatefulWidget {
 
 class _GroupColumnState extends State<_GroupColumn> {
   final _selectedNode = FocusNode(debugLabel: 'TV group shown');
+
+  /// The group shown, or the first one when it is not among [groups].
+  late final int _focused = () {
+    final index = widget.groups.indexWhere((g) => g.$1 == widget.selectedId);
+    return index < 0 ? 0 : index;
+  }();
   late final _scroll = ScrollController(
-    initialScrollOffset: _offsetFor(
-      widget.groups.indexWhere((g) => g.$1 == widget.selectedId),
-    ),
+    initialScrollOffset: _offsetFor(_focused),
   );
 
   @override
@@ -536,7 +588,7 @@ class _GroupColumnState extends State<_GroupColumn> {
             child: FocusCard(
               grow: false,
               selected: id == widget.selectedId,
-              focusNode: id == widget.selectedId ? _selectedNode : null,
+              focusNode: index == _focused ? _selectedNode : null,
               onTap: () => widget.onGroup(id),
               child: Align(
                 alignment: Alignment.centerLeft,
