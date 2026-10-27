@@ -2,11 +2,22 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../ui/tv_device.dart';
 import 'account_service.dart';
 import 'auth_gateway.dart' show AccountException;
+import 'google_device_dialog.dart';
+import 'google_device_flow.dart';
+
+/// Whether to offer "Continuar con Google" for [account]: on a TV only with
+/// the TV client of the build ([googleTvConfigured]; the browser sign-in is
+/// never offered there), elsewhere when the gateway supports it.
+bool googleSignInOffered(AccountService account) =>
+    isTvDevice ? googleTvConfigured : account.supportsGoogle;
 
 /// "Continuar con Google": signs in with Google in the browser while a dialog
-/// says to finish there, with "Cancelar" to give up. Failures are left in the
+/// says to finish there, with "Cancelar" to give up; on a TV it opens the
+/// code and QR dialog instead ([showGoogleDeviceDialog]), which shows its own
+/// failures. Failures are left in the
 /// account's `lastError`; with [showsError] the button also shows its own
 /// failure below it, stretched to its parent's width (the welcome screen;
 /// the account form shows `lastError` itself). [onSignedIn] runs when the
@@ -40,6 +51,7 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
 
   /// Shows the waiting dialog, signs in and closes the dialog when done.
   Future<void> _signIn() async {
+    if (isTvDevice) return _signInOnTv();
     final account = widget.account;
     final navigator = Navigator.of(context);
     setState(() {
@@ -67,6 +79,18 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
         account.status != AccountStatus.awaitingConfirmation) {
       widget.onSignedIn?.call();
     }
+  }
+
+  /// Signs in with the TV's code dialog, which shows its own failures.
+  Future<void> _signInOnTv() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final signedIn = await showGoogleDeviceDialog(context, widget.account);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (signedIn) widget.onSignedIn?.call();
   }
 
   @override

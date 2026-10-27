@@ -212,6 +212,19 @@ class AccountService extends ChangeNotifier {
     await _openGoogleSession();
   });
 
+  /// Signs in with the Google [idToken] got by the TV's device flow, then
+  /// goes on like [signInWithGoogle] (the escrowed key, or
+  /// [AccountStatus.needsPassword] for an account with a password).
+  Future<void> signInWithGoogleIdToken(String idToken) => _guard(() async {
+    try {
+      await _auth.signInWithGoogleIdToken(idToken);
+    } catch (_) {
+      if (_auth.userId != null) await _dropSession();
+      rethrow;
+    }
+    await _openGoogleSession();
+  });
+
   /// Gives up a [signInWithGoogle] that is waiting for the browser; it then
   /// fails with a "cancelled" message.
   void cancelGoogleSignIn() => _auth.cancelOAuthGoogle();

@@ -100,7 +100,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Text(
                     accountSyncExplanation(
-                      supportsGoogle: account.supportsGoogle,
+                      supportsGoogle: googleSignInOffered(account),
                     ),
                     style: const TextStyle(color: AppColors.textMuted),
                   ),
@@ -182,7 +182,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             child: const Text('Entrar con email'),
           ),
           const SizedBox(height: 12),
-          if (account.supportsGoogle)
+          if (googleSignInOffered(account))
             GoogleSignInButton(
               account: account,
               enabled: _accepted,
@@ -190,7 +190,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               onSignedIn: widget.onDone,
             )
           else
-            // No way back from the browser on this platform yet.
+            // No way back from the browser on this platform yet (on a TV:
+            // a build without the TV client).
             const Tooltip(
               message: 'Disponible pronto',
               child: OutlinedButton(

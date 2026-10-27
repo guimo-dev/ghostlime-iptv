@@ -83,6 +83,10 @@ abstract class AuthGateway {
   /// nothing when none is pending.
   void cancelOAuthGoogle();
 
+  /// Starts a session with the Google [idToken] got on another device (the
+  /// TV's device flow). Throws [AccountException] when it is refused.
+  Future<void> signInWithGoogleIdToken(String idToken);
+
   /// The signed-in user's data key kept by the server (the `key-escrow` Edge
   /// Function), or `null` when it keeps none. Throws [AccountException].
   Future<Uint8List?> fetchEscrowedKey();
@@ -268,6 +272,25 @@ class SupabaseAuthGateway implements AuthGateway {
   @override
   void cancelOAuthGoogle() =>
       _finishOAuth(const AccountException(_oauthCancelledError));
+
+  /// The device flow's `id_token` carries no nonce, so the Google provider
+  /// in Supabase needs "Skip nonce checks" and the TV client ID authorized.
+  @override
+  Future<void> signInWithGoogleIdToken(String idToken) async {
+    try {
+      await _translate(
+        () => _auth.signInWithIdToken(
+          provider: OAuthProvider.google,
+          idToken: idToken,
+        ),
+      );
+    } on AccountException catch (e) {
+      // Supabase's own messages are about email and password; a refused
+      // token says Google failed, unless the network did.
+      if (e.message == _networkMessage) rethrow;
+      throw const AccountException(_oauthFailedError);
+    }
+  }
 
   /// Ends the pending Google sign-in, if any: successfully, or with [error].
   void _finishOAuth([AccountException? error]) {

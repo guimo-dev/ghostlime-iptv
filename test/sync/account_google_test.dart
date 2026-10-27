@@ -372,4 +372,40 @@ void main() {
     );
     expect(a.service.status, AccountStatus.signedIn);
   });
+
+  group('Google with an id_token (the TV)', () {
+    test('signs in with the escrowed key like the browser does', () async {
+      final a = GoogleDevice(backend, accounts, escrow);
+      await a.addPlaylist();
+
+      await a.service.signInWithGoogleIdToken('id-token-xyz');
+
+      expect(a.auth.lastIdToken, 'id-token-xyz');
+      expect(a.service.status, AccountStatus.signedIn);
+      expect(a.keys.key, escrow['user-$_googleEmail']);
+    });
+
+    test('an account with a password needs it typed once', () async {
+      final a = GoogleDevice(backend, accounts, escrow);
+      await a.service.signUp(_googleEmail, _password);
+
+      final b = GoogleDevice(backend, accounts, escrow);
+      await b.service.signInWithGoogleIdToken('id-token-xyz');
+
+      expect(b.service.status, AccountStatus.needsPassword);
+      expect(b.auth.escrowStores, 0);
+    });
+
+    test('a refused token leaves the account signed out', () async {
+      final a = GoogleDevice(backend, accounts, escrow);
+      a.auth.oauthError = const AccountException('No se ha podido entrar.');
+
+      await expectLater(
+        a.service.signInWithGoogleIdToken('bad'),
+        _throwsAccount('No se ha podido entrar.'),
+      );
+      expect(a.service.status, AccountStatus.signedOut);
+      expect(a.service.lastError, 'No se ha podido entrar.');
+    });
+  });
 }

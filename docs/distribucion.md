@@ -144,6 +144,35 @@ reg add HKCU\Software\Classes\ghostlime\shell\open\command /ve /d "\"C:\ruta\al\
 Si además está instalada la versión normal, el esquema apunta a la que se registró la
 última vez, y el enlace solo llega a una ventana de ese mismo ejecutable.
 
+### Entrar con Google en la tele (opcional, una vez)
+
+En Android TV y Fire TV no se abre el navegador: la tele muestra un código y un QR con la
+dirección de Google (`google.com/device`); el usuario la abre en el móvil o el ordenador,
+escribe el código y aprueba. Es el flujo oficial de Google para "TVs y dispositivos de
+entrada limitada". Sin configurarlo, en la tele "Continuar con Google" sale deshabilitado
+("Disponible pronto"); el resto de plataformas no cambia.
+
+1. Google Cloud (el mismo proyecto de arriba) → APIs y servicios → Credenciales → Crear
+   credenciales → **ID de cliente de OAuth** → tipo **TVs and Limited Input devices**
+   ("TV y dispositivos de entrada limitada"), nombre p. ej. "Ghostlime IPTV TV". Copia su
+   **ID de cliente** y su **secreto de cliente**.
+2. Supabase → Authentication → Sign In / Providers → **Google**: en **Authorized Client IDs**
+   (IDs de cliente autorizados) añade el ID de cliente del paso 1, separado por comas del que
+   ya hubiera, y activa **Skip nonce checks** (el `id_token` del flujo de la tele no lleva
+   *nonce*). Guardar.
+3. GitHub → Settings → Secrets and variables → Actions: crear los secretos
+   `GOOGLE_TV_CLIENT_ID` y `GOOGLE_TV_CLIENT_SECRET` con los valores del paso 1. Son
+   opcionales: el job de Android de `.github/workflows/release.yml` ya los pasa con
+   `--dart-define=GOOGLE_TV_CLIENT_ID=...` y `--dart-define=GOOGLE_TV_CLIENT_SECRET=...`, y
+   vacíos dejan el botón deshabilitado en la tele.
+4. En local: los mismos dos `--dart-define` en `flutter run` / `flutter build apk` (o en
+   `env/dev.json`). Nunca en el repositorio.
+
+Google exige el secreto aunque una app de tele no puede guardarlo en secreto (va dentro del
+APK); este tipo de cliente solo sirve para este flujo. Tras aprobar, la app entra en Supabase
+con `signInWithIdToken` y sigue como el "Continuar con Google" del ordenador: si la cuenta ya
+tenía contraseña, la pide una vez en Ajustes → Cuenta (se escribe con el mando).
+
 ## 3. Firma de Android (una vez, necesaria para publicar Android)
 
 Sin estos secretos el workflow **no publica Android** (deja un aviso): cada build de CI

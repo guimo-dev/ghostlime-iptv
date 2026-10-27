@@ -48,6 +48,7 @@ dependencies:
   xml: ^7.1.0
   cryptography: ^2.9.0
   supabase_flutter: ^2.18.3
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:

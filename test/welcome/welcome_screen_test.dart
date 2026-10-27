@@ -6,10 +6,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:iptv_player/catalog/catalog_db.dart';
 import 'package:iptv_player/legal/legal_info.dart';
 import 'package:iptv_player/legal/legal_screen.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:iptv_player/sync/account_service.dart';
+import 'package:iptv_player/sync/google_device_flow.dart';
 import 'package:iptv_player/sync/sync_backend.dart';
 import 'package:iptv_player/ui/app_theme.dart';
 import 'package:iptv_player/ui/ghostlime_logo.dart';
+import 'package:iptv_player/ui/tv_device.dart';
 import 'package:iptv_player/welcome/welcome_screen.dart';
 
 import '../sync/fake_account.dart';
@@ -534,5 +538,65 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  group('on a TV', () {
+    setUp(() => debugTvDevice = true);
+    tearDown(() {
+      debugTvDevice = null;
+      debugGoogleTvFlow = null;
+    });
+
+    testWidgets('without a TV client Google is "Disponible pronto"', (
+      tester,
+    ) async {
+      final db = CatalogDb.inMemory();
+      addTearDown(db.close);
+      // Even where the browser sign-in works, the TV never offers it.
+      final auth = FakeAuthGateway({})..supportsGoogle = true;
+      await _pump(
+        tester,
+        WelcomeScreen(
+          account: _service(db, {}, auth: auth),
+          termsAccepted: true,
+          onDone: () {},
+        ),
+      );
+
+      expect(_button(tester, 'Continuar con Google').enabled, isFalse);
+      expect(find.byTooltip('Disponible pronto'), findsOneWidget);
+    });
+
+    testWidgets('with a TV client Google opens the code dialog', (
+      tester,
+    ) async {
+      debugGoogleTvFlow = () => GoogleDeviceFlow(
+        client: MockClient((_) async => throw http.ClientException('off')),
+        clientId: 'test-client',
+        clientSecret: 'test-secret',
+      );
+      final db = CatalogDb.inMemory();
+      addTearDown(db.close);
+      final auth = FakeAuthGateway({});
+      await _pump(
+        tester,
+        WelcomeScreen(
+          account: _service(db, {}, auth: auth),
+          termsAccepted: true,
+          onDone: () {},
+        ),
+      );
+      expect(find.byTooltip('Disponible pronto'), findsNothing);
+      expect(_button(tester, 'Continuar con Google').enabled, isTrue);
+
+      await tester.tap(find.text('Continuar con Google'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Entrar con Google'), findsOneWidget);
+      expect(find.text('Reintentar'), findsOneWidget);
+      await tester.tap(find.text('Cancelar'));
+      await tester.pumpAndSettle();
+      expect(find.text('Entrar con Google'), findsNothing);
+    });
   });
 }

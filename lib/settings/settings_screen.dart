@@ -16,6 +16,7 @@ import '../sync/account_scope.dart';
 import '../sync/account_service.dart';
 import '../sync/auth_gateway.dart' show AccountException;
 import '../sync/data_export.dart';
+import '../sync/google_sign_in.dart' show googleSignInOffered;
 import '../ui/app_theme.dart';
 import '../ui/backdrop.dart';
 import '../ui/choice_selector.dart';
@@ -1251,7 +1252,7 @@ class _AccountSectionState extends State<_AccountSection> {
           AccountStatus.signedOut => _Row(
             title: 'Entra o crea una cuenta',
             subtitle: accountSyncExplanation(
-              supportsGoogle: account.supportsGoogle,
+              supportsGoogle: googleSignInOffered(account),
             ),
           ),
           AccountStatus.awaitingConfirmation => const _Row(

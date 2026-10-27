@@ -166,6 +166,19 @@ class FakeAuthGateway implements AuthGateway {
     }
   }
 
+  /// The last token given to [signInWithGoogleIdToken].
+  String? lastIdToken;
+
+  /// Signs in as [googleEmail] like [signInWithOAuthGoogle]; [oauthError]
+  /// makes it fail.
+  @override
+  Future<void> signInWithGoogleIdToken(String idToken) async {
+    lastIdToken = idToken;
+    if (oauthError case final error?) throw error;
+    _hasPassword = accounts.containsKey(googleEmail);
+    _email = googleEmail;
+  }
+
   /// When set, [fetchEscrowedKey] throws it (e.g. no network).
   AccountException? escrowError;
 

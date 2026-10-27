@@ -242,7 +242,7 @@ class _AccountFormState extends State<AccountForm> {
                   onPressed: _busy ? null : _signUp,
                   child: const Text('Crear cuenta'),
                 ),
-                if (_account.supportsGoogle)
+                if (googleSignInOffered(_account))
                   GoogleSignInButton(
                     account: _account,
                     enabled: !_busy,
