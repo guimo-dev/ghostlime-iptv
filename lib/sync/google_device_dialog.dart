@@ -42,6 +42,10 @@ class GoogleDeviceDialog extends StatefulWidget {
 }
 
 class _GoogleDeviceDialogState extends State<GoogleDeviceDialog> {
+  static const _networkMessage =
+      'No se ha podido conectar con Google. Comprueba tu red e inténtalo de '
+      'nuevo.';
+
   final GoogleDeviceFlow _flow = newGoogleTvFlow();
   final _cancelFocus = FocusNode();
   final _retryFocus = FocusNode();
@@ -80,9 +84,10 @@ class _GoogleDeviceDialogState extends State<GoogleDeviceDialog> {
       _code = code;
       _left = code.expiresIn;
       _ticker?.cancel();
-      _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (!mounted || _left <= Duration.zero) return;
+      _ticker = Timer.periodic(const Duration(seconds: 1), (ticker) {
+        if (!mounted) return;
         setState(() => _left -= const Duration(seconds: 1));
+        if (_left <= Duration.zero) ticker.cancel();
       });
       _setPhase(_Phase.waiting);
       final idToken = await _flow.waitForIdToken(code);
@@ -104,13 +109,19 @@ class _GoogleDeviceDialogState extends State<GoogleDeviceDialog> {
         GoogleDeviceFlowError.denied => 'Se ha denegado el acceso con Google.',
         GoogleDeviceFlowError.expired =>
           'El código ha caducado. Pide otro con «Reintentar».',
-        GoogleDeviceFlowError.network =>
-          'No se ha podido conectar con Google. Comprueba tu red e '
-              'inténtalo de nuevo.',
+        GoogleDeviceFlowError.network => _networkMessage,
       });
     } on AccountException catch (e) {
       _fail(e.message);
+    } catch (_) {
+      // Anything else (never shown raw) must not leave the spinner up.
+      _fail(_networkMessage);
     }
+  }
+
+  /// "Reintentar": starts over, once, and only after a failure.
+  void _retry() {
+    if (_phase == _Phase.failed) unawaited(_run());
   }
 
   /// Shows [message] with "Reintentar", which takes the focus.
@@ -140,34 +151,40 @@ class _GoogleDeviceDialogState extends State<GoogleDeviceDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Entrar con Google'),
-      content: SizedBox(
-        width: 560,
-        child: switch (_phase) {
-          _Phase.starting => const _Busy('Pidiendo un código a Google…'),
-          _Phase.signingIn => const _Busy('Entrando en tu cuenta…'),
-          _Phase.waiting => _CodePanel(code: _code!, timeLeft: _timeLeft()),
-          _Phase.failed => Text(
-            _error!,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
-        },
-      ),
-      actions: [
-        TextButton(
-          focusNode: _cancelFocus,
-          autofocus: true,
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('Cancelar'),
+    // Signing in cannot be stopped halfway: closing then would leave a
+    // session open that nobody goes on with.
+    final signingIn = _phase == _Phase.signingIn;
+    return PopScope(
+      canPop: !signingIn,
+      child: AlertDialog(
+        title: const Text('Entrar con Google'),
+        content: SizedBox(
+          width: 560,
+          child: switch (_phase) {
+            _Phase.starting => const _Busy('Pidiendo un código a Google…'),
+            _Phase.signingIn => const _Busy('Entrando en tu cuenta…'),
+            _Phase.waiting => _CodePanel(code: _code!, timeLeft: _timeLeft()),
+            _Phase.failed => Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          },
         ),
-        if (_phase == _Phase.failed)
-          FilledButton(
-            focusNode: _retryFocus,
-            onPressed: _run,
-            child: const Text('Reintentar'),
+        actions: [
+          TextButton(
+            focusNode: _cancelFocus,
+            autofocus: true,
+            onPressed: signingIn ? null : () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
           ),
-      ],
+          if (_phase == _Phase.failed)
+            FilledButton(
+              focusNode: _retryFocus,
+              onPressed: _retry,
+              child: const Text('Reintentar'),
+            ),
+        ],
+      ),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -178,22 +179,49 @@ void main() {
     );
   });
 
-  test('stops with expired once the code has run out locally', () async {
-    final waits = <Duration>[];
-    final flow = flowReplying(
-      List.generate(10, (_) => tokenError('authorization_pending')),
-      waits,
+  test('a TLS handshake failure fails with network', () async {
+    final flow = GoogleDeviceFlow(
+      client: MockClient((_) async => throw const HandshakeException('x')),
+      clientId: 'test-client',
+      clientSecret: 'test-secret',
+      wait: (_) async {},
     );
-    const shortCode = DeviceCode(
-      deviceCode: 'device-123',
-      userCode: 'ABCD-EFGH',
-      verificationUrl: 'https://www.google.com/device',
-      interval: Duration(seconds: 5),
-      expiresIn: Duration(seconds: 12),
+    await expectFailure(flow, GoogleDeviceFlowError.network);
+    await expectLater(
+      flow.start(),
+      throwsA(
+        isA<GoogleDeviceFlowException>().having(
+          (e) => e.kind,
+          'kind',
+          GoogleDeviceFlowError.network,
+        ),
+      ),
+    );
+  });
+
+  test('slow round trips cannot poll past the deadline set by start', () async {
+    // A fake clock: each wait takes its time and each request 10 s more.
+    var now = DateTime(2026, 10, 28, 12);
+    var tokenRequests = 0;
+    final flow = GoogleDeviceFlow(
+      client: MockClient((request) async {
+        if (request.url.path == '/device/code') {
+          return http.Response(deviceCodeBody(expiresIn: 30), 200);
+        }
+        tokenRequests++;
+        now = now.add(const Duration(seconds: 10));
+        return tokenError('authorization_pending');
+      }),
+      clientId: 'test-client',
+      clientSecret: 'test-secret',
+      wait: (duration) async => now = now.add(duration),
+      now: () => now,
     );
 
+    final started = await flow.start();
+    expect(started.expiresAt, DateTime(2026, 10, 28, 12, 0, 30));
     await expectLater(
-      flow.waitForIdToken(shortCode),
+      flow.waitForIdToken(started),
       throwsA(
         isA<GoogleDeviceFlowException>().having(
           (e) => e.kind,
@@ -202,9 +230,9 @@ void main() {
         ),
       ),
     );
-    expect(waits, hasLength(2));
+    // Polls at 5 s and 20 s; at 35 s the code is gone.
+    expect(tokenRequests, 2);
   });
-
   test('cancel stops the polling', () async {
     final requests = <http.Request>[];
     late GoogleDeviceFlow flow;

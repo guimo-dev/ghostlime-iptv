@@ -45,6 +45,7 @@ class DeviceCode {
     required this.verificationUrl,
     required this.interval,
     required this.expiresIn,
+    this.expiresAt,
   });
 
   /// The code this device polls with; never shown.
@@ -61,6 +62,11 @@ class DeviceCode {
 
   /// How long the code lasts from when it was given.
   final Duration expiresIn;
+
+  /// When the code runs out on this device's clock: set by
+  /// [GoogleDeviceFlow.start]; without it [GoogleDeviceFlow.waitForIdToken]
+  /// counts [expiresIn] from its own start.
+  final DateTime? expiresAt;
 }
 
 /// Why a device sign-in failed.
@@ -101,7 +107,8 @@ class GoogleDeviceFlow {
     required this._clientId,
     required this._clientSecret,
     this._wait,
-  });
+    DateTime Function()? now,
+  }) : _now = now ?? DateTime.now;
 
   final http.Client _client;
   final String _clientId;
@@ -110,6 +117,9 @@ class GoogleDeviceFlow {
   /// Waits between polls when given (tests, to skip the time); otherwise
   /// [_sleep] does.
   final Future<void> Function(Duration duration)? _wait;
+
+  /// The clock for the code's deadline; tests replace it.
+  final DateTime Function() _now;
 
   bool _cancelled = false;
 
@@ -134,13 +144,15 @@ class GoogleDeviceFlow {
       'scope': 'openid email profile',
     });
     try {
+      final expiresIn = Duration(seconds: (json['expires_in'] as num).toInt());
       return DeviceCode(
         deviceCode: json['device_code'] as String,
         userCode: json['user_code'] as String,
         verificationUrl:
             (json['verification_url'] ?? json['verification_uri']) as String,
         interval: Duration(seconds: (json['interval'] as num?)?.toInt() ?? 5),
-        expiresIn: Duration(seconds: (json['expires_in'] as num).toInt()),
+        expiresIn: expiresIn,
+        expiresAt: _now().add(expiresIn),
       );
     } on TypeError {
       throw const GoogleDeviceFlowException(GoogleDeviceFlowError.network);
@@ -154,14 +166,13 @@ class GoogleDeviceFlow {
   /// after [cancel].
   Future<String> waitForIdToken(DeviceCode code) async {
     var interval = code.interval;
-    var waited = Duration.zero;
+    final deadline = code.expiresAt ?? _now().add(code.expiresIn);
     while (true) {
-      if (waited + interval > code.expiresIn) {
+      await (_wait?.call(interval) ?? _sleep(interval));
+      if (_cancelled) throw const GoogleDeviceFlowCancelled();
+      if (!_now().isBefore(deadline)) {
         throw const GoogleDeviceFlowException(GoogleDeviceFlowError.expired);
       }
-      await (_wait?.call(interval) ?? _sleep(interval));
-      waited += interval;
-      if (_cancelled) throw const GoogleDeviceFlowCancelled();
       final json = await _post(_tokenUrl, {
         'client_id': _clientId,
         'client_secret': _clientSecret,
@@ -227,8 +238,8 @@ class GoogleDeviceFlow {
       if (json is Map<String, dynamic>) return json;
     } on http.ClientException {
       // Falls through to the network error.
-    } on SocketException {
-      // Same.
+    } on IOException {
+      // Sockets, TLS handshakes (old sticks with a wrong clock): same.
     } on TimeoutException {
       // Same.
     } on FormatException {

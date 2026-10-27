@@ -169,11 +169,15 @@ class FakeAuthGateway implements AuthGateway {
   /// The last token given to [signInWithGoogleIdToken].
   String? lastIdToken;
 
+  /// When set, [signInWithGoogleIdToken] waits for it, as for Supabase.
+  Completer<void>? idTokenGate;
+
   /// Signs in as [googleEmail] like [signInWithOAuthGoogle]; [oauthError]
   /// makes it fail.
   @override
   Future<void> signInWithGoogleIdToken(String idToken) async {
     lastIdToken = idToken;
+    await idTokenGate?.future;
     if (oauthError case final error?) throw error;
     _hasPassword = accounts.containsKey(googleEmail);
     _email = googleEmail;

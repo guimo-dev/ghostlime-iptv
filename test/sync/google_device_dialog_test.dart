@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -24,8 +25,12 @@ class _FakeGoogle {
   int tokenRequests = 0;
   bool offline = false;
 
+  /// When set, every request throws it (an error no one expected).
+  Object? unexpected;
+
   late final client = MockClient((request) async {
     if (offline) throw http.ClientException('offline');
+    if (unexpected case final error?) throw error;
     if (request.url.path == '/device/code') {
       codeRequests++;
       return http.Response(
@@ -256,5 +261,64 @@ void main() {
     await tester.tap(find.text('Cancelar'));
     await tester.pumpAndSettle();
     expect(results, [false]);
+  });
+
+  testWidgets(
+    'an unexpected error shows the network message and "Reintentar"',
+    (tester) async {
+      google.unexpected = StateError('boom');
+      await pumpOpener(tester);
+
+      expect(find.textContaining('No se ha podido conectar'), findsOneWidget);
+      expect(find.text('Reintentar'), findsOneWidget);
+
+      await tester.tap(find.text('Cancelar'));
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets('"Reintentar" pressed twice asks for one code', (tester) async {
+    google.offline = true;
+    await pumpOpener(tester);
+    google.offline = false;
+
+    final retry = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Reintentar'),
+    );
+    retry.onPressed!();
+    retry.onPressed!();
+    await tester.pump();
+    await tester.pump();
+
+    expect(google.codeRequests, 1);
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('while signing in it cannot be cancelled nor closed', (
+    tester,
+  ) async {
+    google.tokenReplies.add(
+      http.Response(jsonEncode({'id_token': 'id-token-xyz'}), 200),
+    );
+    final results = await pumpOpener(tester);
+    final gate = auth.idTokenGate = Completer<void>();
+
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump();
+    expect(find.text('Entrando en tu cuenta…'), findsOneWidget);
+    final cancel = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Cancelar'),
+    );
+    expect(cancel.onPressed, isNull);
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    expect(find.text('Entrar con Google'), findsOneWidget);
+
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(results, [true]);
+    expect(account.status, AccountStatus.signedIn);
+    await account.signOut();
   });
 }

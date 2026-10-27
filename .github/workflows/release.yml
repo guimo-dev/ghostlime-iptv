@@ -76,9 +76,6 @@ jobs:
       HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-      # Optional: Google sign-in on TVs (empty disables it).
-      GOOGLE_TV_CLIENT_ID: ${{ secrets.GOOGLE_TV_CLIENT_ID }}
-      GOOGLE_TV_CLIENT_SECRET: ${{ secrets.GOOGLE_TV_CLIENT_SECRET }}
     steps:
       # Without the release key every build would be signed with a different
       # throwaway debug key and could never update the previous version.
@@ -135,6 +132,10 @@ jobs:
           done <<< "$jars"
       - name: Build APKs and App Bundle
         if: env.HAS_KEYSTORE == 'true'
+        env:
+          # Optional: Google sign-in on TVs (empty disables it).
+          GOOGLE_TV_CLIENT_ID: ${{ secrets.GOOGLE_TV_CLIENT_ID }}
+          GOOGLE_TV_CLIENT_SECRET: ${{ secrets.GOOGLE_TV_CLIENT_SECRET }}
         run: |
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then VERSION="${GITHUB_REF_NAME#v}"; else VERSION="0.0.0-dev"; fi
           mkdir -p dist
