@@ -23,6 +23,7 @@ import '../ui/content_width.dart';
 import '../ui/form_factor.dart';
 import '../tv/tv_initial_focus.dart';
 import '../ui/ghostlime_logo.dart';
+import '../ui/tv_device.dart';
 import '../xtream/xtream_urls.dart';
 import 'app_settings.dart';
 import 'email_code_dialog.dart';
@@ -937,7 +938,7 @@ class _SliderRowState extends State<_SliderRow> {
   Widget build(BuildContext context) {
     final shown = _dragValue ?? widget.value;
     final phone = usesPhoneLayout(context);
-    final slider = Slider(
+    final material = Slider(
       value: shown.toDouble().clamp(
         widget.min.toDouble(),
         widget.max.toDouble(),
@@ -956,6 +957,15 @@ class _SliderRowState extends State<_SliderRow> {
         widget.onChangeEnd?.call(v.round());
       },
     );
+    // On a TV only Left and Right change the value: Up and Down move the
+    // focus on, as in the rest of the screen (directional navigation).
+    final slider = isTvDevice
+        ? MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(navigationMode: NavigationMode.directional),
+            child: material,
+          )
+        : material;
     final label = SizedBox(
       width: 72,
       child: Text('$shown${widget.unit}', textAlign: TextAlign.right),
