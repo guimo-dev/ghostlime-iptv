@@ -10,6 +10,7 @@ import 'package:iptv_player/settings/settings_controller.dart';
 import 'package:iptv_player/settings/settings_scope.dart';
 import 'package:iptv_player/ui/app_theme.dart';
 import 'package:iptv_player/ui/backdrop.dart';
+import 'package:iptv_player/ui/tv_device.dart';
 
 const _channel = Channel(
   key: 'k',
@@ -258,5 +259,55 @@ void main() {
     expect(small, greaterThanOrEqualTo(240));
     expect(large, greaterThan(small * 1.5));
     expect(tester.takeException(), isNull);
+  });
+
+  // On a TV nothing scrolls the panel: with taller text (Roboto on Android
+  // TV) the next programme was cut by the panel's bottom edge.
+  testWidgets('on a TV the next programme fits with taller text', (
+    tester,
+  ) async {
+    debugTvDevice = true;
+    addTearDown(() => debugTvDevice = null);
+    // The live area of the 1280x720 TV canvas: minus the shell and groups
+    // side bars.
+    const width = 1280.0 - 92 - 250;
+    await _pump(
+      tester,
+      const Size(1280, 900),
+      MediaQuery(
+        data: const MediaQueryData(textScaler: TextScaler.linear(1.3)),
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: width,
+            child: NowPanel(
+              channel: _channel,
+              channelName: 'La 1',
+              now: _programme('En emisión', startMinutes: -10),
+              upcoming: [
+                _programme('Siguiente programa', startMinutes: 50),
+                _programme('Más tarde', startMinutes: 110),
+              ],
+              controller: null,
+              failed: false,
+              muted: true,
+              favorite: false,
+              onFullScreen: () {},
+              onToggleSound: () {},
+              onToggleFavorite: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    final panel = tester.getRect(find.byType(NowPanel));
+    final next = tester.getRect(find.text('Siguiente programa'));
+    final button = tester.getRect(find.text('Pantalla completa'));
+    // Fully above the buttons, which stay inside the panel.
+    expect(next.bottom, lessThanOrEqualTo(button.top));
+    expect(button.bottom, lessThanOrEqualTo(panel.bottom));
+    // Only the next one: the rest of the day could not be scrolled to.
+    expect(find.text('Más tarde'), findsNothing);
   });
 }

@@ -977,11 +977,15 @@ class NowPanel extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final previewWidth = previewWidthFor(constraints.maxWidth);
+        final height = max(
+          _panelMinHeight,
+          previewWidth * 9 / 16 + _panelPadding * 2,
+        );
+        // On a TV nothing scrolls the panel, so it grows to fit its text.
+        final tv = isTvDevice;
         return Container(
-          height: max(
-            _panelMinHeight,
-            previewWidth * 9 / 16 + _panelPadding * 2,
-          ),
+          height: tv ? null : height,
+          constraints: tv ? BoxConstraints(minHeight: height) : null,
           margin: const EdgeInsets.fromLTRB(24, 24, 24, 0),
           padding: const EdgeInsets.all(_panelPadding),
           decoration: BoxDecoration(
@@ -1021,94 +1025,135 @@ class NowPanel extends StatelessWidget {
                     ],
                   ),
                 )
-              : Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Programme on air and the rest of the day (else
-                          // its description); scrolls when it does not fit.
-                          Expanded(
-                            child: ListView(
-                              padding: EdgeInsets.zero,
-                              children: [
-                                Row(
-                                  children: [
-                                    ChannelLogo(url: current.iconUrl),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        channelName,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: text.labelLarge?.copyWith(
-                                          color: AppColors.textMuted,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                OnAirDetails(
-                                  now: now,
-                                  upcoming: upcoming,
-                                  titleStyle: text.headlineMedium,
-                                  titleMaxLines: 1,
-                                  clock: clock,
-                                ),
-                              ],
+              : _NowContent(
+                  tv: tv,
+                  details: [
+                    Row(
+                      children: [
+                        ChannelLogo(url: current.iconUrl),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            channelName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: text.labelLarge?.copyWith(
+                              color: AppColors.textMuted,
                             ),
                           ),
-                          const SizedBox(height: 10),
-                          Wrap(
-                            spacing: 8,
-                            children: [
-                              FilledButton.icon(
-                                onPressed: onFullScreen,
-                                icon: const Icon(Icons.fullscreen),
-                                label: const Text(
-                                  'Pantalla completa',
-                                  softWrap: false,
-                                ),
-                              ),
-                              IconButton.outlined(
-                                tooltip: favorite
-                                    ? 'Quitar de favoritos'
-                                    : 'Añadir a favoritos',
-                                onPressed: onToggleFavorite,
-                                icon: Icon(
-                                  favorite ? Icons.star : Icons.star_border,
-                                ),
-                              ),
-                              IconButton.outlined(
-                                tooltip: muted ? 'Activar sonido' : 'Silenciar',
-                                onPressed: onToggleSound,
-                                icon: Icon(
-                                  muted ? Icons.volume_off : Icons.volume_up,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 20),
-                    SizedBox(
-                      width: previewWidth,
-                      child: AspectRatio(
-                        aspectRatio: 16 / 9,
-                        child: LivePreviewBox(
-                          controller: controller,
-                          failed: failed,
                         ),
-                      ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    OnAirDetails(
+                      now: now,
+                      upcoming: tv ? upcoming.take(1).toList() : upcoming,
+                      titleStyle: text.headlineMedium,
+                      titleMaxLines: 1,
+                      clock: clock,
                     ),
                   ],
+                  buttons: Wrap(
+                    spacing: 8,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: onFullScreen,
+                        icon: const Icon(Icons.fullscreen),
+                        label: const Text('Pantalla completa', softWrap: false),
+                      ),
+                      IconButton.outlined(
+                        tooltip: favorite
+                            ? 'Quitar de favoritos'
+                            : 'Añadir a favoritos',
+                        onPressed: onToggleFavorite,
+                        icon: Icon(favorite ? Icons.star : Icons.star_border),
+                      ),
+                      IconButton.outlined(
+                        tooltip: muted ? 'Activar sonido' : 'Silenciar',
+                        onPressed: onToggleSound,
+                        icon: Icon(muted ? Icons.volume_off : Icons.volume_up),
+                      ),
+                    ],
+                  ),
+                  preview: SizedBox(
+                    width: previewWidth,
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: LivePreviewBox(
+                        controller: controller,
+                        failed: failed,
+                      ),
+                    ),
+                  ),
                 ),
         );
       },
+    );
+  }
+}
+
+/// The now panel's content: [details] (channel, programme on air and what
+/// follows) above [buttons], beside [preview]. Elsewhere the details scroll
+/// in the panel's fixed height; on a [tv], where nothing scrolls them, the
+/// panel takes their height (at least the preview's) and the buttons stay at
+/// the bottom.
+class _NowContent extends StatelessWidget {
+  const _NowContent({
+    required this.tv,
+    required this.details,
+    required this.buttons,
+    required this.preview,
+  });
+
+  final bool tv;
+  final List<Widget> details;
+  final Widget buttons;
+  final Widget preview;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!tv) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Programme on air and the rest of the day (else its
+                // description); scrolls when it does not fit.
+                Expanded(
+                  child: ListView(padding: EdgeInsets.zero, children: details),
+                ),
+                const SizedBox(height: 10),
+                buttons,
+              ],
+            ),
+          ),
+          const SizedBox(width: 20),
+          preview,
+        ],
+      );
+    }
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ...details,
+                const SizedBox(height: 10),
+                const Spacer(),
+                buttons,
+              ],
+            ),
+          ),
+          const SizedBox(width: 20),
+          Align(alignment: Alignment.topCenter, child: preview),
+        ],
+      ),
     );
   }
 }
