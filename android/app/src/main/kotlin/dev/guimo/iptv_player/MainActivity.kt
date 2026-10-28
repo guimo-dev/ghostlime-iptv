@@ -2,14 +2,42 @@ package dev.guimo.iptv_player
 
 import android.app.UiModeManager
 import android.content.res.Configuration
+import android.os.Build
 import android.provider.Settings
+import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
+import androidx.annotation.RequiresApi
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 /** The app's only activity; it also serves the window brightness and device channels. */
 class MainActivity : FlutterActivity() {
+    /**
+     * Turns off Android's own focus highlight (API 26+) on the window's views:
+     * on Android 8-9 boxes driven with a D-pad (Fire OS 7, Android TV 9) the
+     * first key left touch mode and framed the whole Flutter view in the
+     * system's accent colour. Flutter draws its own focus.
+     */
+    override fun onStart() {
+        super.onStart()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            disableFocusHighlight(window.decorView)
+        }
+    }
+
+    /** Disables the default focus highlight on [view] and its descendants. */
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun disableFocusHighlight(view: View) {
+        view.defaultFocusHighlightEnabled = false
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) {
+                disableFocusHighlight(view.getChildAt(index))
+            }
+        }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, BRIGHTNESS_CHANNEL)
