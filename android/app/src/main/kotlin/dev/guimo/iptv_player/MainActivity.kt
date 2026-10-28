@@ -18,11 +18,23 @@ class MainActivity : FlutterActivity() {
      * Turns off Android's own focus highlight (API 26+) on the window's views:
      * on Android 8-9 boxes driven with a D-pad (Fire OS 7, Android TV 9) the
      * first key left touch mode and framed the whole Flutter view in the
-     * system's accent colour. Flutter draws its own focus.
+     * system's accent colour. Flutter draws its own focus. Only on TVs: phones and
+     * tablets keep the system behaviour.
      */
     override fun onStart() {
         super.onStart()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        disableFocusHighlightOnTv()
+    }
+
+    /** Applies it again when the window gains focus, for views added since [onStart]. */
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) disableFocusHighlightOnTv()
+    }
+
+    /** Disables the focus highlight of the window's views when this is a TV (API 26+). */
+    private fun disableFocusHighlightOnTv() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isTv()) {
             disableFocusHighlight(window.decorView)
         }
     }
