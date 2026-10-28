@@ -31,13 +31,18 @@ const phoneSize = Size(390, 844);
 /// Window size of a portrait tablet (still the phone layout: under 1024 wide).
 const tabletSize = Size(800, 1280);
 
+/// Canvas of a TV (`TvScale` lays every TV out at 1280x720). The tests that
+/// use it force the TV mode themselves (`debugTvDevice`).
+const tvSize = Size(1280, 720);
+
 /// Folder name of the references for [size]: `small`, `medium`, `phone`,
-/// `tablet` or `<w>x<h>`.
+/// `tablet`, `tv` or `<w>x<h>`.
 String sizeName(Size size) {
   if (size == smallSize) return 'small';
   if (size == mediumSize) return 'medium';
   if (size == phoneSize) return 'phone';
   if (size == tabletSize) return 'tablet';
+  if (size == tvSize) return 'tv';
   return '${size.width.toInt()}x${size.height.toInt()}';
 }
 

@@ -35,13 +35,24 @@ Releases are published on
 |---|---|
 | Windows 10/11 (x64), installer | `Ghostlime-IPTV-X.Y.Z-windows-setup.exe` |
 | Windows 10/11 (x64), portable | `Ghostlime-IPTV-X.Y.Z-windows-portable.zip` |
-| Android (64-bit phones, tablets and TVs) | `Ghostlime-IPTV-X.Y.Z-android-arm64.apk` |
-| Android (old 32-bit devices) | `Ghostlime-IPTV-X.Y.Z-android-armv7.apk` |
+| Android (64-bit phones, tablets, modern Android TV / Google TV) | `Ghostlime-IPTV-X.Y.Z-android-arm64.apk` |
+| Android (most Fire TV Sticks, old 32-bit devices) | `Ghostlime-IPTV-X.Y.Z-android-armv7.apk` |
 | Android (universal, if unsure) | `Ghostlime-IPTV-X.Y.Z-android.apk` |
 | Linux x64 *(in progress)* | `Ghostlime-IPTV-X.Y.Z-linux-x64.tar.gz` |
 
-On an Android TV you can install an APK with the Downloader app by entering the
-[Releases](https://github.com/guimo-dev/ghostlime-iptv/releases) page address.
+One APK covers phones, tablets and TVs: on Android TV, Google TV and Fire TV the app
+switches to a remote-friendly interface by itself. To install it on a TV:
+
+1. Install the free **Downloader** app (Amazon Appstore on Fire TV, Google Play on
+   Android TV / Google TV).
+2. Let Downloader install apps. Fire TV: *Settings → My Fire TV → Developer options →
+   Install unknown apps → Downloader*. Android TV / Google TV: *Settings → Apps → Security
+   & restrictions → Unknown sources → Downloader* (the menu names vary by brand).
+3. In Downloader, enter `https://github.com/guimo-dev/ghostlime-iptv/releases`, open the
+   latest release's **Assets** and pick the **armv7** APK on a Fire TV Stick, **arm64** on
+   a modern TV, or the **universal** one if unsure. Then install it.
+
+Step-by-step guide in Spanish: [docs/distribucion.md](docs/distribucion.md#instalar-en-una-tele-android-tv-google-tv-fire-tv).
 
 The portable version needs no installation: unzip it and run `iptv_player.exe`. It needs
 the [Visual C++ runtime](https://aka.ms/vs/17/release/vc_redist.x64.exe) (almost every

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart'
     show LicenseEntryWithLineBreaks, LicenseRegistry;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:iptv_player/catalog/catalog_models.dart';
@@ -20,6 +21,7 @@ import 'package:iptv_player/browse/catalog_images.dart' show ChannelLogo;
 import 'package:iptv_player/ui/backdrop.dart' show GradientProgress;
 import 'package:iptv_player/ui/focus_card.dart';
 import 'package:iptv_player/ui/form_factor.dart' show usesDesktopLayout;
+import 'package:iptv_player/ui/tv_device.dart';
 import 'package:media_kit_video/media_kit_video.dart'
     show MaterialDesktopSeekBar, Video;
 
@@ -100,6 +102,16 @@ Future<void> _pumpRealTime(WidgetTester tester, Duration duration) async {
   }
 }
 
+/// Types [text] into the field [finder]. On a TV a field stays read-only
+/// until it is opened (OK on the remote or a tap), so it is tapped first.
+Future<void> _typeInto(WidgetTester tester, Finder finder, String text) async {
+  if (isTvDevice) {
+    await tester.tap(finder);
+    await tester.pumpAndSettle();
+  }
+  await tester.enterText(finder, text);
+}
+
 /// Opens the "Añadir lista" form from the playlists screen.
 Future<void> _openForm(WidgetTester tester) async {
   await tester.tap(find.text('Añadir lista'));
@@ -113,11 +125,20 @@ Future<void> _fillXtreamForm(
   String password = demoPassword,
 }) async {
   Future<void> fill(String label, String value) =>
-      tester.enterText(find.widgetWithText(TextFormField, label), value);
+      _typeInto(tester, find.widgetWithText(TextFormField, label), value);
   await fill('Nombre', _playlistName);
   await fill('Servidor', harness.server.baseUrl.toString());
   await fill('Usuario', demoUser);
   await fill('Contraseña', password);
+}
+
+/// On a TV, scrolls the form holding [error] back to its top: typing scrolled
+/// the last field up (room for the floating keyboard), past the error.
+Future<void> _formToTopOnTv(WidgetTester tester, Finder error) async {
+  if (!isTvDevice) return;
+  final form = find.ancestor(of: error, matching: find.byType(Scrollable));
+  tester.state<ScrollableState>(form.first).position.jumpTo(0);
+  await tester.pumpAndSettle();
 }
 
 /// Mask for the demo server address, whose port changes on every run.
@@ -594,6 +615,7 @@ final Map<String, _Capture> _screens = {
           .evaluate()
           .isNotEmpty,
     );
+    await _formToTopOnTv(tester, find.textContaining('rechazado'));
     await tester.pumpAndSettle();
     await expectScreen(tester, name, masks: [_serverField()]);
   },
@@ -607,6 +629,7 @@ final Map<String, _Capture> _screens = {
       tester,
       () => find.textContaining('HTTP 503').evaluate().isNotEmpty,
     );
+    await _formToTopOnTv(tester, find.textContaining('HTTP 503'));
     await tester.pumpAndSettle();
     await expectScreen(tester, name, masks: [_serverField()]);
   },
@@ -681,7 +704,7 @@ final Map<String, _Capture> _screens = {
   },
   'inicio-busqueda': (tester, harness, name) async {
     await _enter(tester, harness);
-    await tester.enterText(find.byType(TextField).first, 'cine');
+    await _typeInto(tester, find.byType(TextField).first, 'cine');
     await tester.pump(const Duration(milliseconds: 400));
     await settle(tester);
     await expectScreen(tester, name);
@@ -761,8 +784,9 @@ final Map<String, _Capture> _screens = {
   'ajustes-control-parental': (tester, harness, name) async {
     await _enter(tester, harness);
     await _startParentalLock(tester);
-    await tester.enterText(find.widgetWithText(TextField, 'PIN'), '1234');
-    await tester.enterText(
+    await _typeInto(tester, find.widgetWithText(TextField, 'PIN'), '1234');
+    await _typeInto(
+      tester,
       find.widgetWithText(TextField, 'Repite el PIN'),
       '1234',
     );
@@ -774,8 +798,9 @@ final Map<String, _Capture> _screens = {
   'pin': (tester, harness, name) async {
     await _enter(tester, harness);
     await _startParentalLock(tester);
-    await tester.enterText(find.widgetWithText(TextField, 'PIN'), '1234');
-    await tester.enterText(
+    await _typeInto(tester, find.widgetWithText(TextField, 'PIN'), '1234');
+    await _typeInto(
+      tester,
       find.widgetWithText(TextField, 'Repite el PIN'),
       '123',
     );
@@ -806,10 +831,120 @@ final Map<String, _Capture> _screens = {
   },
 };
 
+/// Presses [key] on the remote and lets the overlay it opens appear. The
+/// key comes as from Android, whatever the host: Windows has no physical
+/// key for Select (OK).
+Future<void> _pressRemote(WidgetTester tester, LogicalKeyboardKey key) async {
+  await tester.sendKeyEvent(key, platform: 'android');
+  await _pumpRealTime(tester, const Duration(milliseconds: 500));
+}
+
+/// Plays the first movie of Películas full screen from its detail page and
+/// waits for the clip to play.
+Future<void> _playMovie(WidgetTester tester, AppHarness harness) async {
+  await _enter(tester, harness, section: 'Películas');
+  await tester.tap(_posterOf('La isla del faro perdido'));
+  await settle(tester, timeout: const Duration(seconds: 2));
+  await tester.tap(find.text('Reproducir'));
+  await _pumpUntil(
+    tester,
+    () => find.byType(PlayerScreen).evaluate().isNotEmpty,
+  );
+  await _freezePlayback(tester);
+}
+
+/// Masks for the info bar of the TV live player: the programme's times, its
+/// progress and the time of the next one.
+List<Finder> _tvInfoMasks() => [
+  find.textContaining(RegExp(r'^\d\d:\d\d')),
+  find.textContaining('A continuación'),
+  find.byKey(const ValueKey('tv-info-progress')),
+];
+
+/// Masks for the controls bar of the TV movie player: the position, the
+/// length and the progress between them.
+List<Finder> _tvVodMasks() => [
+  find.descendant(
+    of: find.byKey(const ValueKey('tv-vod-controls')),
+    matching: find.textContaining(RegExp(r'^\d+:\d\d')),
+  ),
+  find.byKey(const ValueKey('tv-vod-progress')),
+];
+
+/// Screens only a TV has: the overlays of the full-screen player, which
+/// the remote opens.
+final Map<String, _Capture> _tvScreens = {
+  // OK on a channel playing: number, name, programme on air and the next.
+  'tv-directo-info': (tester, harness, name) async {
+    await _enter(tester, harness, seed: _seedGuide, section: 'Directo');
+    await _playLive(tester);
+    await _pressRemote(tester, LogicalKeyboardKey.select);
+    expect(find.byKey(const ValueKey('tv-info')), findsOneWidget);
+    await _hideVideoPictures(tester);
+    await expectScreen(tester, name, maskVideo: false, masks: _tvInfoMasks());
+  },
+  // OK again: the channels of the group, the one playing focused.
+  'tv-directo-lista': (tester, harness, name) async {
+    await _enter(tester, harness, seed: _seedGuide, section: 'Directo');
+    await _playLive(tester);
+    await _pressRemote(tester, LogicalKeyboardKey.select);
+    await _pressRemote(tester, LogicalKeyboardKey.select);
+    expect(find.byKey(const ValueKey('tv-channel-list')), findsOneWidget);
+    await _hideVideoPictures(tester);
+    await expectScreen(tester, name, maskVideo: false);
+  },
+  // Left: the groups beside the channels.
+  'tv-directo-grupos': (tester, harness, name) async {
+    await _enter(tester, harness, seed: _seedGuide, section: 'Directo');
+    await _playLive(tester);
+    await _pressRemote(tester, LogicalKeyboardKey.arrowLeft);
+    expect(find.byKey(const ValueKey('tv-group-list')), findsOneWidget);
+    await _hideVideoPictures(tester);
+    await expectScreen(tester, name, maskVideo: false);
+  },
+  // Right: the audio and subtitle tracks.
+  'tv-directo-opciones': (tester, harness, name) async {
+    await _enter(tester, harness, seed: _seedGuide, section: 'Directo');
+    await _playLive(tester);
+    await _pressRemote(tester, LogicalKeyboardKey.arrowRight);
+    expect(find.byKey(const ValueKey('tv-options')), findsOneWidget);
+    await _hideVideoPictures(tester);
+    await expectScreen(tester, name, maskVideo: false);
+  },
+  // Up on a movie (paused): title, play or pause and the progress.
+  'tv-pelicula-controles': (tester, harness, name) async {
+    await _playMovie(tester, harness);
+    await _pressRemote(tester, LogicalKeyboardKey.arrowUp);
+    expect(find.byKey(const ValueKey('tv-vod-controls')), findsOneWidget);
+    await _hideVideoPictures(tester);
+    await expectScreen(tester, name, maskVideo: false, masks: _tvVodMasks());
+  },
+  // Menu on a movie: its tracks.
+  'tv-pelicula-opciones': (tester, harness, name) async {
+    await _playMovie(tester, harness);
+    await _pressRemote(tester, LogicalKeyboardKey.contextMenu);
+    expect(find.byKey(const ValueKey('tv-options')), findsOneWidget);
+    await _hideVideoPictures(tester);
+    await expectScreen(tester, name, maskVideo: false);
+  },
+};
+
+/// Screens left out on a TV, with the reason.
+const _skippedOnTv = {
+  'reproductor-controles': _noDesktopPlayerControls,
+  'reproductor-info': _noDesktopPlayerControls,
+};
+
+/// On a TV the full-screen player has neither the desktop controls nor the
+/// bar with "Info del stream": the remote opens its own overlays, which the
+/// `tv-directo-*` and `tv-pelicula-*` captures show.
+const _noDesktopPlayerControls = 'the TV player has its own overlays';
+
 /// Screens left out on Android, with the reason.
-const _skippedOnAndroid = {
+final _skippedOnAndroid = {
   'reproductor-controles': _noClipOnDevice,
   'reproductor-info': _noClipOnDevice,
+  for (final name in _tvScreens.keys) name: _noClipOnDevice,
 };
 
 /// The harness's own demo server reads its clip from the repository
@@ -820,14 +955,24 @@ const _noClipOnDevice = 'the demo clip is not on the device';
 /// One visual test per screen and size; each starts the app on throwaway data.
 /// Every screen runs at every size: `phone` and `tablet` get the phone layout
 /// (bottom bar, Directo for zapping), and on Windows the player keeps its
-/// desktop controls.
+/// desktop controls. At `tv` the app runs as on a TV (scale, focus, remote
+/// overlays in the player), with the [_tvScreens] added and the
+/// [_skippedOnTv] left out.
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  for (final size in [smallSize, mediumSize, phoneSize, tabletSize]) {
-    for (final MapEntry(key: name, value: capture) in _screens.entries) {
-      final skipped = Platform.isAndroid && _skippedOnAndroid.containsKey(name);
+  for (final size in [smallSize, mediumSize, phoneSize, tabletSize, tvSize]) {
+    final tv = size == tvSize;
+    final screens = tv ? {..._screens, ..._tvScreens} : _screens;
+    for (final MapEntry(key: name, value: capture) in screens.entries) {
+      final skipped =
+          (Platform.isAndroid && _skippedOnAndroid.containsKey(name)) ||
+          (tv && _skippedOnTv.containsKey(name));
       testWidgets('$name at ${sizeName(size)}', skip: skipped, (tester) async {
+        if (tv) {
+          debugTvDevice = true;
+          addTearDown(() => debugTvDevice = null);
+        }
         ParentalSession.unlocked.value = false;
         final harness = await AppHarness.start(
           tester,

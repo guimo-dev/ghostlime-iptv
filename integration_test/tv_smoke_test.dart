@@ -54,8 +54,14 @@ void main() {
 
     await tester.tap(find.text('Añadir lista'));
     await tester.pumpAndSettle();
-    Future<void> fill(String label, String value) =>
-        tester.enterText(find.widgetWithText(TextFormField, label), value);
+    // On a TV a field stays read-only until it is opened (OK or a tap).
+    Future<void> fill(String label, String value) async {
+      final field = find.widgetWithText(TextFormField, label);
+      await tester.tap(field);
+      await tester.pumpAndSettle();
+      await tester.enterText(field, value);
+    }
+
     await fill('Nombre', 'Demo');
     await fill('Servidor', _hostDemoServer);
     await fill('Usuario', demoUser);

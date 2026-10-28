@@ -202,14 +202,50 @@ keyPassword=…
 
 Los tres son la misma app y la misma firma, así que se pueden actualizar entre sí:
 
-- `-android-arm64.apk`: móviles, tablets y TV recientes (la gran mayoría, 64 bits).
-- `-android-armv7.apk`: aparatos antiguos de 32 bits.
-- `-android.apk` (universal): si no se sabe cuál, es el que funciona siempre (pesa algo más).
+- `-android-arm64.apk`: móviles, tablets y teles modernas (Google TV, Android TV
+  recientes; la gran mayoría, 64 bits).
+- `-android-armv7.apk`: la mayoría de los **Fire TV Stick** (Fire OS usa 32 bits aunque el
+  chip sea de 64) y aparatos antiguos.
+- `-android.apk` (universal): si hay dudas, es el que funciona siempre (pesa algo más).
 
-Instalar en una Android TV o Fire TV con **Downloader**: abrir la app, escribir la dirección
-de la página de descargas, <https://github.com/guimo-dev/ghostlime-iptv/releases>, elegir
-el APK de la última versión y aceptar la instalación de orígenes desconocidos cuando la
-pida el sistema.
+### Instalar en una tele (Android TV, Google TV, Fire TV)
+
+Ghostlime no está en las tiendas de las teles: se instala el APK con la app gratuita
+**Downloader** (de AFTVnews), que está en la tienda de Amazon y en Google Play de la tele.
+Una sola instalación vale para móvil, tablet y tele: en la tele la app cambia sola a la
+interfaz para el mando.
+
+**Fire TV (Fire TV Stick, Cube):**
+
+1. Instalar **Downloader** desde la tienda (buscar "Downloader").
+2. Permitir que instale apps: **Configuración → Mi Fire TV → Opciones para desarrolladores →
+   Instalar aplicaciones desconocidas → Downloader → Activado**. Si no aparece "Opciones para
+   desarrolladores": **Mi Fire TV → Acerca de**, pulsar siete veces OK sobre el nombre del
+   dispositivo y volver atrás.
+3. Abrir Downloader, escribir en el campo de dirección
+   `https://github.com/guimo-dev/ghostlime-iptv/releases` y pulsar **Go**. Se abre la
+   página de descargas en su navegador.
+4. En la última versión, abrir **Assets** y elegir `Ghostlime-IPTV-X.Y.Z-android-armv7.apk`
+   (o el universal `-android.apk` si hay dudas). Al acabar la descarga, **Instalar**.
+5. Downloader ofrece borrar el APK descargado: se puede borrar, la app ya está instalada.
+   Ghostlime aparece en **Aplicaciones**.
+
+**Android TV y Google TV (Chromecast con Google TV, teles Sony, TCL, Philips…):**
+
+1. Instalar **Downloader** desde Google Play de la tele.
+2. Permitir que instale apps: **Ajustes → Aplicaciones → Seguridad y restricciones →
+   Fuentes desconocidas → Downloader → activado** (según la marca: **Ajustes → Privacidad →
+   Seguridad y restricciones** o **Ajustes → Sistema → Acerca de**, pulsar siete veces OK en
+   "Compilación del SO de Android TV" para activar las opciones de desarrollador). La primera
+   vez que Downloader intente instalar, el propio sistema también lleva a ese ajuste.
+3. Igual que en Fire TV: en Downloader escribir
+   `https://github.com/guimo-dev/ghostlime-iptv/releases`, elegir en **Assets**
+   `Ghostlime-IPTV-X.Y.Z-android-arm64.apk` (o el universal si hay dudas) e **Instalar**.
+4. Ghostlime aparece en la fila de aplicaciones de la pantalla de inicio (con su banner).
+
+Para actualizar se repite lo mismo con el APK de la versión nueva: se instala encima y
+conserva las listas y los ajustes. Si el sistema dice que el paquete no es compatible, se ha
+elegido arm64 en un aparato de 32 bits: usar armv7 o el universal.
 
 ### libmpv de Android (error 406 al compilar)
 
