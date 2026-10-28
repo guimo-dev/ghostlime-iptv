@@ -171,7 +171,7 @@ class _TvVodControlsState extends State<TvVodControls> {
     _showControls(() => _seekTarget = target);
   }
 
-  /// Left or Right ([forward]): a press jumps [tvSeekStep]; held, it
+  /// Left or Right, fast forward or rewind ([forward]): a press jumps [tvSeekStep]; held, it
   /// jumps again every [tvSeekRepeatGap], [tvFastSeekStep] once held
   /// [tvFastSeekAfter].
   void _seekKey(KeyEvent event, {required bool forward}) {
@@ -199,9 +199,18 @@ class _TvVodControlsState extends State<TvVodControls> {
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (_options) return KeyEventResult.ignored;
     final key = event.logicalKey;
+    // Fast forward and rewind are handled here, not as a [SeekIntent], so a
+    // held key is throttled like Left and Right.
     if (key == LogicalKeyboardKey.arrowLeft ||
-        key == LogicalKeyboardKey.arrowRight) {
-      _seekKey(event, forward: key == LogicalKeyboardKey.arrowRight);
+        key == LogicalKeyboardKey.arrowRight ||
+        key == LogicalKeyboardKey.mediaFastForward ||
+        key == LogicalKeyboardKey.mediaRewind) {
+      _seekKey(
+        event,
+        forward:
+            key == LogicalKeyboardKey.arrowRight ||
+            key == LogicalKeyboardKey.mediaFastForward,
+      );
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.arrowUp ||
@@ -236,9 +245,6 @@ class _TvVodControlsState extends State<TvVodControls> {
           ),
           PlayPauseIntent: CallbackAction<PlayPauseIntent>(
             onInvoke: (_) => _playOrPause(),
-          ),
-          SeekIntent: CallbackAction<SeekIntent>(
-            onInvoke: (intent) => _seekBy(intent.offset),
           ),
           QuickOptionsIntent: CallbackAction<QuickOptionsIntent>(
             onInvoke: (_) => _setOptions(!_options),

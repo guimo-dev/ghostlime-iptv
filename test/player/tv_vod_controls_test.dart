@@ -137,6 +137,38 @@ void main() {
     await _leave(tester);
   });
 
+  testWidgets(
+    'holding fast forward or rewind is throttled like Right and Left',
+    (tester) async {
+      await pumpMovie(tester);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.mediaFastForward);
+      for (var i = 0; i < 60; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.sendKeyRepeatEvent(LogicalKeyboardKey.mediaFastForward);
+      }
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.mediaFastForward);
+      await tester.pump();
+      // As holding Right: the press and one repeat every 250 ms, 30 s each
+      // after 2 s.
+      expect(seeks(), [
+        310, 320, 330, 340, 350, 360, 370, 380, //
+        410, 440, 470, 500, 530,
+      ]);
+
+      final before = seeks().length;
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.mediaRewind);
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.sendKeyRepeatEvent(LogicalKeyboardKey.mediaRewind);
+      }
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.mediaRewind);
+      await tester.pump();
+      // One second held: the press and a repeat every 250 ms (5 jumps, not 21).
+      expect(seeks().length - before, 5);
+      await _leave(tester);
+    },
+  );
+
   testWidgets('jumps stop 2 s before the end, without seeking again there', (
     tester,
   ) async {
