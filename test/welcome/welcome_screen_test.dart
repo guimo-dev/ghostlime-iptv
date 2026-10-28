@@ -599,4 +599,66 @@ void main() {
       expect(find.text('Entrar con Google'), findsNothing);
     });
   });
+
+  group('Back on the first-run screens', () {
+    /// Records `SystemNavigator.pop`, the app closing.
+    List<String> recordExits(WidgetTester tester) {
+      final exits = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'SystemNavigator.pop') exits.add(call.method);
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      return exits;
+    }
+
+    for (final (name, screen) in [
+      ('the welcome', WelcomeScreen(termsAccepted: true, onDone: () {})),
+      ('accept terms', AcceptTermsScreen(onAccepted: () {})),
+    ]) {
+      testWidgets('on a TV $name asks to leave, and Salir closes the app', (
+        tester,
+      ) async {
+        debugTvDevice = true;
+        addTearDown(() => debugTvDevice = null);
+        final exits = recordExits(tester);
+        await _pump(tester, screen);
+        if (find.byType(Dialog).evaluate().isNotEmpty) {
+          await _answerNotice(tester, 'Aceptar');
+        }
+
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(find.text('¿Salir de Ghostlime?'), findsOneWidget);
+        await tester.tap(find.text('Cancelar'));
+        await tester.pumpAndSettle();
+        expect(exits, isEmpty);
+
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Salir'));
+        await tester.pumpAndSettle();
+        expect(exits, hasLength(1));
+      });
+    }
+
+    testWidgets('off a TV Back does nothing', (tester) async {
+      debugTvDevice = false;
+      addTearDown(() => debugTvDevice = null);
+      final exits = recordExits(tester);
+      await _pump(tester, WelcomeScreen(termsAccepted: true, onDone: () {}));
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('¿Salir de Ghostlime?'), findsNothing);
+      expect(exits, isEmpty);
+    });
+  });
 }

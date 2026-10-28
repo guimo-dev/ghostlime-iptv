@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../legal/legal_notice.dart';
 import '../sync/account_form.dart';
 import '../sync/account_service.dart';
 import '../sync/google_sign_in.dart';
+import '../tv/exit_dialog.dart';
 import '../ui/app_theme.dart';
 import '../ui/backdrop.dart';
 import '../ui/brand_state.dart';
@@ -289,9 +293,15 @@ class _AcceptTermsScreenState extends State<AcceptTermsScreen> {
   }
 }
 
+/// Asks "¿Salir de Ghostlime?" and closes the app on Salir.
+Future<void> _confirmAndExit(BuildContext context) async {
+  if (await confirmExit(context)) await SystemNavigator.pop();
+}
+
 /// Branded, scrollable, centred column shared by the first-run screens. It
 /// cannot be left with the back key: the screens finish through their
-/// buttons.
+/// buttons. On a TV, Back asks whether to close the app instead (these are
+/// the root of the app then).
 class _FirstRunFrame extends StatelessWidget {
   const _FirstRunFrame({required this.children});
 
@@ -301,6 +311,9 @@ class _FirstRunFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && isTvDevice) unawaited(_confirmAndExit(context));
+      },
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: AppBackground(
