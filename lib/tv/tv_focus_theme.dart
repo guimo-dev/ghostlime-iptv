@@ -46,6 +46,8 @@ ThemeData withTvFocus(ThemeData theme) {
           width: 2,
           strokeAlign: BorderSide.strokeAlignOutside,
         ),
+        // A flat chip's own border when unselected.
+        idle: BorderSide(color: theme.colorScheme.outlineVariant),
       ),
     ),
     switchTheme: theme.switchTheme.copyWith(
@@ -60,7 +62,12 @@ ThemeData withTvFocus(ThemeData theme) {
       overlayColor: _whenFocused(strong, theme.switchTheme.overlayColor),
     ),
     checkboxTheme: theme.checkboxTheme.copyWith(
-      side: _focusedSide(theme.checkboxTheme.side, accentRing),
+      side: _focusedSide(
+        theme.checkboxTheme.side,
+        accentRing,
+        // An unchecked checkbox's own border.
+        idle: BorderSide(width: 2, color: theme.colorScheme.onSurfaceVariant),
+      ),
       overlayColor: _whenFocused(strong, theme.checkboxTheme.overlayColor),
     ),
     sliderTheme: theme.sliderTheme.copyWith(overlayColor: strong),
@@ -91,9 +98,16 @@ WidgetStateProperty<T?> _whenFocused<T>(
 );
 
 /// A border that is [focused] while focused and [base] (resolved when it
-/// depends on the state) otherwise.
-WidgetStateBorderSide _focusedSide(BorderSide? base, BorderSide focused) =>
-    WidgetStateBorderSide.resolveWith((states) {
-      if (states.contains(WidgetState.focused)) return focused;
-      return base is WidgetStateBorderSide ? base.resolve(states) : base;
-    });
+/// depends on the state) otherwise. Where [base] gives none and there is no
+/// state at all it is [idle], the control's own default border then:
+/// `ThemeData.lerp` (a change of accent) resolves the border with no state and
+/// fails on a null from both themes.
+WidgetStateBorderSide _focusedSide(
+  BorderSide? base,
+  BorderSide focused, {
+  required BorderSide idle,
+}) => WidgetStateBorderSide.resolveWith((states) {
+  if (states.contains(WidgetState.focused)) return focused;
+  final resolved = base is WidgetStateBorderSide ? base.resolve(states) : base;
+  return resolved ?? (states.isEmpty ? idle : null);
+});
