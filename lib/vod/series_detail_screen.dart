@@ -13,6 +13,7 @@ import '../ui/category_chips.dart';
 import '../ui/content_width.dart';
 import '../ui/focus_card.dart';
 import '../ui/form_factor.dart';
+import '../ui/tv_device.dart';
 import '../ui/backdrop.dart';
 import '../ui/back_on_escape.dart';
 import '../ui/brand_state.dart';
@@ -52,6 +53,27 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
   late final Future<(String?, Map<int, List<_EpisodeRow>>)> _data = _load();
   int? _season;
   late bool _favorite = _isFavorite();
+
+  /// Focus of the play button. On a TV the back arrow takes the focus while
+  /// the episodes load, so `autofocus` comes too late: the button asks for it
+  /// once, when it first appears.
+  final _playFocus = FocusNode(debugLabel: 'Reproducir');
+  bool _playFocusAsked = false;
+
+  @override
+  void dispose() {
+    _playFocus.dispose();
+    super.dispose();
+  }
+
+  /// On a TV, focuses the play button after the frame that first shows it.
+  void _focusPlayOnTv() {
+    if (!isTvDevice || _playFocusAsked) return;
+    _playFocusAsked = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _playFocus.requestFocus();
+    });
+  }
 
   bool get _canFavorite => widget.m3uEpisodes == null;
 
@@ -188,6 +210,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                   for (final row in seasons[number]!) row.target,
               ];
               final nextUp = _nextUp(seasons);
+              if (nextUp != null) _focusPlayOnTv();
               final nextResumes =
                   nextUp != null &&
                   (widget.db
@@ -213,6 +236,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                     actions: [
                       if (nextUp != null)
                         FilledButton.icon(
+                          focusNode: _playFocus,
                           autofocus: true,
                           onPressed: () => _play(nextUp.target, ordered),
                           icon: const Icon(Icons.play_arrow),

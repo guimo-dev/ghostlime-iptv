@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -224,6 +226,42 @@ void main() {
     );
     await tester.pumpAndSettle();
     await expectFocusAndArrows(tester);
+  });
+
+  // The episodes load after the first frame: the play button they bring
+  // must take the focus from the back arrow focused meanwhile.
+  testWidgets('series page focuses Reproducir once the episodes load', (
+    tester,
+  ) async {
+    useTvView(tester);
+    await pumpTvApp(tester, demo.db, const SizedBox.shrink());
+    // Pushed, as from Series: the app bar then has a back arrow, focused
+    // while the episodes load.
+    unawaited(
+      tester
+          .state<NavigatorState>(find.byType(Navigator))
+          .push(
+            MaterialPageRoute<void>(
+              builder: (_) => SeriesDetailScreen(
+                db: demo.db,
+                playlist: demo.playlist,
+                passwords: MemoryPasswordStore(),
+                series: demo.firstSeries,
+                m3uEpisodes: demo.firstShow,
+              ),
+            ),
+          ),
+    );
+    await tester.pumpAndSettle();
+    final focused = FocusManager.instance.primaryFocus!.context!;
+    expect(
+      find.ancestor(
+        of: find.byElementPredicate((e) => e == focused),
+        matching: find.widgetWithText(FilledButton, 'Reproducir'),
+      ),
+      findsOneWidget,
+      reason: 'focus is on ${focused.widget}',
+    );
   });
 
   for (final ofPlaylist in [false, true]) {
