@@ -160,7 +160,9 @@ class _PlaylistFormScreenState extends State<PlaylistFormScreen> {
   /// Scrolls the source error, at the top of the form, into view once it is
   /// laid out: the form may be scrolled down (on a TV typing lifts each field
   /// above the floating keyboard). Nothing moves when it is already visible.
+  /// Only on a TV: elsewhere the form stays where it is.
   void _showSourceError() {
+    if (!isTvDevice) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final context = _sourceErrorKey.currentContext;
       if (context == null) return;

@@ -177,4 +177,52 @@ void main() {
     expect(shown.top, greaterThanOrEqualTo(viewport.top));
     expect(shown.bottom, lessThanOrEqualTo(viewport.bottom));
   });
+
+  testWidgets('off a TV a rejected source does not scroll the form', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 400);
+    tester.view.devicePixelRatio = 1;
+    debugTvDevice = false;
+    addTearDown(() {
+      tester.view.reset();
+      debugTvDevice = null;
+    });
+    await tester.pumpWidget(
+      SettingsScope(
+        controller: SettingsController(CatalogDb.inMemory()),
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: PlaylistFormScreen(
+            checkSource: (_, _) async =>
+                'El servidor ha rechazado las credenciales de la lista.',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    Future<void> fill(String label, String value) async {
+      final field = find.widgetWithText(TextFormField, label);
+      await tester.ensureVisible(field);
+      await tester.pumpAndSettle();
+      await tester.enterText(field, value);
+    }
+
+    await fill('Nombre', 'Demo');
+    await fill('Servidor', 'http://127.0.0.1:1');
+    await fill('Usuario', 'demo');
+    await fill('Contraseña', 'mal');
+    final position = tester
+        .state<ScrollableState>(find.byType(Scrollable).first)
+        .position;
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    final before = position.pixels;
+    expect(before, greaterThan(0));
+
+    await tester.tap(find.text('Guardar'));
+    await tester.pumpAndSettle();
+
+    expect(position.pixels, before);
+  });
 }
