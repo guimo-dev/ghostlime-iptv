@@ -146,6 +146,12 @@ class _TvVodControlsState extends State<TvVodControls> {
     if (!open) _root.requestFocus();
   }
 
+  /// Plays ([play]) or pauses, and shows the controls.
+  void _setPlaying({required bool play}) {
+    play ? _player.play() : _player.pause();
+    _showControls();
+  }
+
   void _playOrPause() {
     _player.playOrPause();
     _showControls();
@@ -245,6 +251,12 @@ class _TvVodControlsState extends State<TvVodControls> {
           ),
           PlayPauseIntent: CallbackAction<PlayPauseIntent>(
             onInvoke: (_) => _playOrPause(),
+          ),
+          PlayIntent: CallbackAction<PlayIntent>(
+            onInvoke: (_) => _setPlaying(play: true),
+          ),
+          PauseIntent: CallbackAction<PauseIntent>(
+            onInvoke: (_) => _setPlaying(play: false),
           ),
           QuickOptionsIntent: CallbackAction<QuickOptionsIntent>(
             onInvoke: (_) => _setOptions(!_options),

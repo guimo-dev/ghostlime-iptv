@@ -249,6 +249,19 @@ void main() {
     await _leave(tester);
   });
 
+  testWidgets('the separate play and pause keys play and pause', (
+    tester,
+  ) async {
+    await pumpMovie(tester);
+    await _press(tester, LogicalKeyboardKey.mediaPause);
+    await _press(tester, LogicalKeyboardKey.mediaPause);
+    await _press(tester, LogicalKeyboardKey.mediaPlay);
+    expect(player.calls.where((c) => c == 'pause'), hasLength(2));
+    expect(player.calls.where((c) => c == 'play'), hasLength(1));
+    expect(player.calls, isNot(contains('playOrPause')));
+    await _leave(tester);
+  });
+
   testWidgets('Menu opens the audio and subtitle options', (tester) async {
     player.fakeState = PlayerState(
       position: const Duration(minutes: 5),

@@ -448,6 +448,17 @@ void main() {
     await _leave(tester);
   });
 
+  testWidgets('the separate play and pause keys play and pause live', (
+    tester,
+  ) async {
+    await pumpFullScreen(tester);
+    await _press(tester, LogicalKeyboardKey.mediaPause);
+    await _press(tester, LogicalKeyboardKey.mediaPlay);
+    expect(player.calls, containsAllInOrder(['pause', 'play']));
+    expect(player.calls, isNot(contains('playOrPause')));
+    await _leave(tester);
+  });
+
   testWidgets('the list and the options hide the start error', (tester) async {
     await pumpFullScreen(tester, startTimeout: const Duration(seconds: 3));
     await tester.pump(const Duration(seconds: 3));

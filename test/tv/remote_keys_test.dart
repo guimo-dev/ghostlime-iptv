@@ -110,6 +110,8 @@ void main() {
     expect((of(LogicalKeyboardKey.channelUp)! as ChannelStepIntent).step, 1);
     expect((of(LogicalKeyboardKey.channelDown)! as ChannelStepIntent).step, -1);
     expect(of(LogicalKeyboardKey.mediaPlayPause), isA<PlayPauseIntent>());
+    expect(of(LogicalKeyboardKey.mediaPlay), isA<PlayIntent>());
+    expect(of(LogicalKeyboardKey.mediaPause), isA<PauseIntent>());
     expect(
       (of(LogicalKeyboardKey.mediaFastForward)! as SeekIntent).offset,
       const Duration(seconds: 10),

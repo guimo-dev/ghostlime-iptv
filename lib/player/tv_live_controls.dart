@@ -347,6 +347,12 @@ class _TvLiveControlsState extends State<TvLiveControls> {
           PlayPauseIntent: CallbackAction<PlayPauseIntent>(
             onInvoke: (_) => widget.playback.player.playOrPause(),
           ),
+          PlayIntent: CallbackAction<PlayIntent>(
+            onInvoke: (_) => widget.playback.player.play(),
+          ),
+          PauseIntent: CallbackAction<PauseIntent>(
+            onInvoke: (_) => widget.playback.player.pause(),
+          ),
         },
         child: Focus(
           focusNode: _root,

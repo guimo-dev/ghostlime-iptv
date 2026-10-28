@@ -82,6 +82,12 @@ class FakePlayer implements Player {
   Future<void> playOrPause() async => calls.add('playOrPause');
 
   @override
+  Future<void> play() async => calls.add('play');
+
+  @override
+  Future<void> pause() async => calls.add('pause');
+
+  @override
   Future<void> seek(Duration duration) async =>
       calls.add('seek ${duration.inSeconds}');
 

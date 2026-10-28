@@ -29,6 +29,18 @@ class PlayPauseIntent extends Intent {
   const PlayPauseIntent();
 }
 
+/// The separate play key of some remotes and HDMI-CEC: starts playback.
+class PlayIntent extends Intent {
+  /// Starts playback.
+  const PlayIntent();
+}
+
+/// The separate pause key of some remotes and HDMI-CEC: pauses playback.
+class PauseIntent extends Intent {
+  /// Pauses playback.
+  const PauseIntent();
+}
+
 /// Fast forward or rewind on the remote: jump [offset] in a video.
 class SeekIntent extends Intent {
   /// Jumps [offset] (negative goes back).
@@ -141,6 +153,8 @@ final Map<ShortcutActivator, Intent> remoteShortcuts = {
   },
   const SingleActivator(LogicalKeyboardKey.mediaPlayPause):
       const PlayPauseIntent(),
+  const SingleActivator(LogicalKeyboardKey.mediaPlay): const PlayIntent(),
+  const SingleActivator(LogicalKeyboardKey.mediaPause): const PauseIntent(),
   const SingleActivator(LogicalKeyboardKey.mediaFastForward): const SeekIntent(
     _seekStep,
   ),
