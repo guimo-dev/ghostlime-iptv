@@ -132,15 +132,6 @@ Future<void> _fillXtreamForm(
   await fill('Contraseña', password);
 }
 
-/// On a TV, scrolls the form holding [error] back to its top: typing scrolled
-/// the last field up (room for the floating keyboard), past the error.
-Future<void> _formToTopOnTv(WidgetTester tester, Finder error) async {
-  if (!isTvDevice) return;
-  final form = find.ancestor(of: error, matching: find.byType(Scrollable));
-  tester.state<ScrollableState>(form.first).position.jumpTo(0);
-  await tester.pumpAndSettle();
-}
-
 /// Mask for the demo server address, whose port changes on every run.
 Finder _serverField() => find.widgetWithText(TextFormField, 'Servidor');
 
@@ -615,7 +606,6 @@ final Map<String, _Capture> _screens = {
           .evaluate()
           .isNotEmpty,
     );
-    await _formToTopOnTv(tester, find.textContaining('rechazado'));
     await tester.pumpAndSettle();
     await expectScreen(tester, name, masks: [_serverField()]);
   },
@@ -629,7 +619,6 @@ final Map<String, _Capture> _screens = {
       tester,
       () => find.textContaining('HTTP 503').evaluate().isNotEmpty,
     );
-    await _formToTopOnTv(tester, find.textContaining('HTTP 503'));
     await tester.pumpAndSettle();
     await expectScreen(tester, name, masks: [_serverField()]);
   },

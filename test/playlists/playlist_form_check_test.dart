@@ -6,6 +6,7 @@ import 'package:iptv_player/playlists/playlist_form_screen.dart';
 import 'package:iptv_player/settings/settings_controller.dart';
 import 'package:iptv_player/settings/settings_scope.dart';
 import 'package:iptv_player/ui/app_theme.dart';
+import 'package:iptv_player/ui/tv_device.dart';
 
 /// Opens the form from a button (so popping it can be observed), with
 /// [checkSource] as its source check, and fills in an Xtream playlist.
@@ -119,5 +120,61 @@ void main() {
 
     await tester.pumpAndSettle(const Duration(seconds: 1));
     expect(popped(), isNotNull);
+  });
+
+  // On a TV typing scrolls each field up (room for the floating keyboard),
+  // so the error, at the top of the form, could stay out of view.
+  testWidgets('on a TV a rejected source scrolls its error into view', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 720);
+    tester.view.devicePixelRatio = 1;
+    debugTvDevice = true;
+    addTearDown(() {
+      tester.view.reset();
+      debugTvDevice = null;
+    });
+    await tester.pumpWidget(
+      SettingsScope(
+        controller: SettingsController(CatalogDb.inMemory()),
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: PlaylistFormScreen(
+            checkSource: (_, _) async =>
+                'El servidor ha rechazado las credenciales de la lista.',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    // A locked field on a TV only takes text once opened (a tap).
+    Future<void> fill(String label, String value) async {
+      final field = find.widgetWithText(TextFormField, label);
+      await tester.ensureVisible(field);
+      await tester.pumpAndSettle();
+      await tester.tap(field);
+      await tester.pumpAndSettle();
+      await tester.enterText(field, value);
+    }
+
+    await fill('Nombre', 'Demo');
+    await fill('Servidor', 'http://127.0.0.1:1');
+    await fill('Usuario', 'demo');
+    await fill('Contraseña', 'mal');
+    final form = find.byType(Scrollable).first;
+    final position = tester.state<ScrollableState>(form).position;
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    final error = find.text(
+      'El servidor ha rechazado las credenciales de la lista.',
+    );
+
+    await tester.tap(find.text('Guardar'));
+    await tester.pumpAndSettle();
+
+    final viewport = tester.getRect(form);
+    final shown = tester.getRect(error);
+    expect(shown.top, greaterThanOrEqualTo(viewport.top));
+    expect(shown.bottom, lessThanOrEqualTo(viewport.bottom));
   });
 }

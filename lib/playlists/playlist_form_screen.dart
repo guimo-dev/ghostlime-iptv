@@ -61,6 +61,9 @@ class _PlaylistFormScreenState extends State<PlaylistFormScreen> {
   /// Error of the last failed source check, shown above the fields.
   String? _sourceError;
 
+  /// Key of the shown [_sourceError], to scroll it into view.
+  final _sourceErrorKey = GlobalKey();
+
   /// Guardar in the app bar: on a TV "Hecho" in the last field goes there.
   final _saveFocus = FocusNode();
 
@@ -145,9 +148,28 @@ class _PlaylistFormScreenState extends State<PlaylistFormScreen> {
           });
         }
       }
-      if (error != null || !mounted) return;
+      if (!mounted) return;
+      if (error != null) {
+        _showSourceError();
+        return;
+      }
     }
     Navigator.of(context).pop<PlaylistFormResult>((playlist, password));
+  }
+
+  /// Scrolls the source error, at the top of the form, into view once it is
+  /// laid out: the form may be scrolled down (on a TV typing lifts each field
+  /// above the floating keyboard). Nothing moves when it is already visible.
+  void _showSourceError() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final context = _sourceErrorKey.currentContext;
+      if (context == null) return;
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 200),
+        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart,
+      );
+    });
   }
 
   String? _required(String? value) =>
@@ -191,7 +213,8 @@ class _PlaylistFormScreenState extends State<PlaylistFormScreen> {
                     value: _type,
                     onChanged: (type) => setState(() => _type = type),
                   ),
-                  if (_sourceError case final error?) _SourceError(error),
+                  if (_sourceError case final error?)
+                    _SourceError(error, key: _sourceErrorKey),
                   TvKeyboardGate(
                     builder: (context, locked) => TextFormField(
                       readOnly: locked,
@@ -370,7 +393,7 @@ class _PlaylistFormScreenState extends State<PlaylistFormScreen> {
 
 /// The source check's error, in the error colour with an icon.
 class _SourceError extends StatelessWidget {
-  const _SourceError(this.message);
+  const _SourceError(this.message, {super.key});
 
   final String message;
 
