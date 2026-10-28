@@ -398,8 +398,19 @@ class LivePlayback extends ChangeNotifier {
   bool get _eventsAreCurrent =>
       _media != null && _openedGeneration == _generation;
 
+  /// Whether [message] is mpv refusing a seek ("Cannot seek in this stream.",
+  /// "You can force it with '--force-seekable=yes'."). On Android media_kit
+  /// seeks to the current position whenever the video surface changes (the
+  /// preview going full screen), which a live stream cannot do; nothing
+  /// failed and playback goes on.
+  static bool _isSeekRefusal(String message) =>
+      message.contains('Cannot seek in this stream') ||
+      message.contains('--force-seekable');
+
   void _onError(String message) {
     if (!_eventsAreCurrent) return;
+    // Not shown nor reconnected: see [_isSeekRefusal].
+    if (_isLive && _isSeekRefusal(message)) return;
     _log?.record(
       PlaybackEvent.error,
       detail: '${_playbackContext()}: $message',

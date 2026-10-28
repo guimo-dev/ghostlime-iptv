@@ -246,6 +246,26 @@ void main() {
       expect(player.opened, ['http://h/a.ts']);
       playback.dispose();
     });
+
+    // On Android media_kit seeks to the current position whenever the video
+    // surface changes (the preview going full screen); a live stream cannot
+    // seek and mpv logs it at error level.
+    testWidgets('mpv refusing to seek a live stream is not an error', (
+      tester,
+    ) async {
+      final player = FakePlayer();
+      final playback = playbackOf(player: player);
+      await playback.play(PlayTarget.fromChannel(_uno));
+      player.emitPosition(const Duration(seconds: 1));
+      player.emitError('Cannot seek in this stream.');
+      player.emitError("You can force it with '--force-seekable=yes'.");
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 20));
+
+      expect(playback.error, isNull);
+      expect(player.opened, ['http://h/a.ts'], reason: 'no reconnection');
+      playback.dispose();
+    });
   });
 
   group('Directo with one shared player', () {
